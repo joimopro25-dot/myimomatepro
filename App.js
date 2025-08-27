@@ -1,4 +1,4 @@
-// src/App.tsx
+// src/App.js
 import React from 'react';
 import FirebaseTest from './components/FirebaseTest';
 import './App.css';
