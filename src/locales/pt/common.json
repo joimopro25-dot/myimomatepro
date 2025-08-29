@@ -1,32 +1,54 @@
 ﻿{
-  "nav": {
-    "dashboard": "Dashboard",
-    "clients": "Clientes",
-    "leads": "Leads",
-    "deals": "Negócios",
-    "consultants": "Consultores",
-    "referrers": "Recomendadores",
-    "agencies": "Agências",
-    "reports": "Relatórios",
-    "settings": "Configurações"
-  },
-  "action": {
-    "save": "Guardar",
-    "cancel": "Cancelar",
-    "edit": "Editar",
-    "delete": "Eliminar",
-    "create": "Criar",
-    "update": "Atualizar",
-    "search": "Pesquisar",
-    "filter": "Filtrar",
-    "export": "Exportar",
-    "import": "Importar"
-  },
-  "status": {
-    "active": "Ativo",
-    "inactive": "Inativo",
-    "pending": "Pendente",
-    "completed": "Concluído",
-    "cancelled": "Cancelado"
-  }
+ "nav": {
+   "dashboard": "Dashboard",
+   "clients": "Clientes", 
+   "leads": "Leads",
+   "deals": "Negócios",
+   "documents": "Documentos",
+   "reports": "Relatórios",
+   "settings": "Configurações"
+ },
+ "buttons": {
+   "save": "Guardar",
+   "cancel": "Cancelar",
+   "edit": "Editar",
+   "delete": "Eliminar",
+   "archive": "Arquivar",
+   "back": "Voltar",
+   "search": "Pesquisar",
+   "filter": "Filtrar",
+   "loadMore": "Carregar mais",
+   "newClient": "Novo Cliente"
+ },
+ "status": {
+   "active": "Ativo",
+   "inactive": "Inativo",
+   "archived": "Arquivado",
+   "loading": "A carregar...",
+   "saving": "A guardar...",
+   "success": "Sucesso",
+   "error": "Erro"
+ },
+ "messages": {
+   "noData": "Nenhum dado disponível",
+   "noResults": "Nenhum resultado encontrado",
+   "confirmDelete": "Tem a certeza que pretende eliminar?",
+   "confirmArchive": "Tem a certeza que pretende arquivar?",
+   "unsavedChanges": "Tem alterações por guardar",
+   "operationSuccess": "Operação realizada com sucesso",
+   "operationError": "Erro ao realizar operação"
+ },
+ "dashboard": {
+   "welcome": "Bem-vindo",
+   "quickActions": "Ações Rápidas",
+   "recentActivity": "Atividade Recente",
+   "statistics": "Estatísticas",
+   "thisMonth": "Este Mês",
+   "thisWeek": "Esta Semana"
+ },
+ "forms": {
+   "requiredField": "Campo obrigatório",
+   "invalidFormat": "Formato inválido",
+   "selectOption": "Selecione uma opção"
+ }
 }

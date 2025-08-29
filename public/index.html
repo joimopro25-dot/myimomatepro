@@ -1,43 +1,115 @@
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#000000" />
-    <meta
-      name="description"
-      content="Web site created using create-react-app"
-    />
-    <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
-    <!--
-      manifest.json provides metadata used when your web app is installed on a
-      user's mobile device or desktop. See https://developers.google.com/web/fundamentals/web-app-manifest/
-    -->
-    <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
-    <!--
-      Notice the use of %PUBLIC_URL% in the tags above.
-      It will be replaced with the URL of the `public` folder during the build.
-      Only files inside the `public` folder can be referenced from the HTML.
-
-      Unlike "/favicon.ico" or "favicon.ico", "%PUBLIC_URL%/favicon.ico" will
-      work correctly both with client-side routing and a non-root public URL.
-      Learn how to configure a non-root public URL by running `npm run build`.
-    -->
-    <title>React App</title>
-  </head>
-  <body>
-    <noscript>You need to enable JavaScript to run this app.</noscript>
-    <div id="root"></div>
-    <!--
-      This HTML file is a template.
-      If you open it directly in the browser, you will see an empty page.
-
-      You can add webfonts, meta tags, or analytics to this file.
-      The build step will place the bundled scripts into the <body> tag.
-
-      To begin the development, run `npm start` or `yarn start`.
-      To create a production bundle, use `npm run build` or `yarn build`.
-    -->
-  </body>
+﻿<!DOCTYPE html>
+<html lang="pt">
+<head>
+ <meta charset="UTF-8" />
+ <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+ 
+ <!-- Primary Meta Tags -->
+ <title>MyImoMatePro - CRM para Consultores Imobiliários</title>
+ <meta name="title" content="MyImoMatePro - CRM para Consultores Imobiliários">
+ <meta name="description" content="Sistema CRM profissional para consultores imobiliários independentes. Gerencie clientes, negócios e documentos de forma inteligente.">
+ <meta name="keywords" content="CRM imobiliário, consultor imobiliário, gestão clientes, negócios imobiliários">
+ <meta name="author" content="MyImoMatePro">
+ 
+ <!-- Open Graph / Facebook -->
+ <meta property="og:type" content="website">
+ <meta property="og:title" content="MyImoMatePro - CRM para Consultores Imobiliários">
+ <meta property="og:description" content="Sistema CRM profissional para consultores imobiliários independentes.">
+ <meta property="og:site_name" content="MyImoMatePro">
+ 
+ <!-- Twitter -->
+ <meta property="twitter:card" content="summary_large_image">
+ <meta property="twitter:title" content="MyImoMatePro - CRM para Consultores Imobiliários">
+ <meta property="twitter:description" content="Sistema CRM profissional para consultores imobiliários independentes.">
+ 
+ <!-- Favicon -->
+ <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+ <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+ <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+ <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+ 
+ <!-- Web App Manifest -->
+ <link rel="manifest" href="/manifest.json">
+ <meta name="theme-color" content="#0ea5e9">
+ 
+ <!-- iOS Meta Tags -->
+ <meta name="apple-mobile-web-app-capable" content="yes">
+ <meta name="apple-mobile-web-app-status-bar-style" content="default">
+ <meta name="apple-mobile-web-app-title" content="MyImoMatePro">
+ 
+ <!-- Fonts -->
+ <link rel="preconnect" href="https://fonts.googleapis.com">
+ <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+ <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+ 
+ <!-- Prevent FOUC (Flash of Unstyled Content) -->
+ <style>
+   html { visibility: hidden; opacity: 0; }
+   body { 
+     margin: 0; 
+     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+     -webkit-font-smoothing: antialiased;
+     -moz-osx-font-smoothing: grayscale;
+   }
+   
+   /* Initial loading state */
+   #root {
+     min-height: 100vh;
+     display: flex;
+     align-items: center;
+     justify-content: center;
+   }
+   
+   /* Loading spinner for initial load */
+   .initial-loader {
+     width: 40px;
+     height: 40px;
+     border: 3px solid #f3f3f3;
+     border-top: 3px solid #0ea5e9;
+     border-radius: 50%;
+     animation: spin 1s linear infinite;
+   }
+   
+   @keyframes spin {
+     0% { transform: rotate(0deg); }
+     100% { transform: rotate(360deg); }
+   }
+   
+   /* Dark mode preference detection */
+   @media (prefers-color-scheme: dark) {
+     body { background-color: #0f172a; color: #f1f5f9; }
+   }
+ </style>
+</head>
+<body>
+ <div id="root">
+   <!-- Initial loading state -->
+   <div class="initial-loader"></div>
+ </div>
+ 
+ <!-- Show content after styles load -->
+ <script>
+   document.addEventListener('DOMContentLoaded', function() {
+     document.documentElement.style.visibility = 'visible';
+     document.documentElement.style.opacity = '1';
+   });
+ </script>
+ 
+ <!-- Service Worker Registration -->
+ <script>
+   if ('serviceWorker' in navigator) {
+     window.addEventListener('load', function() {
+       navigator.serviceWorker.register('/sw.js')
+         .then(function(registration) {
+           console.log('SW registered: ', registration);
+         })
+         .catch(function(registrationError) {
+           console.log('SW registration failed: ', registrationError);
+         });
+     });
+   }
+ </script>
+ 
+ <script type="module" src="/src/main.tsx"></script>
+</body>
 </html>

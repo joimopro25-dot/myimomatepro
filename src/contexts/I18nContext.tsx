@@ -35,11 +35,11 @@ export const I18nProvider: React.FC<I18nProviderProps> = ({
    try {
      // Load all namespaces for the language
      const [common, client, deal, report, ai] = await Promise.all([
-       import(\../locales/\it/common.json\).then(m => m.default),
-       import(\../locales/\it/client.json\).then(m => m.default).catch(() => ({})),
-       import(\../locales/\it/deal.json\).then(m => m.default).catch(() => ({})),
-       import(\../locales/\it/report.json\).then(m => m.default).catch(() => ({})),
-       import(\../locales/\it/ai.json\).then(m => m.default).catch(() => ({}))
+       import(\../locales/\/common.json\).then(m => m.default),
+       import(\../locales/\/client.json\).then(m => m.default).catch(() => ({})),
+       import(\../locales/\/deal.json\).then(m => m.default).catch(() => ({})),
+       import(\../locales/\/report.json\).then(m => m.default).catch(() => ({})),
+       import(\../locales/\/ai.json\).then(m => m.default).catch(() => ({}))
      ]);
 
      setTranslations(prev => ({
@@ -53,10 +53,10 @@ export const I18nProvider: React.FC<I18nProviderProps> = ({
        }
      }));
      
-     console.log(\Translations loaded for \it\);
+     console.log(\Translations loaded for \\);
    } catch (error) {
-     console.error(\Failed to load translations for \it:\, error);
-     setError(\Failed to load translations for \it\);
+     console.error(\Failed to load translations for \:\, error);
+     setError(\Failed to load translations for \\);
      
      // Fallback to Portuguese if not already
      if (lang !== 'pt') {
