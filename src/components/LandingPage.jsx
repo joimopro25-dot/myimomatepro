@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Building2, Users, Star, Check, ArrowRight } from 'lucide-react';
 
-const LandingPage = () => {
+const LandingPage = ({ onPlanSelect, onLoginClick }) => {
   const [selectedPlan, setSelectedPlan] = useState('pro');
 
   const plans = [
@@ -59,10 +59,16 @@ const LandingPage = () => {
   ];
 
   const handleGetStarted = (planId) => {
-    // Por agora apenas guarda o plano selecionado
     setSelectedPlan(planId);
-    // Aqui depois vamos navegar para a página de registo
-    console.log('Selected plan:', planId);
+    if (onPlanSelect) {
+      onPlanSelect(planId);
+    }
+  };
+
+  const handleLoginClick = () => {
+    if (onLoginClick) {
+      onLoginClick();
+    }
   };
 
   return (
@@ -82,7 +88,7 @@ const LandingPage = () => {
               <button className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium">
                 Preços
               </button>
-              <button className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+              <button className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm font-medium" onClick={handleLoginClick}>
                 Entrar
               </button>
             </div>

@@ -1,9 +1,10 @@
 // src/components/Register.jsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Building2, Check, AlertCircle, ArrowLeft, Loader } from 'lucide-react';
 import { registerUser } from '../firebase/auth';
 
-const Register = ({ selectedPlan = 'pro', onBack, onSuccess }) => {
+const Register = ({ onBack, onSuccess }) => {
+  const [selectedPlan, setSelectedPlan] = useState('pro');
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -16,6 +17,15 @@ const Register = ({ selectedPlan = 'pro', onBack, onSuccess }) => {
   
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
+
+  // Ler plano da URL
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const planFromUrl = urlParams.get('plan');
+    if (planFromUrl && ['basic', 'pro', 'unlimited'].includes(planFromUrl)) {
+      setSelectedPlan(planFromUrl);
+    }
+  }, []);
 
   const plans = {
     basic: {
@@ -404,4 +414,4 @@ const Register = ({ selectedPlan = 'pro', onBack, onSuccess }) => {
   );
 };
 
-export default Register; 
+export default Register;

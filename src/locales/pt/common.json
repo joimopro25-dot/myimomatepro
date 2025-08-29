@@ -1,0 +1,32 @@
+﻿{
+  "nav": {
+    "dashboard": "Dashboard",
+    "clients": "Clientes",
+    "leads": "Leads",
+    "deals": "Negócios",
+    "consultants": "Consultores",
+    "referrers": "Recomendadores",
+    "agencies": "Agências",
+    "reports": "Relatórios",
+    "settings": "Configurações"
+  },
+  "action": {
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "edit": "Editar",
+    "delete": "Eliminar",
+    "create": "Criar",
+    "update": "Atualizar",
+    "search": "Pesquisar",
+    "filter": "Filtrar",
+    "export": "Exportar",
+    "import": "Importar"
+  },
+  "status": {
+    "active": "Ativo",
+    "inactive": "Inativo",
+    "pending": "Pendente",
+    "completed": "Concluído",
+    "cancelled": "Cancelado"
+  }
+}
