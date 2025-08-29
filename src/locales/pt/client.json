@@ -1,46 +1,134 @@
 ﻿{
-  "fields": {
-    "name": "Nome Completo",
-    "email": "Email",
-    "phone": "Telefone",
-    "personalInfo": {
-      "citizenCardNumber": "Nº Cartão de Cidadão",
-      "citizenCardValidity": "Validade CC",
-      "nif": "NIF",
-      "birthDate": "Data de Nascimento",
-      "nationality": "Nacionalidade",
-      "birthPlace": "Naturalidade",
-      "parish": "Freguesia",
-      "municipality": "Concelho",
-      "district": "Distrito",
-      "profession": "Profissão",
-      "maritalStatus": "Estado Civil"
-    },
-    "financialInfo": {
-      "monthlyIncome": "Rendimento Mensal",
-      "spouseMonthlyIncome": "Rendimento Cônjuge",
-      "availableCapital": "Capital Disponível",
-      "creditSituation": "Situação de Crédito",
-      "primaryBank": "Banco Principal"
-    }
-  },
-  "tabs": {
-    "personalInfo": "Dados Pessoais",
-    "financialInfo": "Informações Financeiras",
-    "documentation": "Documentação e Observações"
-  },
-  "tags": {
-    "vip": "VIP",
-    "urgent": "Urgente",
-    "investor": "Investidor",
-    "first_home": "Primeira Habitação",
-    "financing_approved": "Financiamento Aprovado"
-  },
-  "placeholders": {
-    "name": "Digite o nome completo",
-    "email": "exemplo@email.com",
-    "phone": "+351 912 345 678",
-    "citizenCardNumber": "12345678 9 ZZ0",
-    "nif": "123456789"
-  }
+ "fields": {
+   "name": "Nome Completo",
+   "email": "Email",
+   "phone": "Telefone",
+   "personalInfo": {
+     "citizenCardNumber": "Nº Cartão de Cidadão",
+     "citizenCardValidity": "Validade CC",
+     "nif": "NIF",
+     "birthDate": "Data de Nascimento",
+     "nationality": "Nacionalidade",
+     "birthPlace": "Naturalidade",
+     "parish": "Freguesia",
+     "municipality": "Concelho",
+     "district": "Distrito",
+     "profession": "Profissão",
+     "maritalStatus": "Estado Civil"
+   },
+   "spouse": {
+     "name": "Nome do Cônjuge",
+     "email": "Email do Cônjuge",
+     "phone": "Telefone do Cônjuge",
+     "profession": "Profissão do Cônjuge",
+     "citizenCardNumber": "CC do Cônjuge",
+     "nif": "NIF do Cônjuge"
+   },
+   "address": {
+     "street": "Rua",
+     "number": "Número",
+     "floor": "Andar",
+     "postalCode": "Código Postal",
+     "city": "Cidade",
+     "parish": "Freguesia",
+     "municipality": "Concelho",
+     "district": "Distrito"
+   },
+   "financialInfo": {
+     "monthlyIncome": "Rendimento Mensal",
+     "spouseMonthlyIncome": "Rendimento Cônjuge",
+     "totalHouseholdIncome": "Rendimento Familiar Total",
+     "availableCapital": "Capital Disponível",
+     "creditSituation": "Situação de Crédito",
+     "primaryBank": "Banco Principal",
+     "hasBankPreApproval": "Pré-aprovação Bancária"
+   },
+   "contactPreferences": {
+     "preferredMethod": "Método de Contacto Preferido",
+     "bestTimeToCall": "Melhor Horário",
+     "daysAvailable": "Dias Disponíveis"
+   }
+ },
+ "tabs": {
+   "personalInfo": "Dados Pessoais",
+   "financialInfo": "Informações Financeiras",
+   "documentation": "Documentação e Observações"
+ },
+ "sections": {
+   "basic": "Informações Básicas",
+   "identification": "Identificação",
+   "family": "Dados Familiares",
+   "address": "Morada",
+   "financial": "Situação Financeira",
+   "preferences": "Preferências de Contacto",
+   "documents": "Documentos",
+   "tags": "Tags e Classificações",
+   "gdpr": "Consentimentos GDPR"
+ },
+ "tags": {
+   "vip": "VIP",
+   "urgent": "Urgente",
+   "investor": "Investidor",
+   "first_home": "Primeira Habitação",
+   "financing_approved": "Financiamento Aprovado",
+   "no_rush": "Sem Pressa",
+   "demanding": "Exigente",
+   "flexible_location": "Flexível Localização",
+   "high_budget": "Budget Alto",
+   "referral": "Recomendação",
+   "returning_client": "Cliente Reincidente"
+ },
+ "placeholders": {
+   "name": "Digite o nome completo",
+   "email": "exemplo@email.com",
+   "phone": "+351 912 345 678",
+   "citizenCardNumber": "12345678 9 ZZ0",
+   "nif": "123456789",
+   "profession": "Ex: Engenheiro, Professor",
+   "monthlyIncome": "Ex: 1500",
+   "availableCapital": "Ex: 50000"
+ },
+ "options": {
+   "maritalStatus": {
+     "single": "Solteiro(a)",
+     "married": "Casado(a)",
+     "divorced": "Divorciado(a)",
+     "widowed": "Viúvo(a)",
+     "civil_union": "União de Facto"
+   },
+   "creditSituation": {
+     "no_credit": "Sem Crédito",
+     "mortgage": "Crédito Habitação",
+     "personal_loan": "Crédito Pessoal",
+     "car_loan": "Crédito Automóvel",
+     "multiple_credits": "Múltiplos Créditos"
+   },
+   "contactMethod": {
+     "phone": "Telefone",
+     "email": "Email",
+     "whatsapp": "WhatsApp",
+     "sms": "SMS"
+   },
+   "source": {
+     "website": "Website",
+     "google": "Google",
+     "facebook": "Facebook",
+     "instagram": "Instagram",
+     "referral": "Recomendação",
+     "real_estate_portal": "Portal Imobiliário",
+     "outdoor_advertising": "Publicidade Exterior",
+     "radio": "Rádio",
+     "newspaper": "Jornal",
+     "cold_call": "Cold Call",
+     "other": "Outro"
+   }
+ },
+ "validation": {
+   "required": "Este campo é obrigatório",
+   "email": "Email inválido",
+   "phone": "Número de telefone inválido",
+   "nif": "NIF inválido",
+   "citizenCard": "Número de CC inválido",
+   "postalCode": "Código postal inválido"
+ }
 }
