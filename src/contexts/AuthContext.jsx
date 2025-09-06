@@ -41,7 +41,65 @@ export function AuthProvider({ children }) {
             ativo: true
         });
 
+        // Criar subscrição inicial
+        const planoData = getPlanoData(userData.plano);
+        await createInitialSubscription(user.uid, planoData);
+
         return userCredential;
+    }
+
+    // Obter dados do plano baseado no nome
+    function getPlanoData(nomePlano) {
+        const planos = {
+            'Rookie': {
+                nome: 'Rookie',
+                preco: '5',
+                precoAnual: '50',
+                limiteClientes: 50,
+                limiteVolumeNegocios: 25000
+            },
+            'Professional': {
+                nome: 'Professional',
+                preco: '9',
+                precoAnual: '90',
+                limiteClientes: 200,
+                limiteVolumeNegocios: 100000
+            },
+            'Shark': {
+                nome: 'Shark',
+                preco: '25',
+                precoAnual: '250',
+                limiteClientes: 'unlimited',
+                limiteVolumeNegocios: 'unlimited'
+            }
+        };
+
+        return planos[nomePlano] || planos['Professional'];
+    }
+
+    // Criar subscrição inicial
+    async function createInitialSubscription(userId, planoData) {
+        const subscriptionData = {
+            plano: planoData.nome,
+            preco: planoData.preco,
+            precoAnual: planoData.precoAnual,
+            limiteClientes: planoData.limiteClientes,
+            limiteVolumeNegocios: planoData.limiteVolumeNegocios,
+            ciclo: 'mensal',
+            status: 'active',
+            criadoEm: new Date(),
+            proximoPagamento: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+            ultimoPagamento: {
+                data: new Date(),
+                valor: planoData.preco,
+                status: 'pending'
+            },
+            metodoPagamento: 'pending',
+            trial: true,
+            trialFim: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
+        };
+
+        await setDoc(doc(db, 'subscriptions', userId), subscriptionData);
     }
 
     // Login
