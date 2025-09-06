@@ -1,5 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useSubscription } from '../contexts/SubscriptionContext';
 import {
     BuildingOfficeIcon,
     UserCircleIcon,
@@ -7,11 +9,15 @@ import {
     ChartBarIcon,
     UsersIcon,
     BriefcaseIcon,
-    CogIcon
+    CogIcon,
+    ChevronDownIcon,
+    ExclamationTriangleIcon
 } from '@heroicons/react/24/outline';
 
 export default function Dashboard() {
-    const { currentUser, userProfile, logout } = useAuth();
+    const { currentUser, logout } = useAuth();
+    const { subscription, stats, getTrialDaysLeft, isAnyLimitReached, getClientUsagePercentage, getVolumeUsagePercentage } = useSubscription();
+    const [showUserMenu, setShowUserMenu] = useState(false);
 
     const handleLogout = async () => {
         try {
@@ -20,6 +26,10 @@ export default function Dashboard() {
             console.error('Erro ao fazer logout:', error);
         }
     };
+
+    const trialDaysLeft = getTrialDaysLeft();
+    const isTrialActive = subscription?.trial && trialDaysLeft > 0;
+    const limitReached = isAnyLimitReached();
 
     return (
         <div className="min-h-screen bg-gray-50">
@@ -36,30 +46,81 @@ export default function Dashboard() {
                         </div>
 
                         {/* User Menu */}
-                        <div className="flex items-center space-x-4">
-                            <div className="flex items-center space-x-3">
-                                <UserCircleIcon className="w-8 h-8 text-gray-400" />
-                                <div className="hidden md:block">
-                                    <p className="text-sm font-medium text-gray-900">
-                                        {currentUser?.displayName || userProfile?.nome || 'Utilizador'}
-                                    </p>
-                                    <p className="text-xs text-gray-500">
-                                        {userProfile?.plano || 'Plano Básico'}
-                                    </p>
-                                </div>
-                            </div>
-
+                        <div className="relative">
                             <button
-                                onClick={handleLogout}
-                                className="flex items-center space-x-2 text-gray-500 hover:text-gray-700 transition-colors duration-200"
+                                onClick={() => setShowUserMenu(!showUserMenu)}
+                                className="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-100 transition-colors duration-200"
                             >
-                                <ArrowRightOnRectangleIcon className="w-5 h-5" />
-                                <span className="hidden md:inline">Sair</span>
+                                <div className="flex items-center space-x-3">
+                                    <UserCircleIcon className="w-8 h-8 text-gray-400" />
+                                    <div className="hidden md:block text-left">
+                                        <p className="text-sm font-medium text-gray-900">
+                                            {currentUser?.displayName || 'Utilizador'}
+                                        </p>
+                                        <p className="text-xs text-gray-500">
+                                            {subscription?.plano || 'Sem plano'}
+                                        </p>
+                                    </div>
+                                    <ChevronDownIcon className="w-4 h-4 text-gray-400" />
+                                </div>
                             </button>
+
+                            {/* Dropdown Menu */}
+                            {showUserMenu && (
+                                <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
+                                    <Link
+                                        to="/account"
+                                        className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors duration-200"
+                                        onClick={() => setShowUserMenu(false)}
+                                    >
+                                        <CogIcon className="w-4 h-4 mr-3" />
+                                        Configurações da Conta
+                                    </Link>
+
+                                    <hr className="my-1" />
+
+                                    <button
+                                        onClick={handleLogout}
+                                        className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors duration-200"
+                                    >
+                                        <ArrowRightOnRectangleIcon className="w-4 h-4 mr-3" />
+                                        Sair
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
             </header>
+
+            {/* Alertas */}
+            {(isTrialActive || limitReached) && (
+                <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4">
+                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                        <div className="flex items-center">
+                            <ExclamationTriangleIcon className="w-5 h-5 text-yellow-400 mr-3" />
+                            <div className="flex-1">
+                                {isTrialActive && (
+                                    <p className="text-yellow-800">
+                                        <span className="font-medium">Trial ativo:</span> {trialDaysLeft} dias restantes
+                                    </p>
+                                )}
+                                {limitReached && (
+                                    <p className="text-yellow-800">
+                                        <span className="font-medium">Atenção:</span> Atingiu os limites do seu plano
+                                    </p>
+                                )}
+                            </div>
+                            <Link
+                                to="/account"
+                                className="bg-yellow-100 hover:bg-yellow-200 text-yellow-800 px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200"
+                            >
+                                Gerir Plano
+                            </Link>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Main Content */}
             <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -76,14 +137,26 @@ export default function Dashboard() {
                 {/* Quick Stats */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                     <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-                        <div className="flex items-center">
-                            <div className="w-12 h-12 bg-blue-500 rounded-lg flex items-center justify-center">
-                                <UsersIcon className="w-6 h-6 text-white" />
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center">
+                                <div className="w-12 h-12 bg-blue-500 rounded-lg flex items-center justify-center">
+                                    <UsersIcon className="w-6 h-6 text-white" />
+                                </div>
+                                <div className="ml-4">
+                                    <p className="text-2xl font-bold text-gray-900">{stats.totalClientes}</p>
+                                    <p className="text-sm text-gray-500">
+                                        {subscription?.limiteClientes === 'unlimited' ? 'Clientes' : `de ${subscription?.limiteClientes || 0}`}
+                                    </p>
+                                </div>
                             </div>
-                            <div className="ml-4">
-                                <p className="text-2xl font-bold text-gray-900">0</p>
-                                <p className="text-sm text-gray-500">Clientes</p>
-                            </div>
+                            {subscription?.limiteClientes !== 'unlimited' && (
+                                <div className="w-16 h-2 bg-gray-200 rounded-full">
+                                    <div
+                                        className="h-2 bg-blue-500 rounded-full transition-all duration-300"
+                                        style={{ width: `${getClientUsagePercentage()}%` }}
+                                    ></div>
+                                </div>
+                            )}
                         </div>
                     </div>
 
@@ -93,21 +166,33 @@ export default function Dashboard() {
                                 <BriefcaseIcon className="w-6 h-6 text-white" />
                             </div>
                             <div className="ml-4">
-                                <p className="text-2xl font-bold text-gray-900">0</p>
+                                <p className="text-2xl font-bold text-gray-900">{stats.totalNegocios}</p>
                                 <p className="text-sm text-gray-500">Oportunidades</p>
                             </div>
                         </div>
                     </div>
 
                     <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-                        <div className="flex items-center">
-                            <div className="w-12 h-12 bg-purple-500 rounded-lg flex items-center justify-center">
-                                <ChartBarIcon className="w-6 h-6 text-white" />
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center">
+                                <div className="w-12 h-12 bg-purple-500 rounded-lg flex items-center justify-center">
+                                    <ChartBarIcon className="w-6 h-6 text-white" />
+                                </div>
+                                <div className="ml-4">
+                                    <p className="text-2xl font-bold text-gray-900">€{stats.valorNegocios.toLocaleString()}</p>
+                                    <p className="text-sm text-gray-500">
+                                        {subscription?.limiteVolumeNegocios === 'unlimited' ? 'Volume' : `de €${(subscription?.limiteVolumeNegocios || 0).toLocaleString()}`}
+                                    </p>
+                                </div>
                             </div>
-                            <div className="ml-4">
-                                <p className="text-2xl font-bold text-gray-900">0</p>
-                                <p className="text-sm text-gray-500">Deals Ativos</p>
-                            </div>
+                            {subscription?.limiteVolumeNegocios !== 'unlimited' && (
+                                <div className="w-16 h-2 bg-gray-200 rounded-full">
+                                    <div
+                                        className="h-2 bg-purple-500 rounded-full transition-all duration-300"
+                                        style={{ width: `${getVolumeUsagePercentage()}%` }}
+                                    ></div>
+                                </div>
+                            )}
                         </div>
                     </div>
 

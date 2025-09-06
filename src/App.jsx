@@ -1,9 +1,11 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { SubscriptionProvider } from './contexts/SubscriptionContext';
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
 import Dashboard from './pages/Dashboard';
+import AccountSettings from './pages/AccountSettings';
 import './index.css';
 
 // Componente para proteger rotas autenticadas
@@ -37,6 +39,11 @@ function AppRoutes() {
             <Dashboard />
           </ProtectedRoute>
         } />
+        <Route path="/account" element={
+          <ProtectedRoute>
+            <AccountSettings />
+          </ProtectedRoute>
+        } />
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </Router>
@@ -46,7 +53,9 @@ function AppRoutes() {
 function App() {
   return (
     <AuthProvider>
-      <AppRoutes />
+      <SubscriptionProvider>
+        <AppRoutes />
+      </SubscriptionProvider>
     </AuthProvider>
   );
 }
