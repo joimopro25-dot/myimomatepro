@@ -1,0 +1,630 @@
+/**
+ * CLIENT CONTEXT - MyImoMatePro
+ * Estado global para gestão de clientes com React Context
+ * Integração completa com clientService.js
+ */
+
+import React, { createContext, useContext, useReducer, useEffect, useCallback } from 'react';
+import { useAuth } from './AuthContext';
+import {
+    createClient,
+    getClient,
+    listClients,
+    searchClients,
+    updateClient,
+    updateClientTags,
+    deactivateClient,
+    reactivateClient,
+    deleteClient,
+    batchUpdateClients,
+    getClientStats
+} from '../services/clientService';
+
+// ===== CONTEXTO =====
+const ClientContext = createContext();
+
+// ===== HOOK PERSONALIZADO =====
+export function useClients() {
+    const context = useContext(ClientContext);
+    if (!context) {
+        throw new Error('useClients deve ser usado dentro de ClientProvider');
+    }
+    return context;
+}
+
+// ===== ESTADO INICIAL =====
+const initialState = {
+    // Dados
+    clients: [],
+    currentClient: null,
+    stats: null,
+
+    // Paginação
+    pagination: {
+        page: 1,
+        pageSize: 20,
+        hasMore: false,
+        lastDoc: null,
+        total: null
+    },
+
+    // Filtros e busca
+    filters: {
+        tag: 'all',
+        maritalStatus: 'all',
+        hasEmail: 'all',
+        hasFinancialInfo: 'all'
+    },
+    searchTerm: '',
+    searchResults: [],
+
+    // Estados de loading
+    loading: {
+        list: false,
+        create: false,
+        update: false,
+        delete: false,
+        search: false,
+        stats: false,
+        current: false
+    },
+
+    // Gestão de erros
+    errors: {
+        list: null,
+        create: null,
+        update: null,
+        delete: null,
+        search: null,
+        stats: null,
+        current: null
+    },
+
+    // Cache
+    cache: {
+        lastFetch: null,
+        invalidateAfter: 5 * 60 * 1000 // 5 minutos
+    }
+};
+
+// ===== ACTIONS =====
+const ClientActionTypes = {
+    // Loading states
+    SET_LOADING: 'SET_LOADING',
+    SET_ERROR: 'SET_ERROR',
+    CLEAR_ERROR: 'CLEAR_ERROR',
+
+    // CRUD operations
+    SET_CLIENTS: 'SET_CLIENTS',
+    ADD_CLIENT: 'ADD_CLIENT',
+    UPDATE_CLIENT: 'UPDATE_CLIENT',
+    REMOVE_CLIENT: 'REMOVE_CLIENT',
+    SET_CURRENT_CLIENT: 'SET_CURRENT_CLIENT',
+    CLEAR_CURRENT_CLIENT: 'CLEAR_CURRENT_CLIENT',
+
+    // Search and filters
+    SET_SEARCH_TERM: 'SET_SEARCH_TERM',
+    SET_SEARCH_RESULTS: 'SET_SEARCH_RESULTS',
+    SET_FILTERS: 'SET_FILTERS',
+    CLEAR_SEARCH: 'CLEAR_SEARCH',
+
+    // Pagination
+    SET_PAGINATION: 'SET_PAGINATION',
+    APPEND_CLIENTS: 'APPEND_CLIENTS',
+
+    // Statistics
+    SET_STATS: 'SET_STATS',
+
+    // Cache
+    UPDATE_CACHE: 'UPDATE_CACHE',
+    INVALIDATE_CACHE: 'INVALIDATE_CACHE'
+};
+
+// ===== REDUCER =====
+function clientReducer(state, action) {
+    switch (action.type) {
+        case ClientActionTypes.SET_LOADING:
+            return {
+                ...state,
+                loading: {
+                    ...state.loading,
+                    [action.operation]: action.isLoading
+                }
+            };
+
+        case ClientActionTypes.SET_ERROR:
+            return {
+                ...state,
+                errors: {
+                    ...state.errors,
+                    [action.operation]: action.error
+                },
+                loading: {
+                    ...state.loading,
+                    [action.operation]: false
+                }
+            };
+
+        case ClientActionTypes.CLEAR_ERROR:
+            return {
+                ...state,
+                errors: {
+                    ...state.errors,
+                    [action.operation]: null
+                }
+            };
+
+        case ClientActionTypes.SET_CLIENTS:
+            return {
+                ...state,
+                clients: action.clients,
+                pagination: action.pagination || state.pagination,
+                loading: { ...state.loading, list: false },
+                cache: { ...state.cache, lastFetch: Date.now() }
+            };
+
+        case ClientActionTypes.APPEND_CLIENTS:
+            return {
+                ...state,
+                clients: [...state.clients, ...action.clients],
+                pagination: action.pagination || state.pagination,
+                loading: { ...state.loading, list: false }
+            };
+
+        case ClientActionTypes.ADD_CLIENT:
+            return {
+                ...state,
+                clients: [action.client, ...state.clients],
+                loading: { ...state.loading, create: false }
+            };
+
+        case ClientActionTypes.UPDATE_CLIENT:
+            return {
+                ...state,
+                clients: state.clients.map(client =>
+                    client.id === action.client.id ? action.client : client
+                ),
+                currentClient: state.currentClient?.id === action.client.id
+                    ? action.client
+                    : state.currentClient,
+                loading: { ...state.loading, update: false }
+            };
+
+        case ClientActionTypes.REMOVE_CLIENT:
+            return {
+                ...state,
+                clients: state.clients.filter(client => client.id !== action.clientId),
+                currentClient: state.currentClient?.id === action.clientId
+                    ? null
+                    : state.currentClient,
+                loading: { ...state.loading, delete: false }
+            };
+
+        case ClientActionTypes.SET_CURRENT_CLIENT:
+            return {
+                ...state,
+                currentClient: action.client,
+                loading: { ...state.loading, current: false }
+            };
+
+        case ClientActionTypes.CLEAR_CURRENT_CLIENT:
+            return {
+                ...state,
+                currentClient: null
+            };
+
+        case ClientActionTypes.SET_SEARCH_TERM:
+            return {
+                ...state,
+                searchTerm: action.term
+            };
+
+        case ClientActionTypes.SET_SEARCH_RESULTS:
+            return {
+                ...state,
+                searchResults: action.results,
+                loading: { ...state.loading, search: false }
+            };
+
+        case ClientActionTypes.CLEAR_SEARCH:
+            return {
+                ...state,
+                searchTerm: '',
+                searchResults: []
+            };
+
+        case ClientActionTypes.SET_FILTERS:
+            return {
+                ...state,
+                filters: { ...state.filters, ...action.filters }
+            };
+
+        case ClientActionTypes.SET_STATS:
+            return {
+                ...state,
+                stats: action.stats,
+                loading: { ...state.loading, stats: false }
+            };
+
+        case ClientActionTypes.UPDATE_CACHE:
+            return {
+                ...state,
+                cache: { ...state.cache, lastFetch: Date.now() }
+            };
+
+        case ClientActionTypes.INVALIDATE_CACHE:
+            return {
+                ...state,
+                cache: { ...state.cache, lastFetch: null }
+            };
+
+        default:
+            return state;
+    }
+}
+
+// ===== PROVIDER =====
+export function ClientProvider({ children }) {
+    const [state, dispatch] = useReducer(clientReducer, initialState);
+    const { currentUser } = useAuth();
+
+    const tenantId = currentUser?.uid;
+
+    // ===== HELPER FUNCTIONS =====
+    const setLoading = useCallback((operation, isLoading) => {
+        dispatch({ type: ClientActionTypes.SET_LOADING, operation, isLoading });
+    }, []);
+
+    const setError = useCallback((operation, error) => {
+        dispatch({ type: ClientActionTypes.SET_ERROR, operation, error });
+    }, []);
+
+    const clearError = useCallback((operation) => {
+        dispatch({ type: ClientActionTypes.CLEAR_ERROR, operation });
+    }, []);
+
+    // ===== CRUD ACTIONS =====
+
+    /**
+     * Criar novo cliente
+     */
+    const createNewClient = useCallback(async (clientData) => {
+        if (!tenantId) {
+            throw new Error('Utilizador não autenticado');
+        }
+
+        try {
+            setLoading('create', true);
+            clearError('create');
+
+            console.log('ClientContext: Criando cliente...', { clientName: clientData.name });
+
+            const newClient = await createClient(tenantId, clientData);
+
+            dispatch({ type: ClientActionTypes.ADD_CLIENT, client: newClient });
+
+            // Invalidar cache de estatísticas
+            dispatch({ type: ClientActionTypes.INVALIDATE_CACHE });
+
+            console.log('ClientContext: Cliente criado com sucesso', { clientId: newClient.id });
+            return newClient;
+
+        } catch (error) {
+            console.error('ClientContext: Erro ao criar cliente:', error);
+            setError('create', error.message);
+            throw error;
+        }
+    }, [tenantId, setLoading, clearError, setError]);
+
+    /**
+     * Buscar cliente por ID
+     */
+    const fetchClient = useCallback(async (clientId) => {
+        if (!tenantId) {
+            throw new Error('Utilizador não autenticado');
+        }
+
+        try {
+            setLoading('current', true);
+            clearError('current');
+
+            console.log('ClientContext: Buscando cliente...', { clientId });
+
+            const client = await getClient(tenantId, clientId);
+
+            dispatch({ type: ClientActionTypes.SET_CURRENT_CLIENT, client });
+
+            console.log('ClientContext: Cliente carregado', { clientId: client?.id });
+            return client;
+
+        } catch (error) {
+            console.error('ClientContext: Erro ao buscar cliente:', error);
+            setError('current', error.message);
+            throw error;
+        }
+    }, [tenantId, setLoading, clearError, setError]);
+
+    /**
+     * Listar clientes com filtros
+     */
+    const fetchClients = useCallback(async (options = {}) => {
+        if (!tenantId) {
+            throw new Error('Utilizador não autenticado');
+        }
+
+        try {
+            const shouldLoadMore = options.loadMore || false;
+
+            if (!shouldLoadMore) {
+                setLoading('list', true);
+                clearError('list');
+            }
+
+            console.log('ClientContext: Listando clientes...', { options });
+
+            const queryOptions = {
+                page: shouldLoadMore ? state.pagination.page + 1 : 1,
+                pageSize: state.pagination.pageSize,
+                lastDoc: shouldLoadMore ? state.pagination.lastDoc : null,
+                filters: { ...state.filters, ...options.filters }
+            };
+
+            const result = await listClients(tenantId, queryOptions);
+
+            if (shouldLoadMore) {
+                dispatch({
+                    type: ClientActionTypes.APPEND_CLIENTS,
+                    clients: result.clients,
+                    pagination: result.pagination
+                });
+            } else {
+                dispatch({
+                    type: ClientActionTypes.SET_CLIENTS,
+                    clients: result.clients,
+                    pagination: result.pagination
+                });
+            }
+
+            console.log('ClientContext: Clientes carregados', { count: result.clients.length });
+            return result;
+
+        } catch (error) {
+            console.error('ClientContext: Erro ao listar clientes:', error);
+            setError('list', error.message);
+            throw error;
+        }
+    }, [tenantId, state.pagination, state.filters, setLoading, clearError, setError]);
+
+    /**
+     * Buscar clientes por termo
+     */
+    const searchClientsByTerm = useCallback(async (searchTerm) => {
+        if (!tenantId || !searchTerm || searchTerm.trim().length < 2) {
+            dispatch({ type: ClientActionTypes.SET_SEARCH_RESULTS, results: [] });
+            return [];
+        }
+
+        try {
+            setLoading('search', true);
+            clearError('search');
+
+            console.log('ClientContext: Buscando clientes...', { searchTerm });
+
+            const results = await searchClients(tenantId, searchTerm);
+
+            dispatch({ type: ClientActionTypes.SET_SEARCH_RESULTS, results });
+
+            console.log('ClientContext: Busca concluída', { found: results.length });
+            return results;
+
+        } catch (error) {
+            console.error('ClientContext: Erro na busca:', error);
+            setError('search', error.message);
+            throw error;
+        }
+    }, [tenantId, setLoading, clearError, setError]);
+
+    /**
+     * Atualizar cliente
+     */
+    const updateExistingClient = useCallback(async (clientId, updateData) => {
+        if (!tenantId) {
+            throw new Error('Utilizador não autenticado');
+        }
+
+        try {
+            setLoading('update', true);
+            clearError('update');
+
+            console.log('ClientContext: Atualizando cliente...', { clientId });
+
+            const updatedClient = await updateClient(tenantId, clientId, updateData);
+
+            dispatch({ type: ClientActionTypes.UPDATE_CLIENT, client: updatedClient });
+
+            console.log('ClientContext: Cliente atualizado', { clientId });
+            return updatedClient;
+
+        } catch (error) {
+            console.error('ClientContext: Erro ao atualizar cliente:', error);
+            setError('update', error.message);
+            throw error;
+        }
+    }, [tenantId, setLoading, clearError, setError]);
+
+    /**
+     * Atualizar tags do cliente
+     */
+    const updateClientTagsList = useCallback(async (clientId, tags) => {
+        if (!tenantId) {
+            throw new Error('Utilizador não autenticado');
+        }
+
+        try {
+            console.log('ClientContext: Atualizando tags...', { clientId, tags });
+
+            const updatedClient = await updateClientTags(tenantId, clientId, tags);
+
+            dispatch({ type: ClientActionTypes.UPDATE_CLIENT, client: updatedClient });
+
+            console.log('ClientContext: Tags atualizadas', { clientId });
+            return updatedClient;
+
+        } catch (error) {
+            console.error('ClientContext: Erro ao atualizar tags:', error);
+            throw error;
+        }
+    }, [tenantId]);
+
+    /**
+     * Desativar cliente
+     */
+    const deactivateExistingClient = useCallback(async (clientId) => {
+        if (!tenantId) {
+            throw new Error('Utilizador não autenticado');
+        }
+
+        try {
+            setLoading('delete', true);
+            clearError('delete');
+
+            console.log('ClientContext: Desativando cliente...', { clientId });
+
+            await deactivateClient(tenantId, clientId);
+
+            dispatch({ type: ClientActionTypes.REMOVE_CLIENT, clientId });
+
+            console.log('ClientContext: Cliente desativado', { clientId });
+            return true;
+
+        } catch (error) {
+            console.error('ClientContext: Erro ao desativar cliente:', error);
+            setError('delete', error.message);
+            throw error;
+        }
+    }, [tenantId, setLoading, clearError, setError]);
+
+    /**
+     * Buscar estatísticas
+     */
+    const fetchClientStats = useCallback(async () => {
+        if (!tenantId) {
+            return null;
+        }
+
+        try {
+            setLoading('stats', true);
+            clearError('stats');
+
+            console.log('ClientContext: Carregando estatísticas...');
+
+            const stats = await getClientStats(tenantId);
+
+            dispatch({ type: ClientActionTypes.SET_STATS, stats });
+
+            console.log('ClientContext: Estatísticas carregadas', stats);
+            return stats;
+
+        } catch (error) {
+            console.error('ClientContext: Erro ao carregar estatísticas:', error);
+            setError('stats', error.message);
+            throw error;
+        }
+    }, [tenantId, setLoading, clearError, setError]);
+
+    // ===== FILTER ACTIONS =====
+
+    const setSearchTerm = useCallback((term) => {
+        dispatch({ type: ClientActionTypes.SET_SEARCH_TERM, term });
+
+        if (!term || term.trim().length < 2) {
+            dispatch({ type: ClientActionTypes.SET_SEARCH_RESULTS, results: [] });
+        }
+    }, []);
+
+    const setFilters = useCallback((newFilters) => {
+        dispatch({ type: ClientActionTypes.SET_FILTERS, filters: newFilters });
+    }, []);
+
+    const clearSearch = useCallback(() => {
+        dispatch({ type: ClientActionTypes.CLEAR_SEARCH });
+    }, []);
+
+    const clearCurrentClient = useCallback(() => {
+        dispatch({ type: ClientActionTypes.CLEAR_CURRENT_CLIENT });
+    }, []);
+
+    // ===== CACHE MANAGEMENT =====
+
+    const shouldRefreshCache = useCallback(() => {
+        if (!state.cache.lastFetch) return true;
+        return Date.now() - state.cache.lastFetch > state.cache.invalidateAfter;
+    }, [state.cache]);
+
+    const invalidateCache = useCallback(() => {
+        dispatch({ type: ClientActionTypes.INVALIDATE_CACHE });
+    }, []);
+
+    // ===== AUTO-LOAD ON MOUNT =====
+    useEffect(() => {
+        if (tenantId && shouldRefreshCache() && state.clients.length === 0) {
+            console.log('ClientContext: Auto-loading clientes na inicialização...');
+            fetchClients().catch(console.error);
+        }
+    }, [tenantId, shouldRefreshCache, state.clients.length, fetchClients]);
+
+    // ===== SEARCH DEBOUNCE =====
+    useEffect(() => {
+        if (!state.searchTerm || state.searchTerm.trim().length < 2) {
+            return;
+        }
+
+        const timeoutId = setTimeout(() => {
+            searchClientsByTerm(state.searchTerm).catch(console.error);
+        }, 500); // Debounce de 500ms
+
+        return () => clearTimeout(timeoutId);
+    }, [state.searchTerm, searchClientsByTerm]);
+
+    // ===== CONTEXT VALUE =====
+    const contextValue = {
+        // Estado
+        ...state,
+
+        // Actions CRUD
+        createClient: createNewClient,
+        fetchClient,
+        fetchClients,
+        updateClient: updateExistingClient,
+        updateClientTags: updateClientTagsList,
+        deactivateClient: deactivateExistingClient,
+
+        // Actions de busca e filtros
+        searchClients: searchClientsByTerm,
+        setSearchTerm,
+        setFilters,
+        clearSearch,
+        clearCurrentClient,
+
+        // Estatísticas
+        fetchStats: fetchClientStats,
+
+        // Cache
+        invalidateCache,
+        shouldRefreshCache,
+
+        // Utilities
+        clearError,
+
+        // Computed values
+        hasClients: state.clients.length > 0,
+        isSearching: state.searchTerm.length >= 2,
+        hasSearchResults: state.searchResults.length > 0
+    };
+
+    return (
+        <ClientContext.Provider value={contextValue}>
+            {children}
+        </ClientContext.Provider>
+    );
+}
