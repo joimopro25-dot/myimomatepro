@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { doc, setDoc, getDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { useAuth } from './AuthContext';
+import { getClientStats } from '../services/clientService';
 
 const SubscriptionContext = createContext();
 
@@ -105,14 +106,29 @@ export function SubscriptionProvider({ children }) {
         if (!currentUser) return;
 
         try {
-            // Por agora valores mock, posteriormente vamos buscar do Firestore
+            console.log('📊 SubscriptionContext: Carregando estatísticas reais...');
+
+            // ✅ BUSCAR ESTATÍSTICAS REAIS DO FIRESTORE
+            const clientStats = await getClientStats(currentUser.uid);
+
+            setStats({
+                totalClientes: clientStats.total || 0,
+                totalNegocios: 0, // TODO: Implementar quando tivermos negócios
+                valorNegocios: 0  // TODO: Implementar quando tivermos negócios
+            });
+
+            console.log('✅ SubscriptionContext: Estatísticas carregadas:', {
+                totalClientes: clientStats.total || 0
+            });
+
+        } catch (error) {
+            console.error('❌ SubscriptionContext: Erro ao carregar estatísticas:', error);
+            // Em caso de erro, manter valores zerados
             setStats({
                 totalClientes: 0,
                 totalNegocios: 0,
                 valorNegocios: 0
             });
-        } catch (error) {
-            console.error('Erro ao carregar estatísticas:', error);
         }
     }
 

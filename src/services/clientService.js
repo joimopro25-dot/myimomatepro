@@ -196,7 +196,6 @@ export const listClients = async (consultorId, options = {}) => {
 
         // ✅ MAPEAMENTO SEGURO DOS DOCUMENTOS - CORREÇÃO FINAL PARA IDs NULL
         const clients = [];
-
         snapshot.forEach((doc) => {
             const docId = doc.id;
             const docData = doc.data();
@@ -208,14 +207,17 @@ export const listClients = async (consultorId, options = {}) => {
                 hasData: !!docData,
                 dataKeys: docData ? Object.keys(docData) : [],
                 name: docData?.name,
+                docDataId: docData?.id, // ✅ VERIFICAR SE docData tem id
                 originalDocRef: doc
             });
 
             if (docData && docId) {
-                // ✅ CORREÇÃO CRÍTICA: Usar o ID real do documento do Firebase
+                // ✅ CORREÇÃO CRÍTICA: Separar docData de id para evitar sobrescrita
+                const { id: docDataId, ...restOfDocData } = docData;
+
                 const client = {
-                    id: docId, // Firebase sempre gera um ID válido
-                    ...docData
+                    id: docId, // ✅ SEMPRE usar o ID do documento Firebase
+                    ...restOfDocData // ✅ Resto dos dados SEM o campo id interno
                 };
 
                 // ✅ Debug APÓS o mapeamento
@@ -224,10 +226,29 @@ export const listClients = async (consultorId, options = {}) => {
                     idType: typeof client.id,
                     name: client.name,
                     isActive: client.isActive,
-                    hasValidId: !!client.id,
-                    docIdOriginal: docId,
-                    clientKeys: Object.keys(client)
+                    hasValidId: !!(client.id && client.id.length > 0),
+                    docDataContainedId: docDataId,
+                    finalId: client.id
                 });
+
+                // ✅ Log adicional para debug
+                if (docDataId && docDataId !== docId) {
+                    console.warn('⚠️ ATENÇÃO: docData continha ID diferente do Firebase:', {
+                        firebaseId: docId,
+                        docDataId: docDataId,
+                        usingFirebaseId: true
+                    });
+                }
+
+                // ✅ Verificação de validade ANTES de adicionar
+                if (!client.id) {
+                    console.error('❌ ERRO CRÍTICO: ID ainda é inválido após correção:', {
+                        client,
+                        docIdOriginal: docId,
+                        clientKeys: Object.keys(client)
+                    });
+                    return; // Pular este documento
+                }
 
                 // ✅ VERIFICAÇÃO FINAL: Só adicionar se ID existir
                 if (client.id && client.id.length > 0) {
@@ -247,12 +268,6 @@ export const listClients = async (consultorId, options = {}) => {
                     docIdValid: !!docId
                 });
             }
-        });
-
-        console.log('📋 RESULTADO MAPEAMENTO - Total de clientes válidos:', {
-            totalMapped: clients.length,
-            clientNames: clients.map(c => c.name),
-            allClientsHaveIds: clients.every(c => !!c.id && c.id.length > 0)
         });
 
         // ✅ APLICAR FILTROS MANUALMENTE (só para clientes ativos)
