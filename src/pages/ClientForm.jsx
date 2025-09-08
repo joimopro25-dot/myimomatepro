@@ -75,6 +75,7 @@ const ClientFormPage = () => {
                 ccValidity: '',
                 profession: '',
                 nif: '',
+                birthDate: '',
                 birthPlace: '',
                 parish: '',
                 municipality: '',
@@ -569,6 +570,28 @@ const ClientFormPage = () => {
                                 placeholder="987654321"
                             />
                         </div>
+
+                        {/* ✅ NOVOS CAMPOS: Data de Nascimento e Naturalidade do Cônjuge */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Data de Nascimento do Cônjuge</label>
+                            <input
+                                type="date"
+                                value={formData.spouse.birthDate}
+                                onChange={(e) => handleFieldChange('spouse.birthDate', e.target.value)}
+                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Naturalidade do Cônjuge</label>
+                            <input
+                                type="text"
+                                value={formData.spouse.birthPlace}
+                                onChange={(e) => handleFieldChange('spouse.birthPlace', e.target.value)}
+                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                placeholder="Porto"
+                            />
+                        </div>
                     </div>
                 </div>
             )}
@@ -1006,8 +1029,8 @@ const ClientFormPage = () => {
                                 handleFieldChange('tags', newTags);
                             }}
                             className={`px-3 py-2 rounded-full text-sm transition-all duration-200 ${formData.tags.includes(tag)
-                                    ? 'bg-blue-600 text-white shadow-md'
-                                    : 'bg-white text-gray-700 border border-gray-300 hover:bg-blue-50 hover:border-blue-300'
+                                ? 'bg-blue-600 text-white shadow-md'
+                                : 'bg-white text-gray-700 border border-gray-300 hover:bg-blue-50 hover:border-blue-300'
                                 }`}
                         >
                             {tag}
@@ -1284,10 +1307,10 @@ const ClientFormPage = () => {
                         {[1, 2, 3, 4].map(step => (
                             <div key={step} className="flex items-center">
                                 <div className={`flex items-center justify-center w-12 h-12 rounded-full transition-all duration-200 ${step === currentStep
-                                        ? 'bg-blue-600 text-white ring-4 ring-blue-200'
-                                        : step < currentStep
-                                            ? 'bg-green-600 text-white'
-                                            : 'bg-gray-200 text-gray-600'
+                                    ? 'bg-blue-600 text-white ring-4 ring-blue-200'
+                                    : step < currentStep
+                                        ? 'bg-green-600 text-white'
+                                        : 'bg-gray-200 text-gray-600'
                                     }`}>
                                     {step < currentStep ? (
                                         <CheckCircleIcon className="w-6 h-6" />
@@ -1321,8 +1344,8 @@ const ClientFormPage = () => {
                         onClick={prevStep}
                         disabled={currentStep === 1}
                         className={`px-6 py-3 border rounded-lg transition-all duration-200 shadow-sm ${currentStep === 1
-                                ? 'invisible'
-                                : 'text-gray-700 bg-white border-gray-300 hover:bg-gray-50'
+                            ? 'invisible'
+                            : 'text-gray-700 bg-white border-gray-300 hover:bg-gray-50'
                             }`}
                     >
                         ← Anterior
