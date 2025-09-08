@@ -57,7 +57,10 @@ export const createClient = async (consultorId, clientData) => {
 
         // Criar schema com consultorId
         const clientSchema = createClientSchema(clientData);
-        clientSchema.consultorId = consultorId; // Usar consultorId em vez de tenantId
+        clientSchema.consultorId = consultorId;
+
+        // ✅ CORREÇÃO CRÍTICA: FORÇAR isActive = true
+        clientSchema.isActive = true;
 
         // Calcular rendimento total do agregado se tiver rendimentos
         if (clientSchema.financial.monthlyIncome || clientSchema.financial.spouseMonthlyIncome) {
@@ -65,6 +68,15 @@ export const createClient = async (consultorId, clientData) => {
             const spouseMonthly = parseFloat(clientSchema.financial.spouseMonthlyIncome) || 0;
             clientSchema.financial.totalHouseholdIncome = (monthly + spouseMonthly).toString();
         }
+
+        // ✅ DEBUG: Log do schema antes de gravar
+        console.log('🔍 DEBUG - Schema a ser gravado:', {
+            id: 'será_gerado_pelo_firestore',
+            name: clientSchema.name,
+            isActive: clientSchema.isActive,
+            consultorId: clientSchema.consultorId,
+            createdAt: clientSchema.createdAt
+        });
 
         // Adicionar ao Firestore na estrutura correta
         const clientRef = await addDoc(getClientCollection(consultorId), clientSchema);
@@ -75,6 +87,14 @@ export const createClient = async (consultorId, clientData) => {
             id: createdClient.id,
             ...createdClient.data()
         };
+
+        // ✅ DEBUG: Log do cliente criado
+        console.log('✅ Cliente criado - Verificação:', {
+            id: clientWithId.id,
+            name: clientWithId.name,
+            isActive: clientWithId.isActive,
+            consultorId: clientWithId.consultorId
+        });
 
         console.log('✅ ClientService: Cliente criado com sucesso', { clientId: clientWithId.id });
         return clientWithId;

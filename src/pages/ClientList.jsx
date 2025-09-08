@@ -75,9 +75,38 @@ const ClientListPage = () => {
     const [sortOrder, setSortOrder] = useState('desc');
 
     // Carregar dados iniciais
+    // Carregar dados iniciais - VERSÃO CORRIGIDA
     useEffect(() => {
+        console.log('🔄 ClientList: Carregando dados iniciais...');
+
+        // Carregar estatísticas
         fetchStats().catch(console.error);
-    }, [fetchStats]);
+
+        // ✅ CORREÇÃO: Carregar lista de clientes automaticamente
+        fetchClients().catch(console.error);
+
+    }, [fetchStats, fetchClients]);
+
+    // ✅ ADICIONAR: useEffect para debug (temporário)
+    useEffect(() => {
+        console.log('📊 ClientList: Estado atual:', {
+            clientsCount: clients.length,
+            isLoading: loading.list,
+            hasStats: !!stats,
+            statsTotal: stats?.total
+        });
+    }, [clients.length, loading.list, stats]);
+
+    // ✅ ADICIONAR: Log quando clientes mudam
+    useEffect(() => {
+        if (clients.length > 0) {
+            console.log('✅ ClientList: Clientes carregados:', clients.map(c => ({
+                id: c.id,
+                name: c.name,
+                isActive: c.isActive
+            })));
+        }
+    }, [clients]);
 
     // Lista de clientes a mostrar (busca ou lista normal)
     const displayClients = useMemo(() => {
@@ -204,9 +233,9 @@ const ClientListPage = () => {
                         <span
                             key={index}
                             className={`px-2 py-1 text-xs font-medium rounded-full ${tag === 'VIP' ? 'bg-yellow-100 text-yellow-800' :
-                                    tag === 'Urgente' ? 'bg-red-100 text-red-800' :
-                                        tag === 'Investidor' ? 'bg-green-100 text-green-800' :
-                                            'bg-gray-100 text-gray-800'
+                                tag === 'Urgente' ? 'bg-red-100 text-red-800' :
+                                    tag === 'Investidor' ? 'bg-green-100 text-green-800' :
+                                        'bg-gray-100 text-gray-800'
                                 }`}
                         >
                             {tag}
@@ -339,8 +368,8 @@ const ClientListPage = () => {
                             <button
                                 onClick={() => setShowFilters(!showFilters)}
                                 className={`flex items-center space-x-2 px-4 py-2 rounded-lg border transition-colors ${showFilters || activeFiltersCount > 0
-                                        ? 'border-blue-500 bg-blue-50 text-blue-700'
-                                        : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                                    ? 'border-blue-500 bg-blue-50 text-blue-700'
+                                    : 'border-gray-300 text-gray-700 hover:bg-gray-50'
                                     }`}
                             >
                                 <FunnelIcon className="w-4 h-4" />
