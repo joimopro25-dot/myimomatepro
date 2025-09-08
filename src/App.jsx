@@ -9,6 +9,7 @@ import Dashboard from './pages/Dashboard';
 import AccountSettings from './pages/AccountSettings';
 import ClientList from './pages/ClientList';
 import ClientForm from './pages/ClientForm';
+import ClientDetail from './pages/ClientDetail'; // ✅ ADICIONADO: Import do ClientDetail
 import './index.css';
 
 // Componente para proteger rotas autenticadas
@@ -66,9 +67,10 @@ function AppRoutes() {
           </ProtectedRoute>
         } />
 
+        {/* ✅ CORRIGIDO: Rota para visualização de cliente específico */}
         <Route path="/clients/:clientId" element={
           <ProtectedRoute>
-            <ClientList />
+            <ClientDetail />
           </ProtectedRoute>
         } />
 
