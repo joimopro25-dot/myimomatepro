@@ -1,7 +1,7 @@
 /**
- * CLIENT SERVICE - MyImoMatePro
+ * CLIENT SERVICE - MyImoMatePro CORRIGIDO
  * CRUD completo para gestão de clientes no Firestore
- * Estrutura: tenants/{tenantId}/clients/{clientId}
+ * ESTRUTURA CORRETA: consultores/{consultorId}/clientes/{clienteId}
  */
 
 import {
@@ -23,30 +23,31 @@ import {
 import { db } from '../firebase/config';
 import { createClientSchema, validateClientData } from '../models/clientModel';
 
-// ===== CONFIGURAÇÕES =====
-const COLLECTION_NAME = 'clients';
+// ===== CONFIGURAÇÕES CORRIGIDAS =====
+const COLLECTION_NAME = 'clientes';
+const CONSULTOR_COLLECTION = 'consultores';
 const DEFAULT_PAGE_SIZE = 20;
 
-// ===== HELPER FUNCTIONS =====
-const getClientCollection = (tenantId) => {
-    return collection(db, 'tenants', tenantId, COLLECTION_NAME);
+// ===== HELPER FUNCTIONS CORRIGIDAS =====
+const getClientCollection = (consultorId) => {
+    return collection(db, CONSULTOR_COLLECTION, consultorId, COLLECTION_NAME);
 };
 
-const getClientDoc = (tenantId, clientId) => {
-    return doc(db, 'tenants', tenantId, COLLECTION_NAME, clientId);
+const getClientDoc = (consultorId, clientId) => {
+    return doc(db, CONSULTOR_COLLECTION, consultorId, COLLECTION_NAME, clientId);
 };
 
 // ===== CREATE OPERATIONS =====
 
 /**
  * Criar novo cliente
- * @param {string} tenantId - ID do consultor
+ * @param {string} consultorId - ID do consultor
  * @param {Object} clientData - Dados do cliente
  * @returns {Promise<Object>} Cliente criado com ID
  */
-export const createClient = async (tenantId, clientData) => {
+export const createClient = async (consultorId, clientData) => {
     try {
-        console.log('🆕 ClientService: Criando cliente...', { tenantId, clientName: clientData.name });
+        console.log('🆕 ClientService: Criando cliente...', { consultorId, clientName: clientData.name });
 
         // Validar dados antes de criar
         const validation = validateClientData(clientData);
@@ -54,9 +55,9 @@ export const createClient = async (tenantId, clientData) => {
             throw new Error(`Dados inválidos: ${JSON.stringify(validation.errors)}`);
         }
 
-        // Criar schema com tenantId
+        // Criar schema com consultorId
         const clientSchema = createClientSchema(clientData);
-        clientSchema.tenantId = tenantId;
+        clientSchema.consultorId = consultorId; // Usar consultorId em vez de tenantId
 
         // Calcular rendimento total do agregado se tiver rendimentos
         if (clientSchema.financial.monthlyIncome || clientSchema.financial.spouseMonthlyIncome) {
@@ -65,8 +66,8 @@ export const createClient = async (tenantId, clientData) => {
             clientSchema.financial.totalHouseholdIncome = (monthly + spouseMonthly).toString();
         }
 
-        // Adicionar ao Firestore
-        const clientRef = await addDoc(getClientCollection(tenantId), clientSchema);
+        // Adicionar ao Firestore na estrutura correta
+        const clientRef = await addDoc(getClientCollection(consultorId), clientSchema);
 
         // Buscar cliente criado para retornar dados completos
         const createdClient = await getDoc(clientRef);
@@ -88,15 +89,15 @@ export const createClient = async (tenantId, clientData) => {
 
 /**
  * Buscar cliente por ID
- * @param {string} tenantId - ID do consultor
+ * @param {string} consultorId - ID do consultor
  * @param {string} clientId - ID do cliente
  * @returns {Promise<Object|null>} Cliente ou null se não encontrado
  */
-export const getClient = async (tenantId, clientId) => {
+export const getClient = async (consultorId, clientId) => {
     try {
-        console.log('🔍 ClientService: Buscando cliente...', { tenantId, clientId });
+        console.log('🔍 ClientService: Buscando cliente...', { consultorId, clientId });
 
-        const clientDoc = await getDoc(getClientDoc(tenantId, clientId));
+        const clientDoc = await getDoc(getClientDoc(consultorId, clientId));
 
         if (!clientDoc.exists()) {
             console.log('⚠️ ClientService: Cliente não encontrado');
@@ -118,12 +119,12 @@ export const getClient = async (tenantId, clientId) => {
 };
 
 /**
- * Listar todos os clientes do tenant com paginação
- * @param {string} tenantId - ID do consultor
+ * Listar todos os clientes do consultor com paginação
+ * @param {string} consultorId - ID do consultor
  * @param {Object} options - Opções de busca (page, pageSize, orderBy, filters)
  * @returns {Promise<Object>} Lista de clientes com metadados de paginação
  */
-export const listClients = async (tenantId, options = {}) => {
+export const listClients = async (consultorId, options = {}) => {
     try {
         const {
             page = 1,
@@ -135,7 +136,7 @@ export const listClients = async (tenantId, options = {}) => {
         } = options;
 
         console.log('📋 ClientService: Listando clientes...', {
-            tenantId,
+            consultorId,
             page,
             pageSize,
             orderField,
@@ -143,7 +144,7 @@ export const listClients = async (tenantId, options = {}) => {
         });
 
         let clientQuery = query(
-            getClientCollection(tenantId),
+            getClientCollection(consultorId),
             where('isActive', '==', true),
             orderBy(orderField, orderDirection),
             limit(pageSize)
@@ -203,14 +204,14 @@ export const listClients = async (tenantId, options = {}) => {
 
 /**
  * Buscar clientes por texto (nome, email, telefone)
- * @param {string} tenantId - ID do consultor
+ * @param {string} consultorId - ID do consultor
  * @param {string} searchTerm - Termo de busca
  * @param {number} maxResults - Máximo de resultados
  * @returns {Promise<Array>} Lista de clientes encontrados
  */
-export const searchClients = async (tenantId, searchTerm, maxResults = 10) => {
+export const searchClients = async (consultorId, searchTerm, maxResults = 10) => {
     try {
-        console.log('🔎 ClientService: Buscando clientes por termo...', { tenantId, searchTerm });
+        console.log('🔎 ClientService: Buscando clientes por termo...', { consultorId, searchTerm });
 
         if (!searchTerm || searchTerm.trim().length < 2) {
             return [];
@@ -220,7 +221,7 @@ export const searchClients = async (tenantId, searchTerm, maxResults = 10) => {
 
         // Buscar por nome (aproximado)
         const nameQuery = query(
-            getClientCollection(tenantId),
+            getClientCollection(consultorId),
             where('isActive', '==', true),
             orderBy('name'),
             limit(maxResults)
@@ -259,14 +260,14 @@ export const searchClients = async (tenantId, searchTerm, maxResults = 10) => {
 
 /**
  * Atualizar cliente existente
- * @param {string} tenantId - ID do consultor
+ * @param {string} consultorId - ID do consultor
  * @param {string} clientId - ID do cliente
  * @param {Object} updateData - Dados para atualizar
  * @returns {Promise<Object>} Cliente atualizado
  */
-export const updateClient = async (tenantId, clientId, updateData) => {
+export const updateClient = async (consultorId, clientId, updateData) => {
     try {
-        console.log('✏️ ClientService: Atualizando cliente...', { tenantId, clientId });
+        console.log('✏️ ClientService: Atualizando cliente...', { consultorId, clientId });
 
         // Validar dados se fornecidos campos críticos
         if (updateData.name || updateData.phone || updateData.email) {
@@ -287,7 +288,7 @@ export const updateClient = async (tenantId, clientId, updateData) => {
             updateData.financial?.spouseMonthlyIncome !== undefined) {
 
             // Buscar dados atuais para calcular
-            const currentClient = await getClient(tenantId, clientId);
+            const currentClient = await getClient(consultorId, clientId);
             if (currentClient) {
                 const monthly = parseFloat(updateData.financial?.monthlyIncome ?? currentClient.financial?.monthlyIncome ?? 0);
                 const spouseMonthly = parseFloat(updateData.financial?.spouseMonthlyIncome ?? currentClient.financial?.spouseMonthlyIncome ?? 0);
@@ -298,10 +299,10 @@ export const updateClient = async (tenantId, clientId, updateData) => {
         }
 
         // Atualizar no Firestore
-        await updateDoc(getClientDoc(tenantId, clientId), updatePayload);
+        await updateDoc(getClientDoc(consultorId, clientId), updatePayload);
 
         // Buscar cliente atualizado
-        const updatedClient = await getClient(tenantId, clientId);
+        const updatedClient = await getClient(consultorId, clientId);
 
         console.log('✅ ClientService: Cliente atualizado com sucesso');
         return updatedClient;
@@ -314,21 +315,21 @@ export const updateClient = async (tenantId, clientId, updateData) => {
 
 /**
  * Atualizar apenas tags do cliente
- * @param {string} tenantId - ID do consultor
+ * @param {string} consultorId - ID do consultor
  * @param {string} clientId - ID do cliente
  * @param {Array} tags - Nova lista de tags
  * @returns {Promise<Object>} Cliente atualizado
  */
-export const updateClientTags = async (tenantId, clientId, tags) => {
+export const updateClientTags = async (consultorId, clientId, tags) => {
     try {
         console.log('🏷️ ClientService: Atualizando tags do cliente...', { clientId, tags });
 
-        await updateDoc(getClientDoc(tenantId, clientId), {
+        await updateDoc(getClientDoc(consultorId, clientId), {
             tags: tags || [],
             updatedAt: Timestamp.now()
         });
 
-        const updatedClient = await getClient(tenantId, clientId);
+        const updatedClient = await getClient(consultorId, clientId);
         console.log('✅ ClientService: Tags atualizadas com sucesso');
         return updatedClient;
 
@@ -342,15 +343,15 @@ export const updateClientTags = async (tenantId, clientId, tags) => {
 
 /**
  * Desativar cliente (soft delete)
- * @param {string} tenantId - ID do consultor
+ * @param {string} consultorId - ID do consultor
  * @param {string} clientId - ID do cliente
  * @returns {Promise<boolean>} Sucesso da operação
  */
-export const deactivateClient = async (tenantId, clientId) => {
+export const deactivateClient = async (consultorId, clientId) => {
     try {
-        console.log('🗑️ ClientService: Desativando cliente...', { tenantId, clientId });
+        console.log('🗑️ ClientService: Desativando cliente...', { consultorId, clientId });
 
-        await updateDoc(getClientDoc(tenantId, clientId), {
+        await updateDoc(getClientDoc(consultorId, clientId), {
             isActive: false,
             deactivatedAt: Timestamp.now(),
             updatedAt: Timestamp.now()
@@ -367,15 +368,15 @@ export const deactivateClient = async (tenantId, clientId) => {
 
 /**
  * Reativar cliente
- * @param {string} tenantId - ID do consultor
+ * @param {string} consultorId - ID do consultor
  * @param {string} clientId - ID do cliente
  * @returns {Promise<boolean>} Sucesso da operação
  */
-export const reactivateClient = async (tenantId, clientId) => {
+export const reactivateClient = async (consultorId, clientId) => {
     try {
-        console.log('♻️ ClientService: Reativando cliente...', { tenantId, clientId });
+        console.log('♻️ ClientService: Reativando cliente...', { consultorId, clientId });
 
-        await updateDoc(getClientDoc(tenantId, clientId), {
+        await updateDoc(getClientDoc(consultorId, clientId), {
             isActive: true,
             deactivatedAt: null,
             updatedAt: Timestamp.now()
@@ -392,18 +393,18 @@ export const reactivateClient = async (tenantId, clientId) => {
 
 /**
  * Deletar cliente permanentemente (use com cuidado)
- * @param {string} tenantId - ID do consultor
+ * @param {string} consultorId - ID do consultor
  * @param {string} clientId - ID do cliente
  * @returns {Promise<boolean>} Sucesso da operação
  */
-export const deleteClient = async (tenantId, clientId) => {
+export const deleteClient = async (consultorId, clientId) => {
     try {
-        console.log('🔥 ClientService: DELETANDO cliente permanentemente...', { tenantId, clientId });
+        console.log('🔥 ClientService: DELETANDO cliente permanentemente...', { consultorId, clientId });
 
-        // TODO: Verificar se cliente tem oportunidades/deals antes de deletar
+        // TODO: Verificar se cliente tem leads/oportunidades antes de deletar
         // TODO: Implementar cascade delete para subcoleções
 
-        await deleteDoc(getClientDoc(tenantId, clientId));
+        await deleteDoc(getClientDoc(consultorId, clientId));
 
         console.log('✅ ClientService: Cliente deletado permanentemente');
         return true;
@@ -418,14 +419,14 @@ export const deleteClient = async (tenantId, clientId) => {
 
 /**
  * Operações em lote para múltiplos clientes
- * @param {string} tenantId - ID do consultor
+ * @param {string} consultorId - ID do consultor
  * @param {Array} operations - Lista de operações [{type, clientId, data}]
  * @returns {Promise<boolean>} Sucesso da operação
  */
-export const batchUpdateClients = async (tenantId, operations) => {
+export const batchUpdateClients = async (consultorId, operations) => {
     try {
         console.log('📦 ClientService: Executando operações em lote...', {
-            tenantId,
+            consultorId,
             operationCount: operations.length
         });
 
@@ -433,7 +434,7 @@ export const batchUpdateClients = async (tenantId, operations) => {
 
         operations.forEach(operation => {
             const { type, clientId, data } = operation;
-            const clientRef = getClientDoc(tenantId, clientId);
+            const clientRef = getClientDoc(consultorId, clientId);
 
             switch (type) {
                 case 'update':
@@ -472,17 +473,17 @@ export const batchUpdateClients = async (tenantId, operations) => {
 // ===== STATISTICS =====
 
 /**
- * Buscar estatísticas dos clientes do tenant
- * @param {string} tenantId - ID do consultor
+ * Buscar estatísticas dos clientes do consultor
+ * @param {string} consultorId - ID do consultor
  * @returns {Promise<Object>} Estatísticas dos clientes
  */
-export const getClientStats = async (tenantId) => {
+export const getClientStats = async (consultorId) => {
     try {
-        console.log('📊 ClientService: Calculando estatísticas...', { tenantId });
+        console.log('📊 ClientService: Calculando estatísticas...', { consultorId });
 
         // Buscar todos os clientes ativos
         const activeQuery = query(
-            getClientCollection(tenantId),
+            getClientCollection(consultorId),
             where('isActive', '==', true)
         );
 

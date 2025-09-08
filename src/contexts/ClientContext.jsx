@@ -1,7 +1,7 @@
 /**
- * CLIENT CONTEXT - MyImoMatePro
+ * CLIENT CONTEXT - MyImoMatePro CORRIGIDO
  * Estado global para gestão de clientes com React Context
- * Integração completa com clientService.js
+ * ESTRUTURA CORRETA: consultores/{consultorId}/clientes/{clienteId}
  */
 
 import React, { createContext, useContext, useReducer, useEffect, useCallback } from 'react';
@@ -268,7 +268,8 @@ export function ClientProvider({ children }) {
     const [state, dispatch] = useReducer(clientReducer, initialState);
     const { currentUser } = useAuth();
 
-    const tenantId = currentUser?.uid;
+    // CORREÇÃO: Usar consultorId em vez de tenantId
+    const consultorId = currentUser?.uid;
 
     // ===== HELPER FUNCTIONS =====
     const setLoading = useCallback((operation, isLoading) => {
@@ -289,7 +290,7 @@ export function ClientProvider({ children }) {
      * Criar novo cliente
      */
     const createNewClient = useCallback(async (clientData) => {
-        if (!tenantId) {
+        if (!consultorId) {
             throw new Error('Utilizador não autenticado');
         }
 
@@ -299,7 +300,8 @@ export function ClientProvider({ children }) {
 
             console.log('ClientContext: Criando cliente...', { clientName: clientData.name });
 
-            const newClient = await createClient(tenantId, clientData);
+            // CORREÇÃO: Passar consultorId em vez de tenantId
+            const newClient = await createClient(consultorId, clientData);
 
             dispatch({ type: ClientActionTypes.ADD_CLIENT, client: newClient });
 
@@ -314,13 +316,13 @@ export function ClientProvider({ children }) {
             setError('create', error.message);
             throw error;
         }
-    }, [tenantId, setLoading, clearError, setError]);
+    }, [consultorId, setLoading, clearError, setError]);
 
     /**
      * Buscar cliente por ID
      */
     const fetchClient = useCallback(async (clientId) => {
-        if (!tenantId) {
+        if (!consultorId) {
             throw new Error('Utilizador não autenticado');
         }
 
@@ -330,7 +332,8 @@ export function ClientProvider({ children }) {
 
             console.log('ClientContext: Buscando cliente...', { clientId });
 
-            const client = await getClient(tenantId, clientId);
+            // CORREÇÃO: Passar consultorId em vez de tenantId
+            const client = await getClient(consultorId, clientId);
 
             dispatch({ type: ClientActionTypes.SET_CURRENT_CLIENT, client });
 
@@ -342,13 +345,13 @@ export function ClientProvider({ children }) {
             setError('current', error.message);
             throw error;
         }
-    }, [tenantId, setLoading, clearError, setError]);
+    }, [consultorId, setLoading, clearError, setError]);
 
     /**
      * Listar clientes com filtros
      */
     const fetchClients = useCallback(async (options = {}) => {
-        if (!tenantId) {
+        if (!consultorId) {
             throw new Error('Utilizador não autenticado');
         }
 
@@ -369,7 +372,8 @@ export function ClientProvider({ children }) {
                 filters: { ...state.filters, ...options.filters }
             };
 
-            const result = await listClients(tenantId, queryOptions);
+            // CORREÇÃO: Passar consultorId em vez de tenantId
+            const result = await listClients(consultorId, queryOptions);
 
             if (shouldLoadMore) {
                 dispatch({
@@ -393,13 +397,13 @@ export function ClientProvider({ children }) {
             setError('list', error.message);
             throw error;
         }
-    }, [tenantId, state.pagination, state.filters, setLoading, clearError, setError]);
+    }, [consultorId, state.pagination, state.filters, setLoading, clearError, setError]);
 
     /**
      * Buscar clientes por termo
      */
     const searchClientsByTerm = useCallback(async (searchTerm) => {
-        if (!tenantId || !searchTerm || searchTerm.trim().length < 2) {
+        if (!consultorId || !searchTerm || searchTerm.trim().length < 2) {
             dispatch({ type: ClientActionTypes.SET_SEARCH_RESULTS, results: [] });
             return [];
         }
@@ -410,7 +414,8 @@ export function ClientProvider({ children }) {
 
             console.log('ClientContext: Buscando clientes...', { searchTerm });
 
-            const results = await searchClients(tenantId, searchTerm);
+            // CORREÇÃO: Passar consultorId em vez de tenantId
+            const results = await searchClients(consultorId, searchTerm);
 
             dispatch({ type: ClientActionTypes.SET_SEARCH_RESULTS, results });
 
@@ -422,13 +427,13 @@ export function ClientProvider({ children }) {
             setError('search', error.message);
             throw error;
         }
-    }, [tenantId, setLoading, clearError, setError]);
+    }, [consultorId, setLoading, clearError, setError]);
 
     /**
      * Atualizar cliente
      */
     const updateExistingClient = useCallback(async (clientId, updateData) => {
-        if (!tenantId) {
+        if (!consultorId) {
             throw new Error('Utilizador não autenticado');
         }
 
@@ -438,7 +443,8 @@ export function ClientProvider({ children }) {
 
             console.log('ClientContext: Atualizando cliente...', { clientId });
 
-            const updatedClient = await updateClient(tenantId, clientId, updateData);
+            // CORREÇÃO: Passar consultorId em vez de tenantId
+            const updatedClient = await updateClient(consultorId, clientId, updateData);
 
             dispatch({ type: ClientActionTypes.UPDATE_CLIENT, client: updatedClient });
 
@@ -450,20 +456,21 @@ export function ClientProvider({ children }) {
             setError('update', error.message);
             throw error;
         }
-    }, [tenantId, setLoading, clearError, setError]);
+    }, [consultorId, setLoading, clearError, setError]);
 
     /**
      * Atualizar tags do cliente
      */
     const updateClientTagsList = useCallback(async (clientId, tags) => {
-        if (!tenantId) {
+        if (!consultorId) {
             throw new Error('Utilizador não autenticado');
         }
 
         try {
             console.log('ClientContext: Atualizando tags...', { clientId, tags });
 
-            const updatedClient = await updateClientTags(tenantId, clientId, tags);
+            // CORREÇÃO: Passar consultorId em vez de tenantId
+            const updatedClient = await updateClientTags(consultorId, clientId, tags);
 
             dispatch({ type: ClientActionTypes.UPDATE_CLIENT, client: updatedClient });
 
@@ -474,13 +481,13 @@ export function ClientProvider({ children }) {
             console.error('ClientContext: Erro ao atualizar tags:', error);
             throw error;
         }
-    }, [tenantId]);
+    }, [consultorId]);
 
     /**
      * Desativar cliente
      */
     const deactivateExistingClient = useCallback(async (clientId) => {
-        if (!tenantId) {
+        if (!consultorId) {
             throw new Error('Utilizador não autenticado');
         }
 
@@ -490,7 +497,8 @@ export function ClientProvider({ children }) {
 
             console.log('ClientContext: Desativando cliente...', { clientId });
 
-            await deactivateClient(tenantId, clientId);
+            // CORREÇÃO: Passar consultorId em vez de tenantId
+            await deactivateClient(consultorId, clientId);
 
             dispatch({ type: ClientActionTypes.REMOVE_CLIENT, clientId });
 
@@ -502,13 +510,13 @@ export function ClientProvider({ children }) {
             setError('delete', error.message);
             throw error;
         }
-    }, [tenantId, setLoading, clearError, setError]);
+    }, [consultorId, setLoading, clearError, setError]);
 
     /**
      * Buscar estatísticas
      */
     const fetchClientStats = useCallback(async () => {
-        if (!tenantId) {
+        if (!consultorId) {
             return null;
         }
 
@@ -518,7 +526,8 @@ export function ClientProvider({ children }) {
 
             console.log('ClientContext: Carregando estatísticas...');
 
-            const stats = await getClientStats(tenantId);
+            // CORREÇÃO: Passar consultorId em vez de tenantId
+            const stats = await getClientStats(consultorId);
 
             dispatch({ type: ClientActionTypes.SET_STATS, stats });
 
@@ -530,7 +539,7 @@ export function ClientProvider({ children }) {
             setError('stats', error.message);
             throw error;
         }
-    }, [tenantId, setLoading, clearError, setError]);
+    }, [consultorId, setLoading, clearError, setError]);
 
     // ===== FILTER ACTIONS =====
 
@@ -567,11 +576,11 @@ export function ClientProvider({ children }) {
 
     // ===== AUTO-LOAD ON MOUNT =====
     useEffect(() => {
-        if (tenantId && shouldRefreshCache() && state.clients.length === 0) {
+        if (consultorId && shouldRefreshCache() && state.clients.length === 0) {
             console.log('ClientContext: Auto-loading clientes na inicialização...');
             fetchClients().catch(console.error);
         }
-    }, [tenantId, shouldRefreshCache, state.clients.length, fetchClients]);
+    }, [consultorId, shouldRefreshCache, state.clients.length, fetchClients]);
 
     // ===== SEARCH DEBOUNCE =====
     useEffect(() => {
