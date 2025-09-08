@@ -1,7 +1,7 @@
 /**
- * CLIENT LIST PAGE - MyImoMatePro CORRIGIDO
+ * CLIENT LIST PAGE - MyImoMatePro COM DEBUG EXTENSIVO
  * Página principal de listagem e gestão de clientes
- * CORREÇÃO: Removido loop infinito do useEffect
+ * ADICIONADO: Debug completo para identificar problema da lista vazia
  */
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
@@ -77,7 +77,7 @@ const ClientListPage = () => {
     const [sortBy, setSortBy] = useState('createdAt');
     const [sortOrder, setSortOrder] = useState('desc');
 
-    // ✅ CORREÇÃO: Carregar dados iniciais apenas UMA VEZ
+    // ✅ CORREÇÃO: Carregar dados iniciais apenas UMA VEZ + DEBUG
     useEffect(() => {
         const loadInitialData = async () => {
             // Verificar se já carregamos os dados
@@ -102,13 +102,78 @@ const ClientListPage = () => {
         loadInitialData();
     }, []); // ✅ DEPENDÊNCIAS VAZIAS - só executa no mount
 
-    // Lista de clientes a mostrar (busca ou lista normal)
-    const displayClients = useMemo(() => {
-        if (isSearching && hasSearchResults) {
-            return searchResults;
+    // ✅ ADICIONAR DEBUG PARA OS DADOS DO CONTEXTO
+    useEffect(() => {
+        console.log('🐛 ClientList DEBUG - Estado do contexto:', {
+            clients: clients,
+            clientsLength: clients?.length || 0,
+            clientsArray: Array.isArray(clients),
+            clientsUndefined: clients === undefined,
+            clientsNull: clients === null,
+            searchResults: searchResults,
+            searchResultsLength: searchResults?.length || 0,
+            isSearching,
+            hasSearchResults,
+            stats: stats,
+            statsTotal: stats?.total,
+            loading: loading,
+            errors: errors
+        });
+
+        // Debug específico dos clientes
+        if (clients && Array.isArray(clients)) {
+            console.log('🐛 ClientList DEBUG - Primeiros 3 clientes:',
+                clients.slice(0, 3).map(c => ({
+                    id: c?.id,
+                    name: c?.name,
+                    hasValidId: !!c?.id
+                }))
+            );
         }
-        return clients;
+    }, [clients, searchResults, isSearching, hasSearchResults, stats, loading, errors]);
+
+    // Lista de clientes a mostrar (busca ou lista normal) + DEBUG
+    const displayClients = useMemo(() => {
+        console.log('🐛 ClientList DEBUG - Calculando displayClients:', {
+            isSearching,
+            hasSearchResults,
+            searchResults: searchResults?.length || 0,
+            clients: clients?.length || 0,
+            clientsType: typeof clients,
+            clientsIsArray: Array.isArray(clients),
+            clientsUndefined: clients === undefined,
+            clientsNull: clients === null
+        });
+
+        let result;
+        if (isSearching && hasSearchResults) {
+            console.log('🐛 ClientList DEBUG - Usando searchResults:', searchResults);
+            result = searchResults || [];
+        } else {
+            console.log('🐛 ClientList DEBUG - Usando clients:', clients);
+            result = clients || [];
+        }
+
+        console.log('🐛 ClientList DEBUG - Resultado displayClients:', {
+            length: result?.length || 0,
+            isArray: Array.isArray(result),
+            resultado: result
+        });
+
+        return result;
     }, [isSearching, hasSearchResults, searchResults, clients]);
+
+    // ✅ ADICIONAR DEBUG PARA displayClients
+    useEffect(() => {
+        console.log('🐛 ClientList DEBUG - displayClients alterado:', {
+            displayClients: displayClients,
+            length: displayClients?.length || 0,
+            isArray: Array.isArray(displayClients),
+            isUndefined: displayClients === undefined,
+            isNull: displayClients === null,
+            firstThree: displayClients?.slice(0, 3)?.map(c => ({ id: c?.id, name: c?.name })) || []
+        });
+    }, [displayClients]);
 
     // Filtros aplicados
     const activeFiltersCount = useMemo(() => {
@@ -164,13 +229,15 @@ const ClientListPage = () => {
     // Verificar se pode adicionar cliente
     const canAddClient = !subscription || !isClientLimitReached();
 
-    // ✅ CORREÇÃO: Component para renderizar cliente com key correta
+    // ✅ CORREÇÃO: Component para renderizar cliente com key correta + DEBUG
     const ClientCard = ({ client }) => {
         // Verificar se client existe e tem ID válido
         if (!client || !client.id) {
-            console.warn('ClientCard: Cliente inválido recebido:', client);
+            console.warn('🐛 ClientCard: Cliente inválido recebido:', client);
             return null;
         }
+
+        console.log('🐛 ClientCard: Renderizando cliente válido:', { id: client.id, name: client.name });
 
         return (
             <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
@@ -181,45 +248,50 @@ const ClientListPage = () => {
                             <UserIconSolid className="w-6 h-6 text-white" />
                         </div>
                         <div>
-                            <h3 className="font-semibold text-gray-900">{client.name || 'Sem nome'}</h3>
-                            <p className="text-sm text-gray-500">{client.email || 'Sem email'}</p>
+                            <h3 className="font-semibold text-gray-900">{client.name}</h3>
+                            <div className="flex items-center space-x-2 text-sm text-gray-500">
+                                {client.phone && (
+                                    <div className="flex items-center">
+                                        <PhoneIcon className="w-4 h-4 mr-1" />
+                                        <span>{client.phone}</span>
+                                    </div>
+                                )}
+                                {client.email && (
+                                    <div className="flex items-center">
+                                        <EnvelopeIcon className="w-4 h-4 mr-1" />
+                                        <span>{client.email}</span>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
 
-                    {/* Dropdown de ações */}
-                    <div className="relative">
-                        <button
-                            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                // Implementar dropdown de ações
-                            }}
-                        >
-                            <ChevronDownIcon className="w-4 h-4 text-gray-400" />
-                        </button>
+                    {/* Tags especiais */}
+                    <div className="flex space-x-1">
+                        {client.tags?.includes('VIP') && (
+                            <StarIconSolid className="w-5 h-5 text-yellow-500" title="Cliente VIP" />
+                        )}
+                        {client.tags?.includes('Urgente') && (
+                            <div className="w-3 h-3 bg-red-500 rounded-full" title="Urgente" />
+                        )}
+                        {['married', 'union'].includes(client.maritalStatus) && (
+                            <HeartIconSolid className="w-5 h-5 text-pink-500" title="Casado/União de facto" />
+                        )}
                     </div>
                 </div>
 
-                {/* Informações do cliente */}
+                {/* Informações adicionais */}
                 <div className="space-y-2 mb-4">
-                    {client.phone && (
-                        <div className="flex items-center space-x-2 text-sm text-gray-600">
-                            <PhoneIcon className="w-4 h-4" />
-                            <span>{client.phone}</span>
+                    {client.profession && (
+                        <div className="flex items-center text-sm text-gray-600">
+                            <DocumentIcon className="w-4 h-4 mr-2" />
+                            <span>{client.profession}</span>
                         </div>
                     )}
-
-                    {client.maritalStatus && client.maritalStatus !== 'other' && (
-                        <div className="flex items-center space-x-2 text-sm text-gray-600">
-                            <HeartIcon className="w-4 h-4" />
-                            <span>{CLIENT_MARITAL_STATUS[client.maritalStatus] || client.maritalStatus}</span>
-                        </div>
-                    )}
-
-                    {client.hasFinancialInfo && (
-                        <div className="flex items-center space-x-2 text-sm text-gray-600">
-                            <CurrencyEuroIcon className="w-4 h-4" />
-                            <span>Info Financeira</span>
+                    {client.financial?.monthlyIncome && (
+                        <div className="flex items-center text-sm text-gray-600">
+                            <CurrencyEuroIcon className="w-4 h-4 mr-2" />
+                            <span>Rendimento: €{client.financial.monthlyIncome}</span>
                         </div>
                     )}
                 </div>
@@ -275,7 +347,7 @@ const ClientListPage = () => {
     };
 
     // Loading state inicial
-    if (loading.list && clients.length === 0) {
+    if (loading.list && (!clients || clients.length === 0)) {
         return (
             <Layout>
                 <div className="flex items-center justify-center h-64">
@@ -287,6 +359,15 @@ const ClientListPage = () => {
             </Layout>
         );
     }
+
+    // ✅ DEBUG DA RENDERIZAÇÃO CONDICIONAL
+    const shouldShowEmptyState = displayClients?.length === 0;
+    console.log('🐛 ClientList DEBUG - Renderização condicional:', {
+        shouldShowEmptyState,
+        displayClientsLength: displayClients?.length,
+        displayClientsIsArray: Array.isArray(displayClients),
+        displayClientsValue: displayClients
+    });
 
     return (
         <Layout>
@@ -302,69 +383,75 @@ const ClientListPage = () => {
                     {canAddClient ? (
                         <Link
                             to="/clients/new"
-                            className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all shadow-lg font-medium"
+                            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                         >
                             <PlusIcon className="w-5 h-5" />
                             Novo Cliente
                         </Link>
                     ) : (
-                        <div className="text-right">
-                            <p className="text-sm text-red-600 font-medium">
-                                Limite de clientes atingido
-                            </p>
-                            <p className="text-xs text-gray-500">
-                                {stats?.total || 0}/{subscription?.limiteClientes || 0} clientes
-                            </p>
+                        <div className="text-center">
+                            <p className="text-sm text-gray-600 mb-2">Limite de clientes atingido</p>
+                            <button className="px-4 py-2 bg-gray-400 text-white rounded-lg cursor-not-allowed">
+                                Fazer Upgrade
+                            </button>
                         </div>
                     )}
                 </div>
 
-                {/* Estatísticas rápidas */}
+                {/* Estatísticas */}
                 {stats && (
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                        <div className="bg-blue-50 p-4 rounded-lg">
-                            <div className="flex items-center space-x-2">
-                                <UserGroupIcon className="w-5 h-5 text-blue-600" />
-                                <span className="text-sm font-medium text-blue-800">Total</span>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                        <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+                            <div className="flex items-center">
+                                <UserGroupIcon className="w-8 h-8 text-blue-500" />
+                                <div className="ml-3">
+                                    <p className="text-sm font-medium text-gray-600">Total</p>
+                                    <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
+                                </div>
                             </div>
-                            <p className="text-2xl font-bold text-blue-900">{stats.total || 0}</p>
                         </div>
 
-                        <div className="bg-green-50 p-4 rounded-lg">
-                            <div className="flex items-center space-x-2">
-                                <EnvelopeIcon className="w-5 h-5 text-green-600" />
-                                <span className="text-sm font-medium text-green-800">Com Email</span>
+                        <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+                            <div className="flex items-center">
+                                <EnvelopeIcon className="w-8 h-8 text-green-500" />
+                                <div className="ml-3">
+                                    <p className="text-sm font-medium text-gray-600">Com Email</p>
+                                    <p className="text-2xl font-bold text-gray-900">{stats.withEmail}</p>
+                                </div>
                             </div>
-                            <p className="text-2xl font-bold text-green-900">{stats.withEmail || 0}</p>
                         </div>
 
-                        <div className="bg-purple-50 p-4 rounded-lg">
-                            <div className="flex items-center space-x-2">
-                                <HeartIconSolid className="w-5 h-5 text-purple-600" />
-                                <span className="text-sm font-medium text-purple-800">Casados</span>
+                        <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+                            <div className="flex items-center">
+                                <HeartIcon className="w-8 h-8 text-purple-500" />
+                                <div className="ml-3">
+                                    <p className="text-sm font-medium text-gray-600">Casados</p>
+                                    <p className="text-2xl font-bold text-gray-900">{stats.married}</p>
+                                </div>
                             </div>
-                            <p className="text-2xl font-bold text-purple-900">{stats.married || 0}</p>
                         </div>
 
-                        <div className="bg-yellow-50 p-4 rounded-lg">
-                            <div className="flex items-center space-x-2">
-                                <StarIconSolid className="w-5 h-5 text-yellow-600" />
-                                <span className="text-sm font-medium text-yellow-800">VIP</span>
+                        <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+                            <div className="flex items-center">
+                                <StarIconSolid className="w-8 h-8 text-yellow-500" />
+                                <div className="ml-3">
+                                    <p className="text-sm font-medium text-gray-600">VIP</p>
+                                    <p className="text-2xl font-bold text-gray-900">{stats.vipClients}</p>
+                                </div>
                             </div>
-                            <p className="text-2xl font-bold text-yellow-900">{stats.vipClients || 0}</p>
                         </div>
                     </div>
                 )}
 
-                {/* Barra de Busca e Filtros */}
+                {/* Barra de busca e filtros */}
                 <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
-                    <div className="flex flex-col md:flex-row gap-4">
+                    <div className="flex items-center space-x-4">
                         {/* Campo de busca */}
                         <div className="flex-1 relative">
-                            <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                            <MagnifyingGlassIcon className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
                             <input
                                 type="text"
-                                placeholder="Buscar clientes por nome, email ou telefone..."
+                                placeholder="Buscar clientes por nome, email, telefone..."
                                 value={searchTerm}
                                 onChange={(e) => handleSearch(e.target.value)}
                                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -379,71 +466,65 @@ const ClientListPage = () => {
                             )}
                         </div>
 
-                        {/* Botão de filtros */}
+                        {/* Botão filtros */}
                         <button
                             onClick={() => setShowFilters(!showFilters)}
                             className={`flex items-center gap-2 px-4 py-2 border rounded-lg transition-colors ${activeFiltersCount > 0
-                                    ? 'border-blue-500 bg-blue-50 text-blue-700'
-                                    : 'border-gray-300 hover:bg-gray-50'
+                                    ? 'bg-blue-50 border-blue-200 text-blue-700'
+                                    : 'border-gray-300 text-gray-700 hover:bg-gray-50'
                                 }`}
                         >
                             <FunnelIcon className="w-5 h-5" />
                             Filtros
                             {activeFiltersCount > 0 && (
-                                <span className="bg-blue-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                                <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">
                                     {activeFiltersCount}
                                 </span>
                             )}
                         </button>
                     </div>
 
-                    {/* Painel de filtros expandido */}
+                    {/* Painel de filtros */}
                     {showFilters && (
                         <div className="mt-4 pt-4 border-t border-gray-200">
-                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                                {/* Filtro por tag */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                {/* Filtro por Tag */}
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Tag
-                                    </label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Tag</label>
                                     <select
                                         value={filters.tag}
                                         onChange={(e) => handleFilterChange({ ...filters, tag: e.target.value })}
-                                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                     >
-                                        <option value="all">Todas</option>
-                                        {Object.entries(CLIENT_AVAILABLE_TAGS).map(([value, label]) => (
-                                            <option key={value} value={value}>{label}</option>
+                                        <option value="all">Todas as tags</option>
+                                        {Object.entries(CLIENT_AVAILABLE_TAGS).map(([key, value]) => (
+                                            <option key={key} value={key}>{value}</option>
                                         ))}
                                     </select>
                                 </div>
 
-                                {/* Filtro por estado civil */}
+                                {/* Filtro por Estado Civil */}
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Estado Civil
-                                    </label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Estado Civil</label>
                                     <select
                                         value={filters.maritalStatus}
                                         onChange={(e) => handleFilterChange({ ...filters, maritalStatus: e.target.value })}
-                                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                     >
                                         <option value="all">Todos</option>
-                                        {Object.entries(CLIENT_MARITAL_STATUS).map(([value, label]) => (
-                                            <option key={value} value={value}>{label}</option>
+                                        {Object.entries(CLIENT_MARITAL_STATUS).map(([key, value]) => (
+                                            <option key={key} value={key}>{value}</option>
                                         ))}
                                     </select>
                                 </div>
 
-                                {/* Filtro por email */}
+                                {/* Filtro por Email */}
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Tem Email
-                                    </label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Tem Email</label>
                                     <select
                                         value={filters.hasEmail}
                                         onChange={(e) => handleFilterChange({ ...filters, hasEmail: e.target.value })}
-                                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                     >
                                         <option value="all">Todos</option>
                                         <option value="true">Sim</option>
@@ -451,15 +532,13 @@ const ClientListPage = () => {
                                     </select>
                                 </div>
 
-                                {/* Filtro por info financeira */}
+                                {/* Filtro por Info Financeira */}
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Info Financeira
-                                    </label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Info Financeira</label>
                                     <select
                                         value={filters.hasFinancialInfo}
                                         onChange={(e) => handleFilterChange({ ...filters, hasFinancialInfo: e.target.value })}
-                                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                     >
                                         <option value="all">Todos</option>
                                         <option value="true">Sim</option>
@@ -495,8 +574,8 @@ const ClientListPage = () => {
                         <div className="flex justify-between items-center">
                             <div className="flex items-center space-x-4">
                                 <span className="text-sm text-gray-600">
-                                    {displayClients.length} {displayClients.length === 1 ? 'cliente' : 'clientes'}
-                                    {isSearching && hasSearchResults && ` encontrado${displayClients.length === 1 ? '' : 's'}`}
+                                    {displayClients?.length || 0} {(displayClients?.length || 0) === 1 ? 'cliente' : 'clientes'}
+                                    {isSearching && hasSearchResults && ` encontrado${(displayClients?.length || 0) === 1 ? '' : 's'}`}
                                 </span>
 
                                 {selectedClients.length > 0 && (
@@ -508,7 +587,7 @@ const ClientListPage = () => {
 
                             <div className="flex items-center space-x-2">
                                 {/* Seleção múltipla */}
-                                {displayClients.length > 0 && (
+                                {displayClients?.length > 0 && (
                                     <button
                                         onClick={handleSelectAll}
                                         className="text-sm text-blue-600 hover:text-blue-800 font-medium"
@@ -522,8 +601,8 @@ const ClientListPage = () => {
                                     <button
                                         onClick={() => setViewMode('grid')}
                                         className={`px-3 py-1 text-sm ${viewMode === 'grid'
-                                                ? 'bg-blue-500 text-white'
-                                                : 'bg-white text-gray-700 hover:bg-gray-50'
+                                            ? 'bg-blue-500 text-white'
+                                            : 'bg-white text-gray-700 hover:bg-gray-50'
                                             }`}
                                     >
                                         Grade
@@ -531,8 +610,8 @@ const ClientListPage = () => {
                                     <button
                                         onClick={() => setViewMode('table')}
                                         className={`px-3 py-1 text-sm ${viewMode === 'table'
-                                                ? 'bg-blue-500 text-white'
-                                                : 'bg-white text-gray-700 hover:bg-gray-50'
+                                            ? 'bg-blue-500 text-white'
+                                            : 'bg-white text-gray-700 hover:bg-gray-50'
                                             }`}
                                     >
                                         Tabela
@@ -542,10 +621,17 @@ const ClientListPage = () => {
                         </div>
                     </div>
 
-                    {/* Conteúdo da lista */}
+                    {/* Conteúdo da lista - COM DEBUG EXTENSIVO */}
                     <div className="p-6">
-                        {displayClients.length === 0 ? (
+                        {console.log('🐛 ClientList DEBUG - Antes da renderização condicional:', {
+                            shouldShowEmptyState,
+                            displayClients,
+                            displayClientsLength: displayClients?.length
+                        })}
+
+                        {shouldShowEmptyState ? (
                             <div className="text-center py-12">
+                                {console.log('🐛 ClientList DEBUG - Renderizando estado vazio')}
                                 <UserGroupIcon className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                                 <h3 className="text-lg font-medium text-gray-900 mb-2">
                                     {isSearching ? 'Nenhum cliente encontrado' : 'Nenhum cliente cadastrado'}
@@ -579,15 +665,19 @@ const ClientListPage = () => {
                             </div>
                         ) : (
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                                {displayClients.map((client) => (
-                                    <ClientCard key={client.id} client={client} />
-                                ))}
+                                {console.log('🐛 ClientList DEBUG - Renderizando lista de clientes:', displayClients)}
+                                {displayClients.map((client, index) => {
+                                    console.log(`🐛 ClientList DEBUG - Renderizando cliente ${index}:`, client);
+                                    return (
+                                        <ClientCard key={client.id} client={client} />
+                                    );
+                                })}
                             </div>
                         )}
                     </div>
 
                     {/* Paginação */}
-                    {pagination.hasMore && (
+                    {pagination?.hasMore && (
                         <div className="p-6 border-t border-gray-100 text-center">
                             <button
                                 onClick={() => fetchClients({ loadMore: true })}

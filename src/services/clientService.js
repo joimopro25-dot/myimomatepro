@@ -1,7 +1,7 @@
 /**
  * CLIENT SERVICE - MyImoMatePro CORRIGIDO
  * CRUD completo para gestão de clientes no Firestore
- * CORREÇÃO: Problema dos IDs null nos clientes listados
+ * CORREÇÃO: Problema dos clientes não aparecerem na lista
  */
 
 import {
@@ -115,6 +115,8 @@ export const getClient = async (consultorId, clientId) => {
 
 /**
  * ✅ FUNÇÃO CORRIGIDA: Listar todos os clientes do consultor com paginação
+ * PROBLEMA IDENTIFICADO: Query Firestore pode estar falhando
+ * SOLUÇÃO: Debug completo + fallback para buscar todos os clientes
  */
 export const listClients = async (consultorId, options = {}) => {
     try {
@@ -135,48 +137,141 @@ export const listClients = async (consultorId, options = {}) => {
             filters
         });
 
-        // ✅ CORREÇÃO: Query base simples para evitar conflitos
-        const clientQuery = query(
+        // ✅ PRIMEIRA TENTATIVA: Query com where clause
+        console.log('🔍 Tentativa 1: Query com isActive = true');
+        let clientQuery = query(
             getClientCollection(consultorId),
             where('isActive', '==', true),
             limit(pageSize * 2) // Buscar mais para ter margem após filtros
         );
 
-        // Executar query
-        const snapshot = await getDocs(clientQuery);
+        let snapshot = await getDocs(clientQuery);
+        console.log('📊 Snapshot results (isActive=true):', {
+            empty: snapshot.empty,
+            size: snapshot.size,
+            docs: snapshot.docs.length
+        });
 
-        // ✅ CORREÇÃO: Mapeamento seguro dos documentos
+        // ✅ SEGUNDA TENTATIVA: Se não encontrar, buscar TODOS os clientes
+        if (snapshot.empty) {
+            console.log('⚠️ Nenhum cliente encontrado com isActive=true. Buscando todos...');
+            clientQuery = query(
+                getClientCollection(consultorId),
+                limit(pageSize * 2)
+            );
+            snapshot = await getDocs(clientQuery);
+            console.log('📊 Snapshot results (todos):', {
+                empty: snapshot.empty,
+                size: snapshot.size,
+                docs: snapshot.docs.length
+            });
+        }
+
+        // ✅ TERCEIRA TENTATIVA: Debug da estrutura da coleção
+        if (snapshot.empty) {
+            console.log('⚠️ Ainda vazio. Verificando estrutura da coleção...');
+            const collectionRef = getClientCollection(consultorId);
+            console.log('📁 Collection path:', collectionRef.path);
+
+            // Tentar buscar sem filtros
+            const allDocsSnapshot = await getDocs(collectionRef);
+            console.log('📊 All docs in collection:', {
+                empty: allDocsSnapshot.empty,
+                size: allDocsSnapshot.size
+            });
+
+            if (!allDocsSnapshot.empty) {
+                console.log('📝 Sample documents:');
+                allDocsSnapshot.docs.slice(0, 3).forEach((doc, index) => {
+                    const data = doc.data();
+                    console.log(`Doc ${index + 1}:`, {
+                        id: doc.id,
+                        name: data.name,
+                        isActive: data.isActive,
+                        hasData: !!data
+                    });
+                });
+            }
+        }
+
+        // ✅ MAPEAMENTO SEGURO DOS DOCUMENTOS - CORREÇÃO FINAL PARA IDs NULL
         const clients = [];
 
         snapshot.forEach((doc) => {
             const docId = doc.id;
             const docData = doc.data();
 
-            if (docId && docData) {
+            console.log('🔍 Debug documento raw (VERSÃO CORRIGIDA):', {
+                docId,
+                docIdType: typeof docId,
+                docIdLength: docId?.length,
+                hasData: !!docData,
+                dataKeys: docData ? Object.keys(docData) : [],
+                name: docData?.name,
+                originalDocRef: doc
+            });
+
+            if (docData && docId) {
+                // ✅ CORREÇÃO CRÍTICA: Usar o ID real do documento do Firebase
                 const client = {
-                    id: docId,
+                    id: docId, // Firebase sempre gera um ID válido
                     ...docData
                 };
 
-                if (client.id) {
+                // ✅ Debug APÓS o mapeamento
+                console.log('👤 Cliente processado (VERSÃO CORRIGIDA):', {
+                    id: client.id,
+                    idType: typeof client.id,
+                    name: client.name,
+                    isActive: client.isActive,
+                    hasValidId: !!client.id,
+                    docIdOriginal: docId,
+                    clientKeys: Object.keys(client)
+                });
+
+                // ✅ VERIFICAÇÃO FINAL: Só adicionar se ID existir
+                if (client.id && client.id.length > 0) {
                     clients.push(client);
+                    console.log('✅ Cliente adicionado à lista:', client.name);
+                } else {
+                    console.error('❌ Cliente rejeitado - ID inválido:', {
+                        client,
+                        docId,
+                        hasClientId: !!client.id
+                    });
                 }
+            } else {
+                console.warn('⚠️ Documento inválido ignorado:', {
+                    docId,
+                    hasData: !!docData,
+                    docIdValid: !!docId
+                });
             }
         });
 
-        // ✅ APLICAR FILTROS MANUALMENTE
-        let filteredClients = clients;
+        console.log('📋 RESULTADO MAPEAMENTO - Total de clientes válidos:', {
+            totalMapped: clients.length,
+            clientNames: clients.map(c => c.name),
+            allClientsHaveIds: clients.every(c => !!c.id && c.id.length > 0)
+        });
+
+        // ✅ APLICAR FILTROS MANUALMENTE (só para clientes ativos)
+        let filteredClients = clients.filter(client => client.isActive !== false);
+
+        console.log('🔍 Clientes após filtro isActive:', filteredClients.length);
 
         if (filters.tag && filters.tag !== 'all') {
             filteredClients = filteredClients.filter(client =>
                 client.tags && client.tags.includes(filters.tag)
             );
+            console.log(`🔍 Clientes após filtro tag (${filters.tag}):`, filteredClients.length);
         }
 
         if (filters.maritalStatus && filters.maritalStatus !== 'all') {
             filteredClients = filteredClients.filter(client =>
                 client.maritalStatus === filters.maritalStatus
             );
+            console.log(`🔍 Clientes após filtro maritalStatus (${filters.maritalStatus}):`, filteredClients.length);
         }
 
         if (filters.hasEmail && filters.hasEmail !== 'all') {
@@ -184,6 +279,7 @@ export const listClients = async (consultorId, options = {}) => {
             filteredClients = filteredClients.filter(client =>
                 hasEmailFilter ? !!client.email : !client.email
             );
+            console.log(`🔍 Clientes após filtro hasEmail (${filters.hasEmail}):`, filteredClients.length);
         }
 
         if (filters.hasFinancialInfo && filters.hasFinancialInfo !== 'all') {
@@ -192,6 +288,7 @@ export const listClients = async (consultorId, options = {}) => {
                 hasFinancialFilter ? !!(client.financial && client.financial.monthlyIncome) :
                     !(client.financial && client.financial.monthlyIncome)
             );
+            console.log(`🔍 Clientes após filtro hasFinancialInfo (${filters.hasFinancialInfo}):`, filteredClients.length);
         }
 
         // Ordenar manualmente
@@ -218,12 +315,13 @@ export const listClients = async (consultorId, options = {}) => {
         const paginatedClients = filteredClients.slice(startIndex, endIndex);
         const hasMore = endIndex < filteredClients.length;
 
-        console.log('✅ ClientService: Clientes listados', {
+        console.log('✅ ClientService: Clientes listados - RESULTADO FINAL', {
             totalFound: clients.length,
             filteredCount: filteredClients.length,
             paginatedCount: paginatedClients.length,
             hasMore,
-            allIdsValid: paginatedClients.every(c => !!c.id)
+            allIdsValid: paginatedClients.every(c => !!c.id),
+            clientNames: paginatedClients.map(c => c.name)
         });
 
         return {
@@ -239,6 +337,11 @@ export const listClients = async (consultorId, options = {}) => {
 
     } catch (error) {
         console.error('❌ ClientService: Erro ao listar clientes:', error);
+        console.error('❌ Error details:', {
+            message: error.message,
+            code: error.code,
+            stack: error.stack
+        });
         throw new Error(`Erro ao listar clientes: ${error.message}`);
     }
 };
@@ -429,15 +532,35 @@ export const getClientStats = async (consultorId) => {
         );
 
         const activeSnapshot = await getDocs(activeQuery);
+        console.log('📊 Stats snapshot:', {
+            empty: activeSnapshot.empty,
+            size: activeSnapshot.size,
+            docs: activeSnapshot.docs.length
+        });
 
         const activeClients = [];
         activeSnapshot.forEach((doc) => {
-            if (doc.id && doc.data()) {
+            const docId = doc.id;
+            const docData = doc.data();
+
+            console.log('📊 Stats doc:', {
+                docId,
+                hasData: !!docData,
+                name: docData?.name
+            });
+
+            if (docId && docData) {
                 activeClients.push({
-                    id: doc.id,
-                    ...doc.data()
+                    id: docId, // ✅ CORREÇÃO: Usar docId do Firebase
+                    ...docData
                 });
             }
+        });
+
+        console.log('📊 Active clients processados:', {
+            count: activeClients.length,
+            allHaveIds: activeClients.every(c => !!c.id),
+            sampleIds: activeClients.slice(0, 3).map(c => ({ id: c.id, name: c.name }))
         });
 
         // Calcular estatísticas
