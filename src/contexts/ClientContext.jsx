@@ -625,6 +625,17 @@ export function ClientProvider({ children }) {
         // Utilities
         clearError,
 
+        // NOVO: Informações de subscription
+        subscription: {
+            isActive: isActive(),
+            isTrial,
+            trialDaysRemaining,
+            currentPlan,
+            canAddClient: canAddClient(state.clients.length),
+            clientLimit: currentPlan?.limites?.maxClients || 0,
+            clientCount: state.clients.length
+        },
+
         // Computed values
         hasClients: state.clients.length > 0,
         isSearching: state.searchTerm.length >= 2,

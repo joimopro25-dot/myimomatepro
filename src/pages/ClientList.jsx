@@ -234,8 +234,8 @@ const ClientListPage = () => {
                     <button
                         onClick={() => setShowFilters(!showFilters)}
                         className={`flex items-center gap-2 px-4 py-3 border rounded-lg transition-colors ${showFilters || activeFiltersCount > 0
-                            ? 'bg-blue-50 border-blue-200 text-blue-700'
-                            : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                                ? 'bg-blue-50 border-blue-200 text-blue-700'
+                                : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
                             }`}
                     >
                         <FunnelIcon className="w-5 h-5" />
@@ -383,9 +383,9 @@ const ClientListPage = () => {
                         <span
                             key={tag}
                             className={`px-2 py-1 text-xs font-medium rounded-full ${tag === 'VIP' ? 'bg-yellow-100 text-yellow-800' :
-                                tag === 'Urgente' ? 'bg-red-100 text-red-800' :
-                                    tag === 'Investidor' ? 'bg-green-100 text-green-800' :
-                                        'bg-gray-100 text-gray-800'
+                                    tag === 'Urgente' ? 'bg-red-100 text-red-800' :
+                                        tag === 'Investidor' ? 'bg-green-100 text-green-800' :
+                                            'bg-gray-100 text-gray-800'
                                 }`}
                         >
                             {tag}
@@ -535,13 +535,30 @@ const ClientListPage = () => {
                                     }
                                 </p>
                                 {!isSearching && (
-                                    <Link
-                                        to="/clients/new"
-                                        className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all shadow-lg font-medium"
-                                    >
-                                        <PlusIcon className="w-5 h-5" />
-                                        Adicionar Primeiro Cliente
-                                    </Link>
+                                    <div>
+                                        {subscription.canAddClient ? (
+                                            <Link
+                                                to="/clients/new"
+                                                className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all shadow-lg font-medium"
+                                            >
+                                                <PlusIcon className="w-5 h-5" />
+                                                Adicionar Primeiro Cliente
+                                            </Link>
+                                        ) : (
+                                            <div className="text-center">
+                                                <p className="text-red-600 mb-4 font-medium">
+                                                    Limite de clientes atingido ({subscription.clientCount}/{subscription.clientLimit})
+                                                </p>
+                                                <button
+                                                    className="inline-flex items-center gap-2 px-6 py-3 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors font-medium"
+                                                    onClick={() => alert('Redirecionamento para upgrade de plano em breve!')}
+                                                >
+                                                    <StarIconSolid className="w-5 h-5" />
+                                                    Fazer Upgrade do Plano
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
                                 )}
                             </div>
                         ) : (
