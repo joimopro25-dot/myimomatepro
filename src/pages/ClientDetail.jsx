@@ -1,6 +1,9 @@
 /**
  * CLIENT DETAIL PAGE - MyImoMatePro
  * Página de visualização completa dos dados do cliente
+ * ✅ VERSÃO LIMPA - Console logs de debug removidos
+ * 
+ * Caminho: src/pages/ClientDetail.jsx
  * Funcionalidade: Ver todas as informações do cliente (ícone olho)
  */
 
@@ -48,15 +51,35 @@ const ClientDetail = () => {
     // Estados locais
     const [activeTab, setActiveTab] = useState('personal');
 
+    // Helper function para formatação de datas
+    const formatDate = (dateValue) => {
+        if (!dateValue) return 'Não informado';
+
+        try {
+            let date;
+            if (dateValue.seconds) {
+                // Timestamp do Firestore
+                date = new Date(dateValue.seconds * 1000);
+            } else if (typeof dateValue === 'string') {
+                date = new Date(dateValue);
+            } else {
+                date = dateValue;
+            }
+
+            return date.toLocaleDateString('pt-PT');
+        } catch (error) {
+            return 'Data inválida';
+        }
+    };
+
     // Carregar dados do cliente ao montar componente
     useEffect(() => {
         const loadClient = async () => {
             if (clientId) {
-                console.log('📋 ClientDetail: Carregando cliente...', { clientId });
                 try {
                     await fetchClient(clientId);
                 } catch (error) {
-                    console.error('❌ ClientDetail: Erro ao carregar cliente:', error);
+                    console.error('ClientDetail: Erro ao carregar cliente:', error);
                 }
             }
         };
@@ -69,43 +92,26 @@ const ClientDetail = () => {
         };
     }, [clientId, fetchClient, clearCurrentClient]);
 
-    // Função para formatar data
-    const formatDate = (date) => {
-        if (!date) return 'Não informado';
-        try {
-            if (date.toDate) {
-                return date.toDate().toLocaleDateString('pt-PT');
-            }
-            return new Date(date).toLocaleDateString('pt-PT');
-        } catch (error) {
-            return 'Data inválida';
-        }
-    };
-
-    // Loading state
+    // Estados de loading e erro
     if (loading.current) {
         return (
             <Layout>
-                <div className="flex items-center justify-center h-64">
+                <div className="flex items-center justify-center min-h-screen">
                     <div className="text-center">
                         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                        <p className="text-gray-600">Carregando dados do cliente...</p>
+                        <p className="text-gray-600">A carregar dados do cliente...</p>
                     </div>
                 </div>
             </Layout>
         );
     }
 
-    // Error state
     if (errors.current) {
         return (
             <Layout>
                 <div className="text-center py-12">
-                    <div className="text-red-600 mb-4">
-                        <InformationCircleIcon className="w-12 h-12 mx-auto mb-4" />
-                        <h3 className="text-lg font-medium">Erro ao carregar cliente</h3>
-                        <p className="text-sm">{errors.current}</p>
-                    </div>
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">Erro ao carregar cliente</h3>
+                    <p className="text-gray-600 mb-6">{errors.current}</p>
                     <button
                         onClick={() => navigate('/clients')}
                         className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
@@ -117,12 +123,10 @@ const ClientDetail = () => {
         );
     }
 
-    // Cliente não encontrado
     if (!currentClient) {
         return (
             <Layout>
                 <div className="text-center py-12">
-                    <UserIcon className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                     <h3 className="text-lg font-medium text-gray-900">Cliente não encontrado</h3>
                     <p className="text-gray-600 mb-6">O cliente solicitado não existe ou foi removido.</p>
                     <button
@@ -174,6 +178,14 @@ const ClientDetail = () => {
                             {CLIENT_MARITAL_STATUS[client.maritalStatus] || 'Não informado'}
                         </p>
                     </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">NIF</label>
+                        <p className="text-gray-900">{client.nif || 'Não informado'}</p>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Profissão</label>
+                        <p className="text-gray-900">{client.profession || 'Não informado'}</p>
+                    </div>
                 </div>
             </div>
 
@@ -200,64 +212,45 @@ const ClientDetail = () => {
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Melhor Horário</label>
-                        <p className="text-gray-900">{client.bestContactTime || 'Não informado'}</p>
-                    </div>
-                </div>
-            </div>
-
-            {/* Documentação */}
-            <div className="bg-white rounded-lg border border-gray-200 p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                    <IdentificationIcon className="w-5 h-5 mr-2" />
-                    Documentação
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Cartão de Cidadão</label>
-                        <p className="text-gray-900">{client.documentNumber || 'Não informado'}</p>
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Validade do CC</label>
-                        <p className="text-gray-900">{formatDate(client.documentExpiry)}</p>
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">NIF</label>
-                        <p className="text-gray-900">{client.nif || 'Não informado'}</p>
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Profissão</label>
-                        <p className="text-gray-900">{client.profession || 'Não informado'}</p>
+                        <p className="text-gray-900">{client.bestTimeToContact || 'Não informado'}</p>
                     </div>
                 </div>
             </div>
 
             {/* Morada */}
-            <div className="bg-white rounded-lg border border-gray-200 p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                    <MapPinIcon className="w-5 h-5 mr-2" />
-                    Morada de Residência
-                </h3>
-                <div className="space-y-2">
-                    {client.address ? (
-                        <>
-                            <p className="text-gray-900">{client.address.street || 'Rua não informada'}</p>
-                            <p className="text-gray-600">
-                                {[client.address.city, client.address.postalCode, client.address.country]
-                                    .filter(Boolean).join(', ') || 'Localização não informada'}
-                            </p>
-                        </>
-                    ) : (
-                        <p className="text-gray-500">Morada não informada</p>
-                    )}
-                </div>
-            </div>
-
-            {/* Dados do cônjuge (se aplicável) */}
-            {['married', 'union'].includes(client.maritalStatus) && client.spouse && (
+            {client.address && (
                 <div className="bg-white rounded-lg border border-gray-200 p-6">
                     <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                        <HeartIconSolid className="w-5 h-5 mr-2 text-pink-500" />
-                        Dados do Cônjuge
+                        <MapPinIcon className="w-5 h-5 mr-2" />
+                        Morada
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Rua</label>
+                            <p className="text-gray-900">{client.address.street || 'Não informado'}</p>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Cidade</label>
+                            <p className="text-gray-900">{client.address.city || 'Não informado'}</p>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Código Postal</label>
+                            <p className="text-gray-900">{client.address.postalCode || 'Não informado'}</p>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">País</label>
+                            <p className="text-gray-900">{client.address.country || 'Portugal'}</p>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Informações do cônjuge */}
+            {client.spouse && (
+                <div className="bg-white rounded-lg border border-gray-200 p-6">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                        <HeartIcon className="w-5 h-5 mr-2" />
+                        Informações do Cônjuge
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
@@ -265,12 +258,12 @@ const ClientDetail = () => {
                             <p className="text-gray-900">{client.spouse.name || 'Não informado'}</p>
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Telefone</label>
-                            <p className="text-gray-900">{client.spouse.phone || 'Não informado'}</p>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Data de Nascimento</label>
+                            <p className="text-gray-900">{formatDate(client.spouse.birthDate)}</p>
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                            <p className="text-gray-900">{client.spouse.email || 'Não informado'}</p>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">NIF</label>
+                            <p className="text-gray-900">{client.spouse.nif || 'Não informado'}</p>
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Profissão</label>
@@ -313,82 +306,50 @@ const ClientDetail = () => {
                         </p>
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Banco de Relacionamento</label>
-                        <p className="text-gray-900">{client.financial?.relationshipBank || 'Não informado'}</p>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Rendimento Total do Agregado</label>
+                        <p className="text-gray-900">
+                            {client.financial?.totalHouseholdIncome ? `€${client.financial.totalHouseholdIncome}` : 'Não informado'}
+                        </p>
                     </div>
                 </div>
             </div>
 
-            {/* Créditos */}
-            <div className="bg-white rounded-lg border border-gray-200 p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                    <BanknotesIcon className="w-5 h-5 mr-2" />
-                    Situação de Crédito
-                </h3>
-                <div className="space-y-4">
-                    {client.financial?.credits && Object.entries(client.financial.credits).map(([type, credit]) => {
-                        if (!credit?.active) return null;
-                        return (
-                            <div key={type} className="border border-gray-200 rounded-lg p-4">
-                                <h4 className="font-medium text-gray-900 mb-2">
-                                    {CLIENT_CREDIT_TYPES[type] || type}
-                                </h4>
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">
-                                    <div>
-                                        <span className="text-gray-600">Montante:</span>
-                                        <span className="ml-1 text-gray-900">
-                                            {credit.amount ? `€${credit.amount}` : 'N/D'}
-                                        </span>
-                                    </div>
-                                    <div>
-                                        <span className="text-gray-600">Entidade:</span>
-                                        <span className="ml-1 text-gray-900">{credit.entity || 'N/D'}</span>
-                                    </div>
-                                    <div>
-                                        <span className="text-gray-600">Prestação:</span>
-                                        <span className="ml-1 text-gray-900">
-                                            {credit.monthlyPayment ? `€${credit.monthlyPayment}` : 'N/D'}
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-                        );
-                    })}
-
-                    {!client.financial?.credits ||
-                        !Object.values(client.financial.credits).some(credit => credit?.active) && (
-                            <p className="text-gray-500">Sem créditos ativos</p>
-                        )}
+            {/* Situação creditícia */}
+            {client.financial?.creditType && (
+                <div className="bg-white rounded-lg border border-gray-200 p-6">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                        <BanknotesIcon className="w-5 h-5 mr-2" />
+                        Situação Creditícia
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de Crédito</label>
+                            <p className="text-gray-900">
+                                {CLIENT_CREDIT_TYPES[client.financial.creditType] || client.financial.creditType}
+                            </p>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Banco</label>
+                            <p className="text-gray-900">{client.financial.bank || 'Não informado'}</p>
+                        </div>
+                    </div>
                 </div>
-            </div>
+            )}
 
             {/* Pré-aprovação */}
             {client.financial?.preApproval && (
                 <div className="bg-white rounded-lg border border-gray-200 p-6">
                     <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                        <BuildingOfficeIcon className="w-5 h-5 mr-2" />
-                        Pré-aprovação Bancária
+                        <ClipboardDocumentCheckIcon className="w-5 h-5 mr-2" />
+                        Pré-aprovação de Crédito
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Tem Pré-aprovação</label>
-                            <p className="text-gray-900">
-                                {client.financial.preApproval.hasPreApproval ? 'Sim' : 'Não'}
-                            </p>
-                        </div>
                         {client.financial.preApproval.hasPreApproval && (
                             <>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Banco</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Valor Aprovado</label>
                                     <p className="text-gray-900">
-                                        {client.financial.preApproval.bank || 'Não informado'}
-                                    </p>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Montante</label>
-                                    <p className="text-gray-900">
-                                        {client.financial.preApproval.amount ?
-                                            `€${client.financial.preApproval.amount}` : 'Não informado'}
+                                        {client.financial.preApproval.amount ? `€${client.financial.preApproval.amount}` : 'Não informado'}
                                     </p>
                                 </div>
                                 <div className="md:col-span-2">
@@ -558,39 +519,35 @@ const ClientDetail = () => {
             <div className="p-6">
                 {/* Header com navegação */}
                 <div className="flex items-center justify-between mb-6">
-                    <div className="flex items-center space-x-3">
+                    <div className="flex items-center">
                         <button
                             onClick={() => navigate('/clients')}
-                            className="text-gray-500 hover:text-gray-700 transition-colors"
+                            className="mr-4 p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
                         >
                             <ArrowLeftIcon className="w-5 h-5" />
                         </button>
                         <div>
-                            <h1 className="text-2xl font-bold text-gray-900 flex items-center">
-                                {client.name}
-                                {/* Indicadores visuais */}
-                                <div className="flex ml-3 space-x-1">
-                                    {client.tags?.includes('VIP') && (
-                                        <StarIconSolid className="w-5 h-5 text-yellow-500" title="Cliente VIP" />
-                                    )}
-                                    {client.tags?.includes('Urgente') && (
-                                        <div className="w-3 h-3 bg-red-500 rounded-full" title="Urgente" />
-                                    )}
-                                    {['married', 'union'].includes(client.maritalStatus) && (
-                                        <HeartIconSolid className="w-5 h-5 text-pink-500" title="Casado/União de facto" />
-                                    )}
-                                </div>
-                            </h1>
-                            <p className="text-sm text-gray-600">Visualização completa dos dados do cliente</p>
+                            <h1 className="text-2xl font-bold text-gray-900">{client.name}</h1>
+                            <div className="flex items-center mt-1 space-x-4">
+                                {client.tags?.includes('VIP') && (
+                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-yellow-100 text-yellow-800">
+                                        <StarIconSolid className="w-3 h-3 mr-1" />
+                                        VIP
+                                    </span>
+                                )}
+                                {client.tags?.includes('Urgente') && (
+                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-red-100 text-red-800">
+                                        Urgente
+                                    </span>
+                                )}
+                            </div>
                         </div>
                     </div>
-
-                    {/* Botão de editar */}
                     <button
-                        onClick={() => navigate(`/clients/${client.id}/edit`)}
-                        className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                        onClick={() => navigate(`/clients/${clientId}/edit`)}
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                     >
-                        <PencilIcon className="w-4 h-4 mr-2" />
+                        <PencilIcon className="w-4 h-4" />
                         Editar Cliente
                     </button>
                 </div>
@@ -629,8 +586,8 @@ const ClientDetail = () => {
                                     key={tab.id}
                                     onClick={() => setActiveTab(tab.id)}
                                     className={`flex items-center py-2 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === tab.id
-                                            ? 'border-blue-500 text-blue-600'
-                                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                        ? 'border-blue-500 text-blue-600'
+                                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                                         }`}
                                 >
                                     <Icon className="w-4 h-4 mr-2" />

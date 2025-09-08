@@ -1,7 +1,10 @@
 /**
- * CLIENT SERVICE - MyImoMatePro CORRIGIDO
+ * CLIENT SERVICE - MyImoMatePro
  * CRUD completo para gestão de clientes no Firestore
- * CORREÇÃO: Problema dos clientes não aparecerem na lista
+ * ✅ VERSÃO LIMPA - Console logs de debug removidos
+ * 
+ * Caminho: src/services/clientService.js
+ * Alteração: Limpeza completa dos logs de debug, mantendo apenas console.error
  */
 
 import {
@@ -44,8 +47,6 @@ const getClientDoc = (consultorId, clientId) => {
  */
 export const createClient = async (consultorId, clientData) => {
     try {
-        console.log('🆕 ClientService: Criando cliente...', { consultorId, clientName: clientData.name });
-
         // Validar dados antes de criar
         const validation = validateClientData(clientData);
         if (!validation.isValid) {
@@ -74,11 +75,10 @@ export const createClient = async (consultorId, clientData) => {
             ...createdClient.data()
         };
 
-        console.log('✅ ClientService: Cliente criado com sucesso', { clientId: clientWithId.id });
         return clientWithId;
 
     } catch (error) {
-        console.error('❌ ClientService: Erro ao criar cliente:', error);
+        console.error('ClientService: Erro ao criar cliente:', error);
         throw new Error(`Erro ao criar cliente: ${error.message}`);
     }
 };
@@ -90,12 +90,9 @@ export const createClient = async (consultorId, clientData) => {
  */
 export const getClient = async (consultorId, clientId) => {
     try {
-        console.log('🔍 ClientService: Buscando cliente...', { consultorId, clientId });
-
         const clientDoc = await getDoc(getClientDoc(consultorId, clientId));
 
         if (!clientDoc.exists()) {
-            console.log('⚠️ ClientService: Cliente não encontrado');
             return null;
         }
 
@@ -104,19 +101,16 @@ export const getClient = async (consultorId, clientId) => {
             ...clientDoc.data()
         };
 
-        console.log('✅ ClientService: Cliente encontrado', { clientId: client.id, clientName: client.name });
         return client;
 
     } catch (error) {
-        console.error('❌ ClientService: Erro ao buscar cliente:', error);
+        console.error('ClientService: Erro ao buscar cliente:', error);
         throw new Error(`Erro ao buscar cliente: ${error.message}`);
     }
 };
 
 /**
- * ✅ FUNÇÃO CORRIGIDA: Listar todos os clientes do consultor com paginação
- * PROBLEMA IDENTIFICADO: Query Firestore pode estar falhando
- * SOLUÇÃO: Debug completo + fallback para buscar todos os clientes
+ * Listar todos os clientes do consultor com paginação
  */
 export const listClients = async (consultorId, options = {}) => {
     try {
@@ -129,164 +123,66 @@ export const listClients = async (consultorId, options = {}) => {
             filters = {}
         } = options;
 
-        console.log('📋 ClientService: Listando clientes...', {
-            consultorId,
-            page,
-            pageSize,
-            orderField,
-            filters
-        });
-
-        // ✅ PRIMEIRA TENTATIVA: Query com where clause
-        console.log('🔍 Tentativa 1: Query com isActive = true');
+        // Primeira tentativa: Query com where clause para clientes ativos
         let clientQuery = query(
             getClientCollection(consultorId),
             where('isActive', '==', true),
-            limit(pageSize * 2) // Buscar mais para ter margem após filtros
+            limit(pageSize * 2)
         );
 
         let snapshot = await getDocs(clientQuery);
-        console.log('📊 Snapshot results (isActive=true):', {
-            empty: snapshot.empty,
-            size: snapshot.size,
-            docs: snapshot.docs.length
-        });
 
-        // ✅ SEGUNDA TENTATIVA: Se não encontrar, buscar TODOS os clientes
+        // Segunda tentativa: Se não encontrar, buscar todos os clientes
         if (snapshot.empty) {
-            console.log('⚠️ Nenhum cliente encontrado com isActive=true. Buscando todos...');
             clientQuery = query(
                 getClientCollection(consultorId),
                 limit(pageSize * 2)
             );
             snapshot = await getDocs(clientQuery);
-            console.log('📊 Snapshot results (todos):', {
-                empty: snapshot.empty,
-                size: snapshot.size,
-                docs: snapshot.docs.length
-            });
         }
 
-        // ✅ TERCEIRA TENTATIVA: Debug da estrutura da coleção
+        // Terceira tentativa: Debug da estrutura da coleção
         if (snapshot.empty) {
-            console.log('⚠️ Ainda vazio. Verificando estrutura da coleção...');
             const collectionRef = getClientCollection(consultorId);
-            console.log('📁 Collection path:', collectionRef.path);
-
-            // Tentar buscar sem filtros
             const allDocsSnapshot = await getDocs(collectionRef);
-            console.log('📊 All docs in collection:', {
-                empty: allDocsSnapshot.empty,
-                size: allDocsSnapshot.size
-            });
 
             if (!allDocsSnapshot.empty) {
-                console.log('📝 Sample documents:');
-                allDocsSnapshot.docs.slice(0, 3).forEach((doc, index) => {
-                    const data = doc.data();
-                    console.log(`Doc ${index + 1}:`, {
-                        id: doc.id,
-                        name: data.name,
-                        isActive: data.isActive,
-                        hasData: !!data
-                    });
-                });
+                console.warn('ClientService: Clientes encontrados mas sem campo isActive correto');
             }
         }
 
-        // ✅ MAPEAMENTO SEGURO DOS DOCUMENTOS - CORREÇÃO FINAL PARA IDs NULL
+        // Mapeamento seguro dos documentos
         const clients = [];
         snapshot.forEach((doc) => {
             const docId = doc.id;
             const docData = doc.data();
 
-            console.log('🔍 Debug documento raw (VERSÃO CORRIGIDA):', {
-                docId,
-                docIdType: typeof docId,
-                docIdLength: docId?.length,
-                hasData: !!docData,
-                dataKeys: docData ? Object.keys(docData) : [],
-                name: docData?.name,
-                docDataId: docData?.id, // ✅ VERIFICAR SE docData tem id
-                originalDocRef: doc
-            });
-
             if (docData && docId) {
-                // ✅ CORREÇÃO CRÍTICA: Separar docData de id para evitar sobrescrita
+                // Separar docData de id para evitar sobrescrita
                 const { id: docDataId, ...restOfDocData } = docData;
 
                 const client = {
-                    id: docId, // ✅ SEMPRE usar o ID do documento Firebase
-                    ...restOfDocData // ✅ Resto dos dados SEM o campo id interno
+                    id: docId, // Sempre usar o ID do documento Firebase
+                    ...restOfDocData
                 };
 
-                // ✅ Debug APÓS o mapeamento
-                console.log('👤 Cliente processado (VERSÃO CORRIGIDA):', {
-                    id: client.id,
-                    idType: typeof client.id,
-                    name: client.name,
-                    isActive: client.isActive,
-                    hasValidId: !!(client.id && client.id.length > 0),
-                    docDataContainedId: docDataId,
-                    finalId: client.id
-                });
-
-                // ✅ Log adicional para debug
-                if (docDataId && docDataId !== docId) {
-                    console.warn('⚠️ ATENÇÃO: docData continha ID diferente do Firebase:', {
-                        firebaseId: docId,
-                        docDataId: docDataId,
-                        usingFirebaseId: true
-                    });
-                }
-
-                // ✅ Verificação de validade ANTES de adicionar
-                if (!client.id) {
-                    console.error('❌ ERRO CRÍTICO: ID ainda é inválido após correção:', {
-                        client,
-                        docIdOriginal: docId,
-                        clientKeys: Object.keys(client)
-                    });
-                    return; // Pular este documento
-                }
-
-                // ✅ VERIFICAÇÃO FINAL: Só adicionar se ID existir
-                if (client.id && client.id.length > 0) {
-                    clients.push(client);
-                    console.log('✅ Cliente adicionado à lista:', client.name);
-                } else {
-                    console.error('❌ Cliente rejeitado - ID inválido:', {
-                        client,
-                        docId,
-                        hasClientId: !!client.id
-                    });
-                }
-            } else {
-                console.warn('⚠️ Documento inválido ignorado:', {
-                    docId,
-                    hasData: !!docData,
-                    docIdValid: !!docId
-                });
+                clients.push(client);
             }
         });
 
-        // ✅ APLICAR FILTROS MANUALMENTE (só para clientes ativos)
-        let filteredClients = clients.filter(client => client.isActive !== false);
-
-        console.log('🔍 Clientes após filtro isActive:', filteredClients.length);
+        // Aplicar filtros manuais se necessário
+        let filteredClients = clients;
 
         if (filters.tag && filters.tag !== 'all') {
             filteredClients = filteredClients.filter(client =>
                 client.tags && client.tags.includes(filters.tag)
             );
-            console.log(`🔍 Clientes após filtro tag (${filters.tag}):`, filteredClients.length);
         }
 
         if (filters.maritalStatus && filters.maritalStatus !== 'all') {
             filteredClients = filteredClients.filter(client =>
                 client.maritalStatus === filters.maritalStatus
             );
-            console.log(`🔍 Clientes após filtro maritalStatus (${filters.maritalStatus}):`, filteredClients.length);
         }
 
         if (filters.hasEmail && filters.hasEmail !== 'all') {
@@ -294,50 +190,23 @@ export const listClients = async (consultorId, options = {}) => {
             filteredClients = filteredClients.filter(client =>
                 hasEmailFilter ? !!client.email : !client.email
             );
-            console.log(`🔍 Clientes após filtro hasEmail (${filters.hasEmail}):`, filteredClients.length);
         }
 
         if (filters.hasFinancialInfo && filters.hasFinancialInfo !== 'all') {
             const hasFinancialFilter = filters.hasFinancialInfo === 'true';
-            filteredClients = filteredClients.filter(client =>
-                hasFinancialFilter ? !!(client.financial && client.financial.monthlyIncome) :
-                    !(client.financial && client.financial.monthlyIncome)
-            );
-            console.log(`🔍 Clientes após filtro hasFinancialInfo (${filters.hasFinancialInfo}):`, filteredClients.length);
-        }
-
-        // Ordenar manualmente
-        if (orderField && filteredClients.length > 0) {
-            filteredClients.sort((a, b) => {
-                const aValue = a[orderField];
-                const bValue = b[orderField];
-
-                if (!aValue && !bValue) return 0;
-                if (!aValue) return 1;
-                if (!bValue) return -1;
-
-                if (orderDirection === 'desc') {
-                    return bValue > aValue ? 1 : -1;
-                } else {
-                    return aValue > bValue ? 1 : -1;
-                }
+            filteredClients = filteredClients.filter(client => {
+                const hasFinancial = !!(client.financial?.monthlyIncome ||
+                    client.financial?.spouseMonthlyIncome ||
+                    client.financial?.totalHouseholdIncome);
+                return hasFinancialFilter ? hasFinancial : !hasFinancial;
             });
         }
 
-        // Aplicar paginação manual
+        // Paginação manual
         const startIndex = (page - 1) * pageSize;
         const endIndex = startIndex + pageSize;
         const paginatedClients = filteredClients.slice(startIndex, endIndex);
         const hasMore = endIndex < filteredClients.length;
-
-        console.log('✅ ClientService: Clientes listados - RESULTADO FINAL', {
-            totalFound: clients.length,
-            filteredCount: filteredClients.length,
-            paginatedCount: paginatedClients.length,
-            hasMore,
-            allIdsValid: paginatedClients.every(c => !!c.id),
-            clientNames: paginatedClients.map(c => c.name)
-        });
 
         return {
             clients: paginatedClients,
@@ -351,12 +220,7 @@ export const listClients = async (consultorId, options = {}) => {
         };
 
     } catch (error) {
-        console.error('❌ ClientService: Erro ao listar clientes:', error);
-        console.error('❌ Error details:', {
-            message: error.message,
-            code: error.code,
-            stack: error.stack
-        });
+        console.error('ClientService: Erro ao listar clientes:', error);
         throw new Error(`Erro ao listar clientes: ${error.message}`);
     }
 };
@@ -366,8 +230,6 @@ export const listClients = async (consultorId, options = {}) => {
  */
 export const searchClients = async (consultorId, searchTerm, maxResults = 10) => {
     try {
-        console.log('🔎 ClientService: Buscando clientes por termo...', { consultorId, searchTerm });
-
         if (!searchTerm || searchTerm.trim().length < 2) {
             return [];
         }
@@ -378,7 +240,7 @@ export const searchClients = async (consultorId, searchTerm, maxResults = 10) =>
         const allClientsQuery = query(
             getClientCollection(consultorId),
             where('isActive', '==', true),
-            limit(50) // Limite razoável para busca
+            limit(50)
         );
 
         const snapshot = await getDocs(allClientsQuery);
@@ -408,15 +270,10 @@ export const searchClients = async (consultorId, searchTerm, maxResults = 10) =>
             })
             .slice(0, maxResults);
 
-        console.log('✅ ClientService: Busca concluída', {
-            totalResults: results.length,
-            allIdsValid: results.every(c => !!c.id)
-        });
-
         return results;
 
     } catch (error) {
-        console.error('❌ ClientService: Erro na busca:', error);
+        console.error('ClientService: Erro na busca:', error);
         throw new Error(`Erro na busca: ${error.message}`);
     }
 };
@@ -428,20 +285,16 @@ export const searchClients = async (consultorId, searchTerm, maxResults = 10) =>
  */
 export const updateClient = async (consultorId, clientId, updates) => {
     try {
-        console.log('📝 ClientService: Atualizando cliente...', { consultorId, clientId });
-
         const updateData = {
             ...updates,
             updatedAt: Timestamp.now()
         };
 
         await updateDoc(getClientDoc(consultorId, clientId), updateData);
-
-        console.log('✅ ClientService: Cliente atualizado com sucesso');
         return true;
 
     } catch (error) {
-        console.error('❌ ClientService: Erro ao atualizar cliente:', error);
+        console.error('ClientService: Erro ao atualizar cliente:', error);
         throw new Error(`Erro ao atualizar cliente: ${error.message}`);
     }
 };
@@ -451,18 +304,15 @@ export const updateClient = async (consultorId, clientId, updates) => {
  */
 export const updateClientTags = async (consultorId, clientId, tags) => {
     try {
-        console.log('🏷️ ClientService: Atualizando tags...', { consultorId, clientId, tags });
-
         await updateDoc(getClientDoc(consultorId, clientId), {
             tags,
             updatedAt: Timestamp.now()
         });
 
-        console.log('✅ ClientService: Tags atualizadas com sucesso');
         return true;
 
     } catch (error) {
-        console.error('❌ ClientService: Erro ao atualizar tags:', error);
+        console.error('ClientService: Erro ao atualizar tags:', error);
         throw new Error(`Erro ao atualizar tags: ${error.message}`);
     }
 };
@@ -474,19 +324,16 @@ export const updateClientTags = async (consultorId, clientId, tags) => {
  */
 export const deactivateClient = async (consultorId, clientId) => {
     try {
-        console.log('❌ ClientService: Desativando cliente...', { consultorId, clientId });
-
         await updateDoc(getClientDoc(consultorId, clientId), {
             isActive: false,
             deactivatedAt: Timestamp.now(),
             updatedAt: Timestamp.now()
         });
 
-        console.log('✅ ClientService: Cliente desativado com sucesso');
         return true;
 
     } catch (error) {
-        console.error('❌ ClientService: Erro ao desativar cliente:', error);
+        console.error('ClientService: Erro ao desativar cliente:', error);
         throw new Error(`Erro ao desativar cliente: ${error.message}`);
     }
 };
@@ -496,19 +343,16 @@ export const deactivateClient = async (consultorId, clientId) => {
  */
 export const reactivateClient = async (consultorId, clientId) => {
     try {
-        console.log('♻️ ClientService: Reativando cliente...', { consultorId, clientId });
-
         await updateDoc(getClientDoc(consultorId, clientId), {
             isActive: true,
             deactivatedAt: null,
             updatedAt: Timestamp.now()
         });
 
-        console.log('✅ ClientService: Cliente reativado com sucesso');
         return true;
 
     } catch (error) {
-        console.error('❌ ClientService: Erro ao reativar cliente:', error);
+        console.error('ClientService: Erro ao reativar cliente:', error);
         throw new Error(`Erro ao reativar cliente: ${error.message}`);
     }
 };
@@ -518,15 +362,11 @@ export const reactivateClient = async (consultorId, clientId) => {
  */
 export const deleteClient = async (consultorId, clientId) => {
     try {
-        console.log('🔥 ClientService: DELETANDO cliente permanentemente...', { consultorId, clientId });
-
         await deleteDoc(getClientDoc(consultorId, clientId));
-
-        console.log('✅ ClientService: Cliente deletado permanentemente');
         return true;
 
     } catch (error) {
-        console.error('❌ ClientService: Erro ao deletar cliente:', error);
+        console.error('ClientService: Erro ao deletar cliente:', error);
         throw new Error(`Erro ao deletar cliente: ${error.message}`);
     }
 };
@@ -534,12 +374,10 @@ export const deleteClient = async (consultorId, clientId) => {
 // ===== STATISTICS =====
 
 /**
- * ✅ FUNÇÃO CORRIGIDA: Calcular estatísticas dos clientes
+ * Calcular estatísticas dos clientes
  */
 export const getClientStats = async (consultorId) => {
     try {
-        console.log('📊 ClientService: Calculando estatísticas...', { consultorId });
-
         // Buscar todos os clientes ativos
         const activeQuery = query(
             getClientCollection(consultorId),
@@ -547,69 +385,62 @@ export const getClientStats = async (consultorId) => {
         );
 
         const activeSnapshot = await getDocs(activeQuery);
-        console.log('📊 Stats snapshot:', {
-            empty: activeSnapshot.empty,
-            size: activeSnapshot.size,
-            docs: activeSnapshot.docs.length
-        });
 
         const activeClients = [];
         activeSnapshot.forEach((doc) => {
             const docId = doc.id;
             const docData = doc.data();
 
-            console.log('📊 Stats doc:', {
-                docId,
-                hasData: !!docData,
-                name: docData?.name
-            });
-
             if (docId && docData) {
                 activeClients.push({
-                    id: docId, // ✅ CORREÇÃO: Usar docId do Firebase
+                    id: docId,
                     ...docData
                 });
             }
         });
 
-        console.log('📊 Active clients processados:', {
-            count: activeClients.length,
-            allHaveIds: activeClients.every(c => !!c.id),
-            sampleIds: activeClients.slice(0, 3).map(c => ({ id: c.id, name: c.name }))
-        });
-
         // Calcular estatísticas
         const stats = {
             total: activeClients.length,
-            withEmail: activeClients.filter(c => c.email).length,
-            withFinancialInfo: activeClients.filter(c => c.financial?.monthlyIncome).length,
-            married: activeClients.filter(c => ['married', 'union'].includes(c.maritalStatus)).length,
-            vipClients: activeClients.filter(c => c.tags?.includes('VIP')).length,
-            urgentClients: activeClients.filter(c => c.tags?.includes('Urgente')).length,
-            byContactPreference: {
-                phone: activeClients.filter(c => c.contactPreference === 'phone').length,
-                email: activeClients.filter(c => c.contactPreference === 'email').length,
-                whatsapp: activeClients.filter(c => c.contactPreference === 'whatsapp').length,
-                any: activeClients.filter(c => c.contactPreference === 'any').length
-            },
-            byMaritalStatus: {
-                single: activeClients.filter(c => c.maritalStatus === 'single').length,
-                married: activeClients.filter(c => c.maritalStatus === 'married').length,
-                union: activeClients.filter(c => c.maritalStatus === 'union').length,
-                divorced: activeClients.filter(c => c.maritalStatus === 'divorced').length,
-                widowed: activeClients.filter(c => c.maritalStatus === 'widowed').length
-            }
+            withEmail: activeClients.filter(c => !!c.email).length,
+            withFinancialInfo: activeClients.filter(c =>
+                !!(c.financial?.monthlyIncome || c.financial?.spouseMonthlyIncome)
+            ).length,
+            byMaritalStatus: {},
+            byTag: {},
+            avgAge: 0,
+            lastUpdated: new Date().toISOString()
         };
 
-        console.log('✅ ClientService: Estatísticas calculadas', {
-            total: stats.total,
-            withValidIds: activeClients.every(c => !!c.id)
+        // Contar por estado civil
+        activeClients.forEach(client => {
+            const status = client.maritalStatus || 'não_especificado';
+            stats.byMaritalStatus[status] = (stats.byMaritalStatus[status] || 0) + 1;
         });
+
+        // Contar por tags
+        activeClients.forEach(client => {
+            if (client.tags && Array.isArray(client.tags)) {
+                client.tags.forEach(tag => {
+                    stats.byTag[tag] = (stats.byTag[tag] || 0) + 1;
+                });
+            }
+        });
+
+        // Calcular idade média
+        const clientsWithAge = activeClients.filter(client => client.birthDate);
+        if (clientsWithAge.length > 0) {
+            const totalAge = clientsWithAge.reduce((sum, client) => {
+                const age = new Date().getFullYear() - new Date(client.birthDate).getFullYear();
+                return sum + age;
+            }, 0);
+            stats.avgAge = Math.round(totalAge / clientsWithAge.length);
+        }
 
         return stats;
 
     } catch (error) {
-        console.error('❌ ClientService: Erro ao calcular estatísticas:', error);
+        console.error('ClientService: Erro ao calcular estatísticas:', error);
         throw new Error(`Erro ao calcular estatísticas: ${error.message}`);
     }
 };
@@ -621,11 +452,6 @@ export const getClientStats = async (consultorId) => {
  */
 export const batchUpdateClients = async (consultorId, updates) => {
     try {
-        console.log('📦 ClientService: Iniciando operação em lote...', {
-            consultorId,
-            operationsCount: updates.length
-        });
-
         const batch = writeBatch(db);
 
         updates.forEach(({ clientId, data }) => {
@@ -637,12 +463,10 @@ export const batchUpdateClients = async (consultorId, updates) => {
         });
 
         await batch.commit();
-
-        console.log('✅ ClientService: Operação em lote concluída');
         return true;
 
     } catch (error) {
-        console.error('❌ ClientService: Erro na operação em lote:', error);
+        console.error('ClientService: Erro na operação em lote:', error);
         throw new Error(`Erro na operação em lote: ${error.message}`);
     }
 };

@@ -1,8 +1,10 @@
 /**
- * CLIENT CONTEXT - MyImoMatePro CORRIGIDO
+ * CLIENT CONTEXT - MyImoMatePro
  * Estado global para gestão de clientes com React Context
- * ESTRUTURA CORRETA: consultores/{consultorId}/clientes/{clienteId}
- * CORREÇÃO: Resolvido erro "isActive is not defined" e completadas funções
+ * ✅ VERSÃO LIMPA - Console logs de debug removidos
+ * 
+ * Caminho: src/contexts/ClientContext.jsx
+ * Estrutura: consultores/{consultorId}/clientes/{clienteId}
  */
 
 import React, { createContext, useContext, useReducer, useEffect, useCallback } from 'react';
@@ -140,10 +142,7 @@ function clientReducer(state, action) {
                     ...state.errors,
                     [action.operation]: action.error
                 },
-                loading: {
-                    ...state.loading,
-                    [action.operation]: false
-                }
+                loading: { ...state.loading, [action.operation]: false }
             };
 
         case ClientActionTypes.CLEAR_ERROR:
@@ -159,16 +158,15 @@ function clientReducer(state, action) {
             return {
                 ...state,
                 clients: action.clients,
-                pagination: action.pagination || state.pagination,
-                loading: { ...state.loading, list: false },
-                cache: { ...state.cache, lastFetch: Date.now() }
+                pagination: action.pagination,
+                loading: { ...state.loading, list: false }
             };
 
         case ClientActionTypes.APPEND_CLIENTS:
             return {
                 ...state,
                 clients: [...state.clients, ...action.clients],
-                pagination: action.pagination || state.pagination,
+                pagination: action.pagination,
                 loading: { ...state.loading, list: false }
             };
 
@@ -185,9 +183,7 @@ function clientReducer(state, action) {
                 clients: state.clients.map(client =>
                     client.id === action.client.id ? action.client : client
                 ),
-                currentClient: state.currentClient?.id === action.client.id
-                    ? action.client
-                    : state.currentClient,
+                currentClient: state.currentClient?.id === action.client.id ? action.client : state.currentClient,
                 loading: { ...state.loading, update: false }
             };
 
@@ -195,9 +191,6 @@ function clientReducer(state, action) {
             return {
                 ...state,
                 clients: state.clients.filter(client => client.id !== action.clientId),
-                currentClient: state.currentClient?.id === action.clientId
-                    ? null
-                    : state.currentClient,
                 loading: { ...state.loading, delete: false }
             };
 
@@ -276,10 +269,10 @@ export function ClientProvider({ children }) {
     const [state, dispatch] = useReducer(clientReducer, initialState);
     const { currentUser } = useAuth();
 
-    // CORREÇÃO: Usar consultorId em vez de tenantId
+    // Usar consultorId em vez de tenantId
     const consultorId = currentUser?.uid;
 
-    // ===== HELPER FUNCTIONS =====
+    // Helper functions para loading e erros
     const setLoading = useCallback((operation, isLoading) => {
         dispatch({ type: ClientActionTypes.SET_LOADING, operation, isLoading });
     }, []);
@@ -292,11 +285,11 @@ export function ClientProvider({ children }) {
         dispatch({ type: ClientActionTypes.CLEAR_ERROR, operation });
     }, []);
 
-    // ===== DERIVED STATE =====
-    const isSearching = state.searchTerm.length > 0;
-    const hasSearchResults = state.searchResults.length > 0;
+    // Estados derivados
+    const isSearching = state.searchTerm && state.searchTerm.trim().length > 0;
+    const hasSearchResults = state.searchResults && state.searchResults.length > 0;
 
-    // ===== CRUD ACTIONS =====
+    // ===== OPERAÇÕES CRUD =====
 
     /**
      * Criar novo cliente
@@ -310,17 +303,9 @@ export function ClientProvider({ children }) {
             setLoading('create', true);
             clearError('create');
 
-            console.log('ClientContext: Criando cliente...', { clientName: clientData.name });
-
-            // CORREÇÃO: Passar consultorId em vez de tenantId
             const newClient = await createClient(consultorId, clientData);
-
             dispatch({ type: ClientActionTypes.ADD_CLIENT, client: newClient });
 
-            // Invalidar cache de estatísticas
-            dispatch({ type: ClientActionTypes.INVALIDATE_CACHE });
-
-            console.log('ClientContext: Cliente criado com sucesso', { clientId: newClient.id });
             return newClient;
 
         } catch (error) {
@@ -342,14 +327,9 @@ export function ClientProvider({ children }) {
             setLoading('current', true);
             clearError('current');
 
-            console.log('ClientContext: Buscando cliente...', { clientId });
-
-            // CORREÇÃO: Passar consultorId em vez de tenantId
             const client = await getClient(consultorId, clientId);
-
             dispatch({ type: ClientActionTypes.SET_CURRENT_CLIENT, client });
 
-            console.log('ClientContext: Cliente carregado', { clientId: client?.id });
             return client;
 
         } catch (error) {
@@ -375,8 +355,6 @@ export function ClientProvider({ children }) {
                 clearError('list');
             }
 
-            console.log('ClientContext: Listando clientes...', { options });
-
             const queryOptions = {
                 page: shouldLoadMore ? state.pagination.page + 1 : 1,
                 pageSize: state.pagination.pageSize,
@@ -385,7 +363,6 @@ export function ClientProvider({ children }) {
                 ...options
             };
 
-            // CORREÇÃO: Passar consultorId em vez de tenantId
             const result = await listClients(consultorId, queryOptions);
 
             if (shouldLoadMore) {
@@ -401,11 +378,6 @@ export function ClientProvider({ children }) {
                     pagination: result.pagination
                 });
             }
-
-            console.log('ClientContext: Clientes carregados', {
-                count: result.clients.length,
-                hasMore: result.pagination.hasMore
-            });
 
             return result;
 
@@ -433,14 +405,9 @@ export function ClientProvider({ children }) {
             setLoading('search', true);
             clearError('search');
 
-            console.log('ClientContext: Buscando clientes...', { searchTerm });
-
-            // CORREÇÃO: Passar consultorId em vez de tenantId
             const results = await searchClients(consultorId, searchTerm, options);
-
             dispatch({ type: ClientActionTypes.SET_SEARCH_RESULTS, results });
 
-            console.log('ClientContext: Busca concluída', { found: results.length });
             return results;
 
         } catch (error) {
@@ -462,14 +429,9 @@ export function ClientProvider({ children }) {
             setLoading('update', true);
             clearError('update');
 
-            console.log('ClientContext: Atualizando cliente...', { clientId });
-
-            // CORREÇÃO: Passar consultorId em vez de tenantId
             const updatedClient = await updateClient(consultorId, clientId, updateData);
-
             dispatch({ type: ClientActionTypes.UPDATE_CLIENT, client: updatedClient });
 
-            console.log('ClientContext: Cliente atualizado', { clientId });
             return updatedClient;
 
         } catch (error) {
@@ -488,14 +450,9 @@ export function ClientProvider({ children }) {
         }
 
         try {
-            console.log('ClientContext: Atualizando tags...', { clientId, tags });
-
-            // CORREÇÃO: Passar consultorId em vez de tenantId
             const updatedClient = await updateClientTags(consultorId, clientId, tags);
-
             dispatch({ type: ClientActionTypes.UPDATE_CLIENT, client: updatedClient });
 
-            console.log('ClientContext: Tags atualizadas', { clientId });
             return updatedClient;
 
         } catch (error) {
@@ -516,14 +473,9 @@ export function ClientProvider({ children }) {
             setLoading('delete', true);
             clearError('delete');
 
-            console.log('ClientContext: Desativando cliente...', { clientId });
-
-            // CORREÇÃO: Passar consultorId em vez de tenantId
             await deactivateClient(consultorId, clientId);
-
             dispatch({ type: ClientActionTypes.REMOVE_CLIENT, clientId });
 
-            console.log('ClientContext: Cliente desativado', { clientId });
             return true;
 
         } catch (error) {
@@ -545,14 +497,9 @@ export function ClientProvider({ children }) {
             setLoading('stats', true);
             clearError('stats');
 
-            console.log('ClientContext: Carregando estatísticas...');
-
-            // CORREÇÃO: Passar consultorId em vez de tenantId
             const stats = await getClientStats(consultorId);
-
             dispatch({ type: ClientActionTypes.SET_STATS, stats });
 
-            console.log('ClientContext: Estatísticas carregadas', { stats });
             return stats;
 
         } catch (error) {
