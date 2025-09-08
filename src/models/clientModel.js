@@ -1,17 +1,17 @@
 /**
- * CLIENT MODEL - MyImoMatePro
- * Schema completo para Cliente baseado no formulário ClientForm.js
- * Estrutura: tenants/{tenantId}/clients/{clientId}
+ * CLIENT MODEL - MyImoMatePro - VERSÃO CORRIGIDA
+ * Schema completo para Cliente em PERFEITA SINTONIA com ClientForm.js
+ * Estrutura: consultores/{consultorId}/clientes/{clienteId}
  */
 
 import { Timestamp } from 'firebase/firestore';
 
-// ===== SCHEMA PRINCIPAL DO CLIENTE =====
+// ===== SCHEMA PRINCIPAL DO CLIENTE (CORRIGIDO) =====
 export const createClientSchema = (clientData) => {
     return {
         // ===== METADADOS =====
         id: null, // Será definido pelo Firestore
-        tenantId: null, // ID do consultor (multitenant)
+        consultorId: null, // ID do consultor (corrigido de tenantId)
         createdAt: Timestamp.now(),
         updatedAt: Timestamp.now(),
         isActive: true,
@@ -22,7 +22,7 @@ export const createClientSchema = (clientData) => {
 
         // ===== DADOS PESSOAIS (OPCIONAIS) =====
         email: clientData.email || '',
-        contactPreference: clientData.contactPreference || 'phone', // 'phone', 'email', 'whatsapp', 'any'
+        contactPreference: clientData.contactPreference || 'phone',
         bestContactTime: clientData.bestContactTime || '',
         cc: clientData.cc || '',
         ccValidity: clientData.ccValidity || '',
@@ -33,10 +33,10 @@ export const createClientSchema = (clientData) => {
         municipality: clientData.municipality || '',
         district: clientData.district || '',
         profession: clientData.profession || '',
-        maritalStatus: clientData.maritalStatus || 'single', // 'single', 'married', 'union', 'divorced', 'widowed'
-        marriageRegime: clientData.marriageRegime || '', // Apenas se casado
+        maritalStatus: clientData.maritalStatus || 'single',
+        marriageRegime: clientData.marriageRegime || '',
 
-        // ===== DADOS DO CÔNJUGE (CONDICIONAL) =====
+        // ===== DADOS DO CÔNJUGE (CORRIGIDO - COMPLETO) =====
         spouse: {
             name: clientData.spouse?.name || '',
             phone: clientData.spouse?.phone || '',
@@ -45,66 +45,79 @@ export const createClientSchema = (clientData) => {
             ccValidity: clientData.spouse?.ccValidity || '',
             profession: clientData.spouse?.profession || '',
             nif: clientData.spouse?.nif || '',
-            birthPlace: clientData.spouse?.birthPlace || '',
-            parish: clientData.spouse?.parish || '',
-            municipality: clientData.spouse?.municipality || '',
-            district: clientData.spouse?.district || ''
+            birthDate: clientData.spouse?.birthDate || '', // ✅ ADICIONADO
+            birthPlace: clientData.spouse?.birthPlace || '', // ✅ ADICIONADO
+            parish: clientData.spouse?.parish || '', // ✅ ADICIONADO
+            municipality: clientData.spouse?.municipality || '', // ✅ ADICIONADO
+            district: clientData.spouse?.district || '' // ✅ ADICIONADO
         },
 
-        // ===== MORADA DE RESIDÊNCIA =====
+        // ===== MORADA DE RESIDÊNCIA (CORRIGIDA) =====
         address: {
             street: clientData.address?.street || '',
             number: clientData.address?.number || '',
+            floor: clientData.address?.floor || '', // ✅ ADICIONADO
             postalCode: clientData.address?.postalCode || '',
             city: clientData.address?.city || '',
+            parish: clientData.address?.parish || '', // ✅ ADICIONADO
+            municipality: clientData.address?.municipality || '', // ✅ ADICIONADO
+            district: clientData.address?.district || '', // ✅ ADICIONADO
             country: clientData.address?.country || 'Portugal'
         },
 
-        // ===== INFORMAÇÕES FINANCEIRAS =====
+        // ===== INFORMAÇÕES FINANCEIRAS (CORRIGIDAS) =====
         financial: {
             monthlyIncome: clientData.financial?.monthlyIncome || '',
             spouseMonthlyIncome: clientData.financial?.spouseMonthlyIncome || '',
-            totalHouseholdIncome: clientData.financial?.totalHouseholdIncome || '', // Calculado automaticamente
+            totalHouseholdIncome: clientData.financial?.totalHouseholdIncome || '',
             availableCapital: clientData.financial?.availableCapital || '',
 
-            // Situação de crédito - estrutura nova como objeto
+            // ✅ ESTRUTURA DE CRÉDITOS CORRIGIDA
             credits: {
                 mortgage: {
                     active: clientData.financial?.credits?.mortgage?.active || false,
                     amount: clientData.financial?.credits?.mortgage?.amount || '',
-                    entity: clientData.financial?.credits?.mortgage?.entity || ''
+                    entity: clientData.financial?.credits?.mortgage?.entity || '',
+                    monthlyPayment: clientData.financial?.credits?.mortgage?.monthlyPayment || '' // ✅ ADICIONADO
                 },
                 personal: {
                     active: clientData.financial?.credits?.personal?.active || false,
                     amount: clientData.financial?.credits?.personal?.amount || '',
-                    entity: clientData.financial?.credits?.personal?.entity || ''
+                    entity: clientData.financial?.credits?.personal?.entity || '',
+                    monthlyPayment: clientData.financial?.credits?.personal?.monthlyPayment || '' // ✅ ADICIONADO
                 },
                 auto: {
                     active: clientData.financial?.credits?.auto?.active || false,
                     amount: clientData.financial?.credits?.auto?.amount || '',
-                    entity: clientData.financial?.credits?.auto?.entity || ''
+                    entity: clientData.financial?.credits?.auto?.entity || '',
+                    monthlyPayment: clientData.financial?.credits?.auto?.monthlyPayment || '' // ✅ ADICIONADO
                 },
                 credit_card: {
                     active: clientData.financial?.credits?.credit_card?.active || false,
                     amount: clientData.financial?.credits?.credit_card?.amount || '',
-                    entity: clientData.financial?.credits?.credit_card?.entity || ''
+                    entity: clientData.financial?.credits?.credit_card?.entity || '',
+                    monthlyPayment: clientData.financial?.credits?.credit_card?.monthlyPayment || '' // ✅ ADICIONADO
                 },
                 other: {
                     active: clientData.financial?.credits?.other?.active || false,
                     amount: clientData.financial?.credits?.other?.amount || '',
                     entity: clientData.financial?.credits?.other?.entity || '',
+                    monthlyPayment: clientData.financial?.credits?.other?.monthlyPayment || '', // ✅ ADICIONADO
                     description: clientData.financial?.credits?.other?.description || ''
                 }
             },
 
             relationshipBank: clientData.financial?.relationshipBank || '',
-            hasBankApproval: clientData.financial?.hasBankApproval || false,
+
+            // ✅ PRÉ-APROVAÇÃO CORRIGIDA (nomes do formulário)
+            hasPreApproval: clientData.financial?.hasPreApproval || false,
             bankApprovalWhere: clientData.financial?.bankApprovalWhere || '',
             bankApprovalAmount: clientData.financial?.bankApprovalAmount || '',
-            bankApprovalNotes: clientData.financial?.bankApprovalNotes || ''
+            bankApprovalConditions: clientData.financial?.bankApprovalConditions || '', // ✅ CORRIGIDO
+            bankApprovalValidity: clientData.financial?.bankApprovalValidity || '' // ✅ ADICIONADO
         },
 
-        // ===== DOCUMENTAÇÃO =====
+        // ===== DOCUMENTAÇÃO (CORRIGIDA E COMPLETA) =====
         documents: {
             ccFront: clientData.documents?.ccFront || false,
             ccBack: clientData.documents?.ccBack || false,
@@ -115,27 +128,24 @@ export const createClientSchema = (clientData) => {
             marriageCertificate: clientData.documents?.marriageCertificate || false,
             propertyRegistry: clientData.documents?.propertyRegistry || false,
             residenceCertificate: clientData.documents?.residenceCertificate || false,
-            workContract: clientData.documents?.workContract || false
+            workContract: clientData.documents?.workContract || false,
+            bankStatement: clientData.documents?.bankStatement || false, // ✅ ADICIONADO
+            divorceDecree: clientData.documents?.divorceDecree || false, // ✅ ADICIONADO
+            pensionProof: clientData.documents?.pensionProof || false // ✅ ADICIONADO
         },
 
-        // ===== NOTAS E ANEXOS =====
-        notes: clientData.notes || '',
-        attachedDocuments: clientData.attachedDocuments || [], // URLs para Google Drive
-
-        // ===== TAGS PREDEFINIDAS =====
-        tags: clientData.tags || [], // ['VIP', 'Urgente', 'Investidor', etc.]
-
-        // ===== OBSERVAÇÕES DO CONSULTOR =====
+        // ===== GESTÃO DE RELACIONAMENTO (CORRIGIDO) =====
+        tags: clientData.tags || [],
+        leadSource: clientData.leadSource || 'website', // ✅ CORRIGIDO (era howDidYouFindUs)
+        referralSource: clientData.referralSource || '', // ✅ ADICIONADO
         consultorObservations: clientData.consultorObservations || '',
-        howDidYouFindUs: clientData.howDidYouFindUs || 'website',
         nextContactDate: clientData.nextContactDate || '',
 
-        // ===== GDPR =====
-        gdpr: {
-            consent: clientData.gdpr?.consent || false,
-            marketingConsent: clientData.gdpr?.marketingConsent || false,
-            consentDate: clientData.gdpr?.consent ? Timestamp.now() : null
-        },
+        // ===== CONSENTIMENTOS GDPR (CORRIGIDOS E COMPLETOS) =====
+        gdprConsent: clientData.gdprConsent || false, // ✅ OBRIGATÓRIO
+        marketingConsent: clientData.marketingConsent || false, // ✅ ADICIONADO
+        dataProcessingConsent: clientData.dataProcessingConsent || false, // ✅ ADICIONADO
+        thirdPartyConsent: clientData.thirdPartyConsent || false, // ✅ ADICIONADO
 
         // ===== ESTATÍSTICAS (CALCULADAS) =====
         stats: {
@@ -149,7 +159,7 @@ export const createClientSchema = (clientData) => {
     };
 };
 
-// ===== VALIDAÇÕES =====
+// ===== VALIDAÇÕES (CORRIGIDAS) =====
 export const validateClientData = (clientData) => {
     const errors = {};
 
@@ -177,8 +187,8 @@ export const validateClientData = (clientData) => {
         errors.postalCode = 'Código postal inválido (ex: 1234-567)';
     }
 
-    // GDPR obrigatório
-    if (!clientData.gdpr?.consent) {
+    // ✅ GDPR OBRIGATÓRIO (corrigido)
+    if (!clientData.gdprConsent) {
         errors.gdprConsent = 'Consentimento GDPR é obrigatório';
     }
 
@@ -214,7 +224,7 @@ const isValidPostalCode = (code) => {
     return re.test(code);
 };
 
-// ===== CONSTANTES =====
+// ===== CONSTANTES (CORRIGIDAS) =====
 export const CLIENT_CONTACT_PREFERENCES = [
     { value: 'phone', label: 'Telefone' },
     { value: 'email', label: 'Email' },
@@ -239,7 +249,7 @@ export const CLIENT_MARRIAGE_REGIMES = [
 
 export const CLIENT_CREDIT_TYPES = [
     { key: 'mortgage', label: 'Crédito Habitação', icon: '🏠' },
-    { key: 'personal', label: 'Crédito Pessoal', icon: '👤' },
+    { key: 'personal', label: 'Crédito Pessoal', icon: '💤' },
     { key: 'auto', label: 'Crédito Automóvel', icon: '🚗' },
     { key: 'credit_card', label: 'Cartão de Crédito', icon: '💳' },
     { key: 'other', label: 'Outro Crédito', icon: '📋' }
@@ -264,6 +274,7 @@ export const CLIENT_AVAILABLE_TAGS = [
     'Flexível localização', 'Budget alto', 'Recomendação'
 ];
 
+// ✅ CONSTANTE CORRIGIDA - DOCUMENTOS COMPLETOS
 export const CLIENT_DOCUMENT_TYPES = [
     { key: 'ccFront', label: 'CC Frente' },
     { key: 'ccBack', label: 'CC Verso' },
@@ -273,6 +284,9 @@ export const CLIENT_DOCUMENT_TYPES = [
     { key: 'birthCertificate', label: 'Certidão Nascimento' },
     { key: 'marriageCertificate', label: 'Certidão Casamento' },
     { key: 'propertyRegistry', label: 'Caderneta Predial' },
-    { key: 'residenceCertificate', label: 'Certidão Permanência' },
-    { key: 'workContract', label: 'Contrato Trabalho' }
+    { key: 'residenceCertificate', label: 'Cert. Permanência' },
+    { key: 'workContract', label: 'Contrato Trabalho' },
+    { key: 'bankStatement', label: 'Extrato Bancário' }, // ✅ ADICIONADO
+    { key: 'divorceDecree', label: 'Certidão Divórcio' }, // ✅ ADICIONADO
+    { key: 'pensionProof', label: 'Comp. Pensão' } // ✅ ADICIONADO
 ];
