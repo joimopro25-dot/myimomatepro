@@ -48,7 +48,11 @@ export default function AccountSettings() {
         changeBillingCycle,
         changePlan,
         getTrialDaysLeft,
-        getDaysUntilNextPayment
+        getDaysUntilNextPayment,
+        // CORREÇÃO: Adicionadas as funções em falta
+        getClientUsagePercentage,
+        getVolumeUsagePercentage,
+        formatCurrency
     } = useSubscription();
 
     const [showCancelModal, setShowCancelModal] = useState(false);
@@ -134,7 +138,7 @@ export default function AccountSettings() {
                             <div className="w-full bg-gray-200 rounded-full h-2">
                                 <div
                                     className={`h-2 rounded-full transition-all duration-300 ${getClientUsagePercentage() > 90 ? 'bg-red-500' :
-                                            getClientUsagePercentage() > 75 ? 'bg-yellow-500' : 'bg-blue-500'
+                                        getClientUsagePercentage() > 75 ? 'bg-yellow-500' : 'bg-blue-500'
                                         }`}
                                     style={{ width: `${getClientUsagePercentage()}%` }}
                                 ></div>
@@ -177,7 +181,7 @@ export default function AccountSettings() {
                             <div className="w-full bg-gray-200 rounded-full h-2">
                                 <div
                                     className={`h-2 rounded-full transition-all duration-300 ${getVolumeUsagePercentage() > 90 ? 'bg-red-500' :
-                                            getVolumeUsagePercentage() > 75 ? 'bg-yellow-500' : 'bg-purple-500'
+                                        getVolumeUsagePercentage() > 75 ? 'bg-yellow-500' : 'bg-purple-500'
                                         }`}
                                     style={{ width: `${getVolumeUsagePercentage()}%` }}
                                 ></div>
@@ -186,212 +190,222 @@ export default function AccountSettings() {
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    {/* Plano Atual */}
-                    <div className="lg:col-span-2">
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-6">
-                            <h2 className="text-xl font-semibold text-gray-900 mb-6">Plano Atual</h2>
-
-                            {isTrialActive && (
-                                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
-                                    <div className="flex items-center">
-                                        <ExclamationTriangleIcon className="w-5 h-5 text-yellow-500 mr-2" />
-                                        <span className="text-yellow-800 font-medium">
-                                            Trial ativo - {trialDaysLeft} dias restantes
-                                        </span>
-                                    </div>
-                                </div>
-                            )}
-
-                            <div className="flex items-center justify-between mb-6">
-                                <div>
-                                    <h3 className="text-2xl font-bold text-gray-900">{subscription.plano}</h3>
-                                    <p className="text-gray-600">
-                                        €{subscription.ciclo === 'anual' ? subscription.precoAnual : subscription.preco}
-                                        /{subscription.ciclo === 'anual' ? 'ano' : 'mês'}
-                                    </p>
-                                </div>
-                                <div className={`px-3 py-1 rounded-full text-sm font-medium ${subscription.status === 'active' ? 'bg-green-100 text-green-800' :
-                                    subscription.status === 'cancelled' ? 'bg-red-100 text-red-800' :
-                                        'bg-yellow-100 text-yellow-800'
-                                    }`}>
-                                    {subscription.status === 'active' ? 'Ativo' :
-                                        subscription.status === 'cancelled' ? 'Cancelado' : 'Pendente'}
-                                </div>
-                            </div>
-
-                            {/* Informações de Pagamento */}
-                            <div className="border-t border-gray-200 pt-6">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div>
-                                        <h4 className="font-medium text-gray-900 mb-2">Próximo Pagamento</h4>
-                                        <div className="flex items-center text-gray-600">
-                                            <CalendarIcon className="w-4 h-4 mr-2" />
-                                            <span>Em {daysUntilPayment} dias</span>
-                                        </div>
-                                    </div>
-
-                                    <div>
-                                        <h4 className="font-medium text-gray-900 mb-2">Último Pagamento</h4>
-                                        <div className="flex items-center text-gray-600">
-                                            <CreditCardIcon className="w-4 h-4 mr-2" />
-                                            <span>
-                                                €{subscription.ultimoPagamento?.valor || 0} -
-                                                {subscription.ultimoPagamento?.status === 'paid' ? ' Pago' : ' Pendente'}
-                                            </span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Ciclo de Pagamento */}
-                            <div className="border-t border-gray-200 pt-6 mt-6">
-                                <h4 className="font-medium text-gray-900 mb-4">Ciclo de Pagamento</h4>
-                                <div className="flex space-x-4">
-                                    <button
-                                        onClick={() => handleChangeBillingCycle('mensal')}
-                                        disabled={loading || subscription.ciclo === 'mensal'}
-                                        className={`px-4 py-2 rounded-lg border transition-colors duration-200 ${subscription.ciclo === 'mensal'
-                                            ? 'bg-primary-50 border-primary-200 text-primary-700'
-                                            : 'border-gray-300 text-gray-700 hover:bg-gray-50'
-                                            }`}
-                                    >
-                                        Mensal
-                                    </button>
-                                    <button
-                                        onClick={() => handleChangeBillingCycle('anual')}
-                                        disabled={loading || subscription.ciclo === 'anual'}
-                                        className={`px-4 py-2 rounded-lg border transition-colors duration-200 ${subscription.ciclo === 'anual'
-                                            ? 'bg-primary-50 border-primary-200 text-primary-700'
-                                            : 'border-gray-300 text-gray-700 hover:bg-gray-50'
-                                            }`}
-                                    >
-                                        Anual (2 meses grátis)
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Alterar Plano */}
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-                            <h2 className="text-xl font-semibold text-gray-900 mb-6">Alterar Plano</h2>
-
-                            <div className="space-y-4">
-                                {planos.map((plano) => (
-                                    <div
-                                        key={plano.nome}
-                                        className={`border rounded-lg p-4 transition-colors duration-200 ${subscription.plano === plano.nome
-                                            ? 'border-primary-200 bg-primary-50'
-                                            : 'border-gray-200 hover:border-gray-300'
-                                            }`}
-                                    >
-                                        <div className="flex items-center justify-between">
-                                            <div>
-                                                <h3 className="font-medium text-gray-900">{plano.nome}</h3>
-                                                <p className="text-sm text-gray-600">
-                                                    €{plano.preco}/mês ou €{plano.precoAnual}/ano
-                                                </p>
-                                                <p className="text-xs text-gray-500 mt-1">
-                                                    {plano.limiteClientes === 'unlimited' ? 'Clientes ilimitados' : `Até ${plano.limiteClientes} clientes`}
-                                                </p>
-                                            </div>
-
-                                            {subscription.plano === plano.nome ? (
-                                                <CheckCircleIcon className="w-6 h-6 text-primary-500" />
-                                            ) : (
-                                                <button
-                                                    onClick={() => handleChangePlan(plano)}
-                                                    disabled={loading}
-                                                    className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors duration-200 text-sm"
-                                                >
-                                                    Alterar
-                                                </button>
-                                            )}
-                                        </div>
-                                    </div>
-                                ))}
+                {/* Alertas Trial e Limites */}
+                {(isTrialActive || trialDaysLeft < 0) && (
+                    <div className={`mb-8 p-4 rounded-lg border ${isTrialActive ? 'bg-blue-50 border-blue-200' : 'bg-red-50 border-red-200'}`}>
+                        <div className="flex items-center">
+                            <ExclamationTriangleIcon className={`w-5 h-5 ${isTrialActive ? 'text-blue-600' : 'text-red-600'} mr-3`} />
+                            <div>
+                                <h3 className={`font-medium ${isTrialActive ? 'text-blue-900' : 'text-red-900'}`}>
+                                    {isTrialActive ? 'Trial Ativo' : 'Trial Expirado'}
+                                </h3>
+                                <p className={`text-sm ${isTrialActive ? 'text-blue-700' : 'text-red-700'}`}>
+                                    {isTrialActive
+                                        ? `Restam ${trialDaysLeft} dias do seu período de teste.`
+                                        : 'O seu período de teste expirou. Por favor, selecione um plano.'
+                                    }
+                                </p>
                             </div>
                         </div>
                     </div>
+                )}
 
-                    {/* Sidebar */}
-                    <div className="space-y-6">
-                        {/* Método de Pagamento */}
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-                            <h3 className="text-lg font-semibold text-gray-900 mb-4">Método de Pagamento</h3>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    {/* Detalhes da Subscrição */}
+                    <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+                        <h2 className="text-xl font-semibold text-gray-900 mb-6">Detalhes da Subscrição</h2>
 
-                            <div className="flex items-center justify-between mb-4">
-                                <div className="flex items-center">
-                                    <CreditCardIcon className="w-5 h-5 text-gray-400 mr-2" />
-                                    <span className="text-gray-600">
-                                        {subscription.metodoPagamento === 'pending' ? 'Por configurar' : subscription.metodoPagamento}
-                                    </span>
-                                </div>
+                        <div className="space-y-4">
+                            <div className="flex justify-between">
+                                <span className="text-gray-600">Plano Atual</span>
+                                <span className="font-medium text-gray-900">{subscription.plano}</span>
                             </div>
 
-                            <button
-                                onClick={() => setShowPaymentModal(true)}
-                                className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 py-2 rounded-lg transition-colors duration-200"
-                            >
-                                {subscription.metodoPagamento === 'pending' ? 'Adicionar' : 'Alterar'} Método
-                            </button>
+                            <div className="flex justify-between">
+                                <span className="text-gray-600">Preço</span>
+                                <span className="font-medium text-gray-900">
+                                    €{subscription.preco}/{subscription.ciclo === 'mensal' ? 'mês' : 'ano'}
+                                </span>
+                            </div>
+
+                            <div className="flex justify-between">
+                                <span className="text-gray-600">Próximo Pagamento</span>
+                                <span className="font-medium text-gray-900">
+                                    {new Date(subscription.proximoPagamento.toDate()).toLocaleDateString()}
+                                </span>
+                            </div>
+
+                            <div className="flex justify-between">
+                                <span className="text-gray-600">Status</span>
+                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${subscription.status === 'ativo' ? 'bg-green-100 text-green-800' :
+                                        subscription.status === 'trial' ? 'bg-blue-100 text-blue-800' :
+                                            'bg-red-100 text-red-800'
+                                    }`}>
+                                    {subscription.status === 'ativo' ? 'Ativo' :
+                                        subscription.status === 'trial' ? 'Trial' : 'Inativo'}
+                                </span>
+                            </div>
                         </div>
 
-                        {/* Ações */}
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-                            <h3 className="text-lg font-semibold text-gray-900 mb-4">Ações</h3>
-
-                            <div className="space-y-3">
-                                <button className="w-full text-left p-3 hover:bg-gray-50 rounded-lg transition-colors duration-200 flex items-center">
-                                    <ArrowPathIcon className="w-4 h-4 text-gray-400 mr-3" />
-                                    <span className="text-gray-700">Histórico de Pagamentos</span>
-                                </button>
-
-                                <button className="w-full text-left p-3 hover:bg-gray-50 rounded-lg transition-colors duration-200 flex items-center">
-                                    <ChartBarIcon className="w-4 h-4 text-gray-400 mr-3" />
-                                    <span className="text-gray-700">Relatório de Uso</span>
+                        <div className="mt-6 pt-6 border-t border-gray-100">
+                            <h3 className="font-medium text-gray-900 mb-3">Opções de Faturação</h3>
+                            <div className="space-y-2">
+                                <button
+                                    onClick={() => handleChangeBillingCycle('mensal')}
+                                    disabled={loading || subscription.ciclo === 'mensal'}
+                                    className={`w-full text-left p-3 rounded-lg border transition-colors ${subscription.ciclo === 'mensal'
+                                            ? 'border-primary-500 bg-primary-50'
+                                            : 'border-gray-200 hover:border-gray-300'
+                                        }`}
+                                >
+                                    <div className="flex justify-between items-center">
+                                        <span>Faturação Mensal</span>
+                                        {subscription.ciclo === 'mensal' && (
+                                            <CheckCircleIcon className="w-5 h-5 text-primary-600" />
+                                        )}
+                                    </div>
                                 </button>
 
                                 <button
-                                    onClick={() => setShowCancelModal(true)}
-                                    className="w-full text-left p-3 hover:bg-red-50 rounded-lg transition-colors duration-200 flex items-center text-red-600"
+                                    onClick={() => handleChangeBillingCycle('anual')}
+                                    disabled={loading || subscription.ciclo === 'anual'}
+                                    className={`w-full text-left p-3 rounded-lg border transition-colors ${subscription.ciclo === 'anual'
+                                            ? 'border-primary-500 bg-primary-50'
+                                            : 'border-gray-200 hover:border-gray-300'
+                                        }`}
                                 >
-                                    <XCircleIcon className="w-4 h-4 mr-3" />
-                                    <span>Cancelar Plano</span>
+                                    <div className="flex justify-between items-center">
+                                        <span>Faturação Anual</span>
+                                        <span className="text-sm text-green-600 font-medium">
+                                            2 meses grátis
+                                        </span>
+                                        {subscription.ciclo === 'anual' && (
+                                            <CheckCircleIcon className="w-5 h-5 text-primary-600" />
+                                        )}
+                                    </div>
                                 </button>
                             </div>
                         </div>
                     </div>
-                </div>
-            </div>
 
-            {/* Modal de Cancelamento */}
-            {showCancelModal && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                    <div className="bg-white rounded-xl max-w-md w-full p-6">
-                        <h3 className="text-lg font-semibold text-gray-900 mb-4">Cancelar Plano</h3>
-                        <p className="text-gray-600 mb-6">
-                            Tem a certeza que pretende cancelar o seu plano? Esta ação não pode ser desfeita.
-                        </p>
+                    {/* Mudança de Plano */}
+                    <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+                        <h2 className="text-xl font-semibold text-gray-900 mb-6">Planos Disponíveis</h2>
 
-                        <div className="flex space-x-4">
-                            <button
-                                onClick={() => setShowCancelModal(false)}
-                                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors duration-200"
-                            >
-                                Manter Plano
-                            </button>
-                            <button
-                                onClick={handleCancelSubscription}
-                                disabled={loading}
-                                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors duration-200"
-                            >
-                                {loading ? 'Cancelando...' : 'Cancelar Plano'}
-                            </button>
+                        <div className="space-y-4">
+                            {planos.map((plano) => (
+                                <div
+                                    key={plano.nome}
+                                    className={`p-4 rounded-lg border transition-colors ${subscription.plano === plano.nome
+                                            ? 'border-primary-500 bg-primary-50'
+                                            : 'border-gray-200 hover:border-gray-300'
+                                        }`}
+                                >
+                                    <div className="flex justify-between items-start mb-3">
+                                        <div>
+                                            <h3 className="font-semibold text-gray-900">{plano.nome}</h3>
+                                            <p className="text-sm text-gray-600">
+                                                €{subscription.ciclo === 'anual' ? plano.precoAnual : plano.preco}
+                                                /{subscription.ciclo === 'anual' ? 'ano' : 'mês'}
+                                            </p>
+                                        </div>
+                                        {subscription.plano === plano.nome ? (
+                                            <CheckCircleIcon className="w-5 h-5 text-primary-600" />
+                                        ) : (
+                                            <button
+                                                onClick={() => handleChangePlan(plano.nome)}
+                                                disabled={loading}
+                                                className="px-3 py-1 text-sm bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50"
+                                            >
+                                                {loading ? <ArrowPathIcon className="w-4 h-4 animate-spin" /> : 'Selecionar'}
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    <ul className="text-xs text-gray-600 space-y-1">
+                                        {plano.features.map((feature, index) => (
+                                            <li key={index} className="flex items-center">
+                                                <CheckCircleIcon className="w-3 h-3 text-green-500 mr-2 flex-shrink-0" />
+                                                {feature}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            ))}
                         </div>
                     </div>
                 </div>
-            )}
+
+                {/* Gestão de Pagamento */}
+                <div className="mt-8 bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+                    <h2 className="text-xl font-semibold text-gray-900 mb-6">Gestão de Pagamento</h2>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <button
+                            onClick={() => setShowPaymentModal(true)}
+                            className="flex items-center justify-center space-x-2 p-4 border border-gray-300 rounded-lg hover:border-gray-400 transition-colors"
+                        >
+                            <CreditCardIcon className="w-5 h-5 text-gray-600" />
+                            <span>Atualizar Método de Pagamento</span>
+                        </button>
+
+                        <button
+                            onClick={() => setShowCancelModal(true)}
+                            className="flex items-center justify-center space-x-2 p-4 border border-red-300 rounded-lg text-red-600 hover:border-red-400 hover:bg-red-50 transition-colors"
+                        >
+                            <XCircleIcon className="w-5 h-5" />
+                            <span>Cancelar Subscrição</span>
+                        </button>
+                    </div>
+                </div>
+
+                {/* Modal Cancelar Subscrição */}
+                {showCancelModal && (
+                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                        <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4">
+                            <h3 className="text-lg font-semibold text-gray-900 mb-4">Cancelar Subscrição</h3>
+                            <p className="text-gray-600 mb-6">
+                                Tem a certeza que deseja cancelar a sua subscrição? Esta ação não pode ser desfeita.
+                            </p>
+
+                            <div className="flex space-x-3">
+                                <button
+                                    onClick={() => setShowCancelModal(false)}
+                                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                                >
+                                    Manter Subscrição
+                                </button>
+                                <button
+                                    onClick={handleCancelSubscription}
+                                    disabled={loading}
+                                    className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
+                                >
+                                    {loading ? <ArrowPathIcon className="w-4 h-4 animate-spin mx-auto" /> : 'Cancelar'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Modal Método de Pagamento */}
+                {showPaymentModal && (
+                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                        <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4">
+                            <h3 className="text-lg font-semibold text-gray-900 mb-4">Atualizar Método de Pagamento</h3>
+                            <p className="text-gray-600 mb-6">
+                                Esta funcionalidade estará disponível em breve. Por favor, contacte o suporte para atualizar o seu método de pagamento.
+                            </p>
+
+                            <button
+                                onClick={() => setShowPaymentModal(false)}
+                                className="w-full px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+                            >
+                                Fechar
+                            </button>
+                        </div>
+                    </div>
+                )}
+            </div>
         </div>
     );
 }

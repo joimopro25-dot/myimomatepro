@@ -2,6 +2,7 @@
  * CLIENT CONTEXT - MyImoMatePro CORRIGIDO
  * Estado global para gestão de clientes com React Context
  * ESTRUTURA CORRETA: consultores/{consultorId}/clientes/{clienteId}
+ * CORREÇÃO: Resolvido erro "isActive is not defined" e completadas funções
  */
 
 import React, { createContext, useContext, useReducer, useEffect, useCallback } from 'react';
@@ -216,7 +217,8 @@ function clientReducer(state, action) {
         case ClientActionTypes.SET_SEARCH_TERM:
             return {
                 ...state,
-                searchTerm: action.term
+                searchTerm: action.term,
+                searchResults: action.term === '' ? [] : state.searchResults
             };
 
         case ClientActionTypes.SET_SEARCH_RESULTS:
@@ -226,6 +228,12 @@ function clientReducer(state, action) {
                 loading: { ...state.loading, search: false }
             };
 
+        case ClientActionTypes.SET_FILTERS:
+            return {
+                ...state,
+                filters: { ...state.filters, ...action.filters }
+            };
+
         case ClientActionTypes.CLEAR_SEARCH:
             return {
                 ...state,
@@ -233,10 +241,10 @@ function clientReducer(state, action) {
                 searchResults: []
             };
 
-        case ClientActionTypes.SET_FILTERS:
+        case ClientActionTypes.SET_PAGINATION:
             return {
                 ...state,
-                filters: { ...state.filters, ...action.filters }
+                pagination: { ...state.pagination, ...action.pagination }
             };
 
         case ClientActionTypes.SET_STATS:
@@ -283,6 +291,10 @@ export function ClientProvider({ children }) {
     const clearError = useCallback((operation) => {
         dispatch({ type: ClientActionTypes.CLEAR_ERROR, operation });
     }, []);
+
+    // ===== DERIVED STATE =====
+    const isSearching = state.searchTerm.length > 0;
+    const hasSearchResults = state.searchResults.length > 0;
 
     // ===== CRUD ACTIONS =====
 
@@ -369,7 +381,8 @@ export function ClientProvider({ children }) {
                 page: shouldLoadMore ? state.pagination.page + 1 : 1,
                 pageSize: state.pagination.pageSize,
                 lastDoc: shouldLoadMore ? state.pagination.lastDoc : null,
-                filters: { ...state.filters, ...options.filters }
+                filters: state.filters,
+                ...options
             };
 
             // CORREÇÃO: Passar consultorId em vez de tenantId
@@ -389,7 +402,11 @@ export function ClientProvider({ children }) {
                 });
             }
 
-            console.log('ClientContext: Clientes carregados', { count: result.clients.length });
+            console.log('ClientContext: Clientes carregados', {
+                count: result.clients.length,
+                hasMore: result.pagination.hasMore
+            });
+
             return result;
 
         } catch (error) {
@@ -400,11 +417,15 @@ export function ClientProvider({ children }) {
     }, [consultorId, state.pagination, state.filters, setLoading, clearError, setError]);
 
     /**
-     * Buscar clientes por termo
+     * Buscar clientes
      */
-    const searchClientsByTerm = useCallback(async (searchTerm) => {
-        if (!consultorId || !searchTerm || searchTerm.trim().length < 2) {
-            dispatch({ type: ClientActionTypes.SET_SEARCH_RESULTS, results: [] });
+    const searchClientsList = useCallback(async (searchTerm, options = {}) => {
+        if (!consultorId) {
+            throw new Error('Utilizador não autenticado');
+        }
+
+        if (!searchTerm.trim()) {
+            dispatch({ type: ClientActionTypes.CLEAR_SEARCH });
             return [];
         }
 
@@ -415,7 +436,7 @@ export function ClientProvider({ children }) {
             console.log('ClientContext: Buscando clientes...', { searchTerm });
 
             // CORREÇÃO: Passar consultorId em vez de tenantId
-            const results = await searchClients(consultorId, searchTerm);
+            const results = await searchClients(consultorId, searchTerm, options);
 
             dispatch({ type: ClientActionTypes.SET_SEARCH_RESULTS, results });
 
@@ -531,7 +552,7 @@ export function ClientProvider({ children }) {
 
             dispatch({ type: ClientActionTypes.SET_STATS, stats });
 
-            console.log('ClientContext: Estatísticas carregadas', stats);
+            console.log('ClientContext: Estatísticas carregadas', { stats });
             return stats;
 
         } catch (error) {
@@ -541,109 +562,81 @@ export function ClientProvider({ children }) {
         }
     }, [consultorId, setLoading, clearError, setError]);
 
-    // ===== FILTER ACTIONS =====
-
+    /**
+     * Definir termo de busca
+     */
     const setSearchTerm = useCallback((term) => {
         dispatch({ type: ClientActionTypes.SET_SEARCH_TERM, term });
 
-        if (!term || term.trim().length < 2) {
-            dispatch({ type: ClientActionTypes.SET_SEARCH_RESULTS, results: [] });
+        // Auto-busca se tiver mais de 2 caracteres
+        if (term.length > 2) {
+            searchClientsList(term);
+        } else if (term === '') {
+            dispatch({ type: ClientActionTypes.CLEAR_SEARCH });
         }
-    }, []);
+    }, [searchClientsList]);
 
+    /**
+     * Definir filtros
+     */
     const setFilters = useCallback((newFilters) => {
         dispatch({ type: ClientActionTypes.SET_FILTERS, filters: newFilters });
-    }, []);
 
+        // Recarregar lista se necessário
+        if (state.clients.length > 0) {
+            fetchClients({ reload: true });
+        }
+    }, [fetchClients, state.clients.length]);
+
+    /**
+     * Limpar busca
+     */
     const clearSearch = useCallback(() => {
         dispatch({ type: ClientActionTypes.CLEAR_SEARCH });
     }, []);
 
+    /**
+     * Limpar cliente atual
+     */
     const clearCurrentClient = useCallback(() => {
         dispatch({ type: ClientActionTypes.CLEAR_CURRENT_CLIENT });
     }, []);
 
-    // ===== CACHE MANAGEMENT =====
-
-    const shouldRefreshCache = useCallback(() => {
-        if (!state.cache.lastFetch) return true;
-        return Date.now() - state.cache.lastFetch > state.cache.invalidateAfter;
-    }, [state.cache]);
-
-    const invalidateCache = useCallback(() => {
-        dispatch({ type: ClientActionTypes.INVALIDATE_CACHE });
-    }, []);
-
-    // ===== AUTO-LOAD ON MOUNT =====
-    useEffect(() => {
-        if (consultorId && shouldRefreshCache() && state.clients.length === 0) {
-            console.log('ClientContext: Auto-loading clientes na inicialização...');
-            fetchClients().catch(console.error);
-        }
-    }, [consultorId, shouldRefreshCache, state.clients.length, fetchClients]);
-
-    // ===== SEARCH DEBOUNCE =====
-    useEffect(() => {
-        if (!state.searchTerm || state.searchTerm.trim().length < 2) {
-            return;
-        }
-
-        const timeoutId = setTimeout(() => {
-            searchClientsByTerm(state.searchTerm).catch(console.error);
-        }, 500); // Debounce de 500ms
-
-        return () => clearTimeout(timeoutId);
-    }, [state.searchTerm, searchClientsByTerm]);
-
-    // ===== CONTEXT VALUE =====
-    const contextValue = {
+    // ===== VALORES DO CONTEXTO =====
+    const value = {
         // Estado
-        ...state,
+        clients: state.clients,
+        currentClient: state.currentClient,
+        stats: state.stats,
+        loading: state.loading,
+        errors: state.errors,
+        pagination: state.pagination,
+        filters: state.filters,
+        searchTerm: state.searchTerm,
+        searchResults: state.searchResults,
 
-        // Actions CRUD
+        // Estado derivado
+        isSearching,
+        hasSearchResults,
+
+        // Actions
         createClient: createNewClient,
         fetchClient,
         fetchClients,
+        searchClients: searchClientsList,
         updateClient: updateExistingClient,
         updateClientTags: updateClientTagsList,
         deactivateClient: deactivateExistingClient,
-
-        // Actions de busca e filtros
-        searchClients: searchClientsByTerm,
+        fetchStats: fetchClientStats,
         setSearchTerm,
         setFilters,
         clearSearch,
         clearCurrentClient,
-
-        // Estatísticas
-        fetchStats: fetchClientStats,
-
-        // Cache
-        invalidateCache,
-        shouldRefreshCache,
-
-        // Utilities
-        clearError,
-
-        // NOVO: Informações de subscription
-        subscription: {
-            isActive: isActive(),
-            isTrial,
-            trialDaysRemaining,
-            currentPlan,
-            canAddClient: canAddClient(state.clients.length),
-            clientLimit: currentPlan?.limites?.maxClients || 0,
-            clientCount: state.clients.length
-        },
-
-        // Computed values
-        hasClients: state.clients.length > 0,
-        isSearching: state.searchTerm.length >= 2,
-        hasSearchResults: state.searchResults.length > 0
+        clearError
     };
 
     return (
-        <ClientContext.Provider value={contextValue}>
+        <ClientContext.Provider value={value}>
             {children}
         </ClientContext.Provider>
     );
