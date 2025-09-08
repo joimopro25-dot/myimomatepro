@@ -1,7 +1,7 @@
 /**
  * CLIENT SERVICE - MyImoMatePro CORRIGIDO
  * CRUD completo para gestão de clientes no Firestore
- * ESTRUTURA CORRETA: consultores/{consultorId}/clientes/{clienteId}
+ * CORREÇÃO: Problema dos IDs null nos clientes listados
  */
 
 import {
@@ -23,12 +23,12 @@ import {
 import { db } from '../firebase/config';
 import { createClientSchema, validateClientData } from '../models/clientModel';
 
-// ===== CONFIGURAÇÕES CORRIGIDAS =====
+// ===== CONFIGURAÇÕES =====
 const COLLECTION_NAME = 'clientes';
 const CONSULTOR_COLLECTION = 'consultores';
 const DEFAULT_PAGE_SIZE = 20;
 
-// ===== HELPER FUNCTIONS CORRIGIDAS =====
+// ===== HELPER FUNCTIONS =====
 const getClientCollection = (consultorId) => {
     return collection(db, CONSULTOR_COLLECTION, consultorId, COLLECTION_NAME);
 };
@@ -41,9 +41,6 @@ const getClientDoc = (consultorId, clientId) => {
 
 /**
  * Criar novo cliente
- * @param {string} consultorId - ID do consultor
- * @param {Object} clientData - Dados do cliente
- * @returns {Promise<Object>} Cliente criado com ID
  */
 export const createClient = async (consultorId, clientData) => {
     try {
@@ -58,8 +55,6 @@ export const createClient = async (consultorId, clientData) => {
         // Criar schema com consultorId
         const clientSchema = createClientSchema(clientData);
         clientSchema.consultorId = consultorId;
-
-        // ✅ CORREÇÃO CRÍTICA: FORÇAR isActive = true
         clientSchema.isActive = true;
 
         // Calcular rendimento total do agregado se tiver rendimentos
@@ -68,15 +63,6 @@ export const createClient = async (consultorId, clientData) => {
             const spouseMonthly = parseFloat(clientSchema.financial.spouseMonthlyIncome) || 0;
             clientSchema.financial.totalHouseholdIncome = (monthly + spouseMonthly).toString();
         }
-
-        // ✅ DEBUG: Log do schema antes de gravar
-        console.log('🔍 DEBUG - Schema a ser gravado:', {
-            id: 'será_gerado_pelo_firestore',
-            name: clientSchema.name,
-            isActive: clientSchema.isActive,
-            consultorId: clientSchema.consultorId,
-            createdAt: clientSchema.createdAt
-        });
 
         // Adicionar ao Firestore na estrutura correta
         const clientRef = await addDoc(getClientCollection(consultorId), clientSchema);
@@ -87,14 +73,6 @@ export const createClient = async (consultorId, clientData) => {
             id: createdClient.id,
             ...createdClient.data()
         };
-
-        // ✅ DEBUG: Log do cliente criado
-        console.log('✅ Cliente criado - Verificação:', {
-            id: clientWithId.id,
-            name: clientWithId.name,
-            isActive: clientWithId.isActive,
-            consultorId: clientWithId.consultorId
-        });
 
         console.log('✅ ClientService: Cliente criado com sucesso', { clientId: clientWithId.id });
         return clientWithId;
@@ -109,9 +87,6 @@ export const createClient = async (consultorId, clientData) => {
 
 /**
  * Buscar cliente por ID
- * @param {string} consultorId - ID do consultor
- * @param {string} clientId - ID do cliente
- * @returns {Promise<Object|null>} Cliente ou null se não encontrado
  */
 export const getClient = async (consultorId, clientId) => {
     try {
@@ -139,10 +114,7 @@ export const getClient = async (consultorId, clientId) => {
 };
 
 /**
- * Listar todos os clientes do consultor com paginação
- * @param {string} consultorId - ID do consultor
- * @param {Object} options - Opções de busca (page, pageSize, orderBy, filters)
- * @returns {Promise<Object>} Lista de clientes com metadados de paginação
+ * ✅ FUNÇÃO CORRIGIDA: Listar todos os clientes do consultor com paginação
  */
 export const listClients = async (consultorId, options = {}) => {
     try {
@@ -163,56 +135,105 @@ export const listClients = async (consultorId, options = {}) => {
             filters
         });
 
-        let clientQuery = query(
+        // ✅ CORREÇÃO: Query base simples para evitar conflitos
+        const clientQuery = query(
             getClientCollection(consultorId),
             where('isActive', '==', true),
-            orderBy(orderField, orderDirection),
-            limit(pageSize)
+            limit(pageSize * 2) // Buscar mais para ter margem após filtros
         );
 
-        // Aplicar filtros adicionais
+        // Executar query
+        const snapshot = await getDocs(clientQuery);
+
+        // ✅ CORREÇÃO: Mapeamento seguro dos documentos
+        const clients = [];
+
+        snapshot.forEach((doc) => {
+            const docId = doc.id;
+            const docData = doc.data();
+
+            if (docId && docData) {
+                const client = {
+                    id: docId,
+                    ...docData
+                };
+
+                if (client.id) {
+                    clients.push(client);
+                }
+            }
+        });
+
+        // ✅ APLICAR FILTROS MANUALMENTE
+        let filteredClients = clients;
+
         if (filters.tag && filters.tag !== 'all') {
-            clientQuery = query(
-                clientQuery,
-                where('tags', 'array-contains', filters.tag)
+            filteredClients = filteredClients.filter(client =>
+                client.tags && client.tags.includes(filters.tag)
             );
         }
 
         if (filters.maritalStatus && filters.maritalStatus !== 'all') {
-            clientQuery = query(
-                clientQuery,
-                where('maritalStatus', '==', filters.maritalStatus)
+            filteredClients = filteredClients.filter(client =>
+                client.maritalStatus === filters.maritalStatus
             );
         }
 
-        // Paginação
-        if (lastDoc) {
-            clientQuery = query(clientQuery, startAfter(lastDoc));
+        if (filters.hasEmail && filters.hasEmail !== 'all') {
+            const hasEmailFilter = filters.hasEmail === 'true';
+            filteredClients = filteredClients.filter(client =>
+                hasEmailFilter ? !!client.email : !client.email
+            );
         }
 
-        const snapshot = await getDocs(clientQuery);
+        if (filters.hasFinancialInfo && filters.hasFinancialInfo !== 'all') {
+            const hasFinancialFilter = filters.hasFinancialInfo === 'true';
+            filteredClients = filteredClients.filter(client =>
+                hasFinancialFilter ? !!(client.financial && client.financial.monthlyIncome) :
+                    !(client.financial && client.financial.monthlyIncome)
+            );
+        }
 
-        const clients = snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-        }));
+        // Ordenar manualmente
+        if (orderField && filteredClients.length > 0) {
+            filteredClients.sort((a, b) => {
+                const aValue = a[orderField];
+                const bValue = b[orderField];
 
-        const hasMore = snapshot.docs.length === pageSize;
-        const lastDocument = snapshot.docs[snapshot.docs.length - 1];
+                if (!aValue && !bValue) return 0;
+                if (!aValue) return 1;
+                if (!bValue) return -1;
+
+                if (orderDirection === 'desc') {
+                    return bValue > aValue ? 1 : -1;
+                } else {
+                    return aValue > bValue ? 1 : -1;
+                }
+            });
+        }
+
+        // Aplicar paginação manual
+        const startIndex = (page - 1) * pageSize;
+        const endIndex = startIndex + pageSize;
+        const paginatedClients = filteredClients.slice(startIndex, endIndex);
+        const hasMore = endIndex < filteredClients.length;
 
         console.log('✅ ClientService: Clientes listados', {
-            count: clients.length,
-            hasMore
+            totalFound: clients.length,
+            filteredCount: filteredClients.length,
+            paginatedCount: paginatedClients.length,
+            hasMore,
+            allIdsValid: paginatedClients.every(c => !!c.id)
         });
 
         return {
-            clients,
+            clients: paginatedClients,
             pagination: {
                 page,
                 pageSize,
                 hasMore,
-                lastDoc: lastDocument,
-                total: null // Seria necessário uma query separada para contar total
+                lastDoc: null,
+                total: filteredClients.length
             }
         };
 
@@ -224,10 +245,6 @@ export const listClients = async (consultorId, options = {}) => {
 
 /**
  * Buscar clientes por texto (nome, email, telefone)
- * @param {string} consultorId - ID do consultor
- * @param {string} searchTerm - Termo de busca
- * @param {number} maxResults - Máximo de resultados
- * @returns {Promise<Array>} Lista de clientes encontrados
  */
 export const searchClients = async (consultorId, searchTerm, maxResults = 10) => {
     try {
@@ -239,39 +256,49 @@ export const searchClients = async (consultorId, searchTerm, maxResults = 10) =>
 
         const searchTermLower = searchTerm.toLowerCase().trim();
 
-        // Buscar por nome (aproximado)
-        const nameQuery = query(
+        // Buscar todos os clientes ativos e filtrar manualmente
+        const allClientsQuery = query(
             getClientCollection(consultorId),
             where('isActive', '==', true),
-            orderBy('name'),
-            limit(maxResults)
+            limit(50) // Limite razoável para busca
         );
 
-        const snapshot = await getDocs(nameQuery);
+        const snapshot = await getDocs(allClientsQuery);
+
+        const clients = [];
+        snapshot.forEach((doc) => {
+            if (doc.id && doc.data()) {
+                clients.push({
+                    id: doc.id,
+                    ...doc.data()
+                });
+            }
+        });
 
         // Filtrar resultados que contenham o termo de busca
-        const clients = snapshot.docs
-            .map(doc => ({
-                id: doc.id,
-                ...doc.data()
-            }))
+        const results = clients
             .filter(client => {
                 const name = (client.name || '').toLowerCase();
                 const email = (client.email || '').toLowerCase();
-                const phone = (client.phone || '').replace(/\s/g, '');
-                const searchPhone = searchTermLower.replace(/\s/g, '');
+                const phone = (client.phone || '').toLowerCase();
+                const nif = (client.nif || '').toLowerCase();
 
                 return name.includes(searchTermLower) ||
                     email.includes(searchTermLower) ||
-                    phone.includes(searchPhone);
+                    phone.includes(searchTermLower) ||
+                    nif.includes(searchTermLower);
             })
             .slice(0, maxResults);
 
-        console.log('✅ ClientService: Busca concluída', { found: clients.length });
-        return clients;
+        console.log('✅ ClientService: Busca concluída', {
+            totalResults: results.length,
+            allIdsValid: results.every(c => !!c.id)
+        });
+
+        return results;
 
     } catch (error) {
-        console.error('❌ ClientService: Erro na busca de clientes:', error);
+        console.error('❌ ClientService: Erro na busca:', error);
         throw new Error(`Erro na busca: ${error.message}`);
     }
 };
@@ -279,53 +306,21 @@ export const searchClients = async (consultorId, searchTerm, maxResults = 10) =>
 // ===== UPDATE OPERATIONS =====
 
 /**
- * Atualizar cliente existente
- * @param {string} consultorId - ID do consultor
- * @param {string} clientId - ID do cliente
- * @param {Object} updateData - Dados para atualizar
- * @returns {Promise<Object>} Cliente atualizado
+ * Atualizar cliente
  */
-export const updateClient = async (consultorId, clientId, updateData) => {
+export const updateClient = async (consultorId, clientId, updates) => {
     try {
-        console.log('✏️ ClientService: Atualizando cliente...', { consultorId, clientId });
+        console.log('📝 ClientService: Atualizando cliente...', { consultorId, clientId });
 
-        // Validar dados se fornecidos campos críticos
-        if (updateData.name || updateData.phone || updateData.email) {
-            const validation = validateClientData({ ...updateData });
-            if (!validation.isValid) {
-                throw new Error(`Dados inválidos: ${JSON.stringify(validation.errors)}`);
-            }
-        }
-
-        // Preparar dados de atualização
-        const updatePayload = {
-            ...updateData,
+        const updateData = {
+            ...updates,
             updatedAt: Timestamp.now()
         };
 
-        // Recalcular rendimento total se necessário
-        if (updateData.financial?.monthlyIncome !== undefined ||
-            updateData.financial?.spouseMonthlyIncome !== undefined) {
-
-            // Buscar dados atuais para calcular
-            const currentClient = await getClient(consultorId, clientId);
-            if (currentClient) {
-                const monthly = parseFloat(updateData.financial?.monthlyIncome ?? currentClient.financial?.monthlyIncome ?? 0);
-                const spouseMonthly = parseFloat(updateData.financial?.spouseMonthlyIncome ?? currentClient.financial?.spouseMonthlyIncome ?? 0);
-
-                if (!updatePayload.financial) updatePayload.financial = {};
-                updatePayload.financial.totalHouseholdIncome = (monthly + spouseMonthly).toString();
-            }
-        }
-
-        // Atualizar no Firestore
-        await updateDoc(getClientDoc(consultorId, clientId), updatePayload);
-
-        // Buscar cliente atualizado
-        const updatedClient = await getClient(consultorId, clientId);
+        await updateDoc(getClientDoc(consultorId, clientId), updateData);
 
         console.log('✅ ClientService: Cliente atualizado com sucesso');
-        return updatedClient;
+        return true;
 
     } catch (error) {
         console.error('❌ ClientService: Erro ao atualizar cliente:', error);
@@ -334,24 +329,19 @@ export const updateClient = async (consultorId, clientId, updateData) => {
 };
 
 /**
- * Atualizar apenas tags do cliente
- * @param {string} consultorId - ID do consultor
- * @param {string} clientId - ID do cliente
- * @param {Array} tags - Nova lista de tags
- * @returns {Promise<Object>} Cliente atualizado
+ * Atualizar tags do cliente
  */
 export const updateClientTags = async (consultorId, clientId, tags) => {
     try {
-        console.log('🏷️ ClientService: Atualizando tags do cliente...', { clientId, tags });
+        console.log('🏷️ ClientService: Atualizando tags...', { consultorId, clientId, tags });
 
         await updateDoc(getClientDoc(consultorId, clientId), {
-            tags: tags || [],
+            tags,
             updatedAt: Timestamp.now()
         });
 
-        const updatedClient = await getClient(consultorId, clientId);
         console.log('✅ ClientService: Tags atualizadas com sucesso');
-        return updatedClient;
+        return true;
 
     } catch (error) {
         console.error('❌ ClientService: Erro ao atualizar tags:', error);
@@ -363,13 +353,10 @@ export const updateClientTags = async (consultorId, clientId, tags) => {
 
 /**
  * Desativar cliente (soft delete)
- * @param {string} consultorId - ID do consultor
- * @param {string} clientId - ID do cliente
- * @returns {Promise<boolean>} Sucesso da operação
  */
 export const deactivateClient = async (consultorId, clientId) => {
     try {
-        console.log('🗑️ ClientService: Desativando cliente...', { consultorId, clientId });
+        console.log('❌ ClientService: Desativando cliente...', { consultorId, clientId });
 
         await updateDoc(getClientDoc(consultorId, clientId), {
             isActive: false,
@@ -388,9 +375,6 @@ export const deactivateClient = async (consultorId, clientId) => {
 
 /**
  * Reativar cliente
- * @param {string} consultorId - ID do consultor
- * @param {string} clientId - ID do cliente
- * @returns {Promise<boolean>} Sucesso da operação
  */
 export const reactivateClient = async (consultorId, clientId) => {
     try {
@@ -412,17 +396,11 @@ export const reactivateClient = async (consultorId, clientId) => {
 };
 
 /**
- * Deletar cliente permanentemente (use com cuidado)
- * @param {string} consultorId - ID do consultor
- * @param {string} clientId - ID do cliente
- * @returns {Promise<boolean>} Sucesso da operação
+ * Deletar cliente permanentemente
  */
 export const deleteClient = async (consultorId, clientId) => {
     try {
         console.log('🔥 ClientService: DELETANDO cliente permanentemente...', { consultorId, clientId });
-
-        // TODO: Verificar se cliente tem leads/oportunidades antes de deletar
-        // TODO: Implementar cascade delete para subcoleções
 
         await deleteDoc(getClientDoc(consultorId, clientId));
 
@@ -435,67 +413,10 @@ export const deleteClient = async (consultorId, clientId) => {
     }
 };
 
-// ===== BATCH OPERATIONS =====
-
-/**
- * Operações em lote para múltiplos clientes
- * @param {string} consultorId - ID do consultor
- * @param {Array} operations - Lista de operações [{type, clientId, data}]
- * @returns {Promise<boolean>} Sucesso da operação
- */
-export const batchUpdateClients = async (consultorId, operations) => {
-    try {
-        console.log('📦 ClientService: Executando operações em lote...', {
-            consultorId,
-            operationCount: operations.length
-        });
-
-        const batch = writeBatch(db);
-
-        operations.forEach(operation => {
-            const { type, clientId, data } = operation;
-            const clientRef = getClientDoc(consultorId, clientId);
-
-            switch (type) {
-                case 'update':
-                    batch.update(clientRef, { ...data, updatedAt: Timestamp.now() });
-                    break;
-                case 'deactivate':
-                    batch.update(clientRef, {
-                        isActive: false,
-                        deactivatedAt: Timestamp.now(),
-                        updatedAt: Timestamp.now()
-                    });
-                    break;
-                case 'reactivate':
-                    batch.update(clientRef, {
-                        isActive: true,
-                        deactivatedAt: null,
-                        updatedAt: Timestamp.now()
-                    });
-                    break;
-                default:
-                    console.warn('⚠️ Tipo de operação não reconhecido:', type);
-            }
-        });
-
-        await batch.commit();
-
-        console.log('✅ ClientService: Operações em lote executadas com sucesso');
-        return true;
-
-    } catch (error) {
-        console.error('❌ ClientService: Erro nas operações em lote:', error);
-        throw new Error(`Erro nas operações em lote: ${error.message}`);
-    }
-};
-
 // ===== STATISTICS =====
 
 /**
- * Buscar estatísticas dos clientes do consultor
- * @param {string} consultorId - ID do consultor
- * @returns {Promise<Object>} Estatísticas dos clientes
+ * ✅ FUNÇÃO CORRIGIDA: Calcular estatísticas dos clientes
  */
 export const getClientStats = async (consultorId) => {
     try {
@@ -508,10 +429,16 @@ export const getClientStats = async (consultorId) => {
         );
 
         const activeSnapshot = await getDocs(activeQuery);
-        const activeClients = activeSnapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-        }));
+
+        const activeClients = [];
+        activeSnapshot.forEach((doc) => {
+            if (doc.id && doc.data()) {
+                activeClients.push({
+                    id: doc.id,
+                    ...doc.data()
+                });
+            }
+        });
 
         // Calcular estatísticas
         const stats = {
@@ -536,11 +463,48 @@ export const getClientStats = async (consultorId) => {
             }
         };
 
-        console.log('✅ ClientService: Estatísticas calculadas', stats);
+        console.log('✅ ClientService: Estatísticas calculadas', {
+            total: stats.total,
+            withValidIds: activeClients.every(c => !!c.id)
+        });
+
         return stats;
 
     } catch (error) {
         console.error('❌ ClientService: Erro ao calcular estatísticas:', error);
         throw new Error(`Erro ao calcular estatísticas: ${error.message}`);
+    }
+};
+
+// ===== BATCH OPERATIONS =====
+
+/**
+ * Operações em lote para múltiplos clientes
+ */
+export const batchUpdateClients = async (consultorId, updates) => {
+    try {
+        console.log('📦 ClientService: Iniciando operação em lote...', {
+            consultorId,
+            operationsCount: updates.length
+        });
+
+        const batch = writeBatch(db);
+
+        updates.forEach(({ clientId, data }) => {
+            const clientRef = getClientDoc(consultorId, clientId);
+            batch.update(clientRef, {
+                ...data,
+                updatedAt: Timestamp.now()
+            });
+        });
+
+        await batch.commit();
+
+        console.log('✅ ClientService: Operação em lote concluída');
+        return true;
+
+    } catch (error) {
+        console.error('❌ ClientService: Erro na operação em lote:', error);
+        throw new Error(`Erro na operação em lote: ${error.message}`);
     }
 };

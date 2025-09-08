@@ -1,569 +1,607 @@
 /**
- * CLIENT SERVICE - MyImoMatePro CORRIGIDO
- * CRUD completo para gestão de clientes no Firestore
- * CORREÇÃO: Problema dos IDs null nos clientes listados
+ * CLIENT LIST PAGE - MyImoMatePro CORRIGIDO
+ * Página principal de listagem e gestão de clientes
+ * CORREÇÃO: Removido loop infinito do useEffect
  */
 
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useClients } from '../contexts/ClientContext';
+import { useSubscription } from '../contexts/SubscriptionContext';
+import { CLIENT_AVAILABLE_TAGS, CLIENT_MARITAL_STATUS } from '../models/clientModel';
+import Layout from '../components/Layout';
 import {
-    collection,
-    doc,
-    addDoc,
-    getDoc,
-    getDocs,
-    updateDoc,
-    deleteDoc,
-    query,
-    where,
-    orderBy,
-    limit,
-    startAfter,
-    Timestamp,
-    writeBatch
-} from 'firebase/firestore';
-import { db } from '../firebase/config';
-import { createClientSchema, validateClientData } from '../models/clientModel';
+    MagnifyingGlassIcon,
+    PlusIcon,
+    FunnelIcon,
+    XMarkIcon,
+    PhoneIcon,
+    EnvelopeIcon,
+    TagIcon,
+    PencilIcon,
+    TrashIcon,
+    EyeIcon,
+    ChevronDownIcon,
+    UserGroupIcon,
+    HeartIcon,
+    CurrencyEuroIcon,
+    DocumentIcon
+} from '@heroicons/react/24/outline';
+import {
+    UserIcon as UserIconSolid,
+    HeartIcon as HeartIconSolid,
+    StarIcon as StarIconSolid
+} from '@heroicons/react/24/solid';
 
-// ===== CONFIGURAÇÕES =====
-const COLLECTION_NAME = 'clientes';
-const CONSULTOR_COLLECTION = 'consultores';
-const DEFAULT_PAGE_SIZE = 20;
+const ClientListPage = () => {
+    const navigate = useNavigate();
 
-// ===== HELPER FUNCTIONS =====
-const getClientCollection = (consultorId) => {
-    return collection(db, CONSULTOR_COLLECTION, consultorId, COLLECTION_NAME);
-};
+    // ✅ CORREÇÃO: Variável para controlar se já carregamos os dados iniciais
+    const initialLoadRef = useRef(false);
 
-const getClientDoc = (consultorId, clientId) => {
-    return doc(db, CONSULTOR_COLLECTION, consultorId, COLLECTION_NAME, clientId);
-};
+    // Context do Cliente
+    const {
+        // Estado
+        clients,
+        stats,
+        loading,
+        errors,
+        pagination,
+        filters,
+        searchTerm,
+        searchResults,
+        isSearching,
+        hasSearchResults,
 
-// ===== CREATE OPERATIONS =====
+        // Actions
+        fetchClients,
+        fetchStats,
+        setSearchTerm,
+        setFilters,
+        clearSearch,
+        updateClientTags,
+        deactivateClient,
+        clearError
+    } = useClients();
 
-/**
- * Criar novo cliente
- */
-export const createClient = async (consultorId, clientData) => {
-    try {
-        console.log('🆕 ClientService: Criando cliente...', { consultorId, clientName: clientData.name });
+    // Context da Subscrição
+    const {
+        subscription,
+        isClientLimitReached
+    } = useSubscription();
 
-        // Validar dados antes de criar
-        const validation = validateClientData(clientData);
-        if (!validation.isValid) {
-            throw new Error(`Dados inválidos: ${JSON.stringify(validation.errors)}`);
-        }
+    // Estados locais da interface
+    const [showFilters, setShowFilters] = useState(false);
+    const [selectedClients, setSelectedClients] = useState([]);
+    const [viewMode, setViewMode] = useState('grid'); // 'grid' ou 'table'
+    const [sortBy, setSortBy] = useState('createdAt');
+    const [sortOrder, setSortOrder] = useState('desc');
 
-        // Criar schema com consultorId
-        const clientSchema = createClientSchema(clientData);
-        clientSchema.consultorId = consultorId;
-        clientSchema.isActive = true;
+    // ✅ CORREÇÃO: Carregar dados iniciais apenas UMA VEZ
+    useEffect(() => {
+        const loadInitialData = async () => {
+            // Verificar se já carregamos os dados
+            if (initialLoadRef.current) return;
 
-        // Calcular rendimento total do agregado se tiver rendimentos
-        if (clientSchema.financial.monthlyIncome || clientSchema.financial.spouseMonthlyIncome) {
-            const monthly = parseFloat(clientSchema.financial.monthlyIncome) || 0;
-            const spouseMonthly = parseFloat(clientSchema.financial.spouseMonthlyIncome) || 0;
-            clientSchema.financial.totalHouseholdIncome = (monthly + spouseMonthly).toString();
-        }
+            console.log('🔄 ClientList: Carregando dados iniciais...');
+            initialLoadRef.current = true;
 
-        // Adicionar ao Firestore na estrutura correta
-        const clientRef = await addDoc(getClientCollection(consultorId), clientSchema);
+            try {
+                // Carregar estatísticas e clientes
+                await Promise.all([
+                    fetchStats(),
+                    fetchClients()
+                ]);
 
-        // Buscar cliente criado para retornar dados completos
-        const createdClient = await getDoc(clientRef);
-        const clientWithId = {
-            id: createdClient.id,
-            ...createdClient.data()
+                console.log('✅ ClientList: Dados iniciais carregados com sucesso');
+            } catch (error) {
+                console.error('❌ ClientList: Erro ao carregar dados iniciais:', error);
+            }
         };
 
-        console.log('✅ ClientService: Cliente criado com sucesso', { clientId: clientWithId.id });
-        return clientWithId;
+        loadInitialData();
+    }, []); // ✅ DEPENDÊNCIAS VAZIAS - só executa no mount
 
-    } catch (error) {
-        console.error('❌ ClientService: Erro ao criar cliente:', error);
-        throw new Error(`Erro ao criar cliente: ${error.message}`);
-    }
-};
+    // Lista de clientes a mostrar (busca ou lista normal)
+    const displayClients = useMemo(() => {
+        if (isSearching && hasSearchResults) {
+            return searchResults;
+        }
+        return clients;
+    }, [isSearching, hasSearchResults, searchResults, clients]);
 
-// ===== READ OPERATIONS =====
+    // Filtros aplicados
+    const activeFiltersCount = useMemo(() => {
+        return Object.values(filters).filter(value => value !== 'all').length;
+    }, [filters]);
 
-/**
- * Buscar cliente por ID
- */
-export const getClient = async (consultorId, clientId) => {
-    try {
-        console.log('🔍 ClientService: Buscando cliente...', { consultorId, clientId });
+    // Handlers
+    const handleSelectClient = (clientId) => {
+        setSelectedClients(prev =>
+            prev.includes(clientId)
+                ? prev.filter(id => id !== clientId)
+                : [...prev, clientId]
+        );
+    };
 
-        const clientDoc = await getDoc(getClientDoc(consultorId, clientId));
+    const handleSelectAll = () => {
+        if (selectedClients.length === displayClients.length) {
+            setSelectedClients([]);
+        } else {
+            setSelectedClients(displayClients.map(client => client.id));
+        }
+    };
 
-        if (!clientDoc.exists()) {
-            console.log('⚠️ ClientService: Cliente não encontrado');
+    const handleDeactivateClient = async (clientId) => {
+        if (window.confirm('Tem a certeza que deseja desativar este cliente?')) {
+            try {
+                await deactivateClient(clientId);
+                setSelectedClients(prev => prev.filter(id => id !== clientId));
+            } catch (error) {
+                console.error('Erro ao desativar cliente:', error);
+            }
+        }
+    };
+
+    const handleUpdateTags = async (clientId, newTags) => {
+        try {
+            await updateClientTags(clientId, newTags);
+        } catch (error) {
+            console.error('Erro ao atualizar tags:', error);
+        }
+    };
+
+    const handleFilterChange = (newFilters) => {
+        setFilters(newFilters);
+        setSelectedClients([]);
+    };
+
+    const handleSearch = (term) => {
+        setSearchTerm(term);
+        setSelectedClients([]);
+    };
+
+    // Verificar se pode adicionar cliente
+    const canAddClient = !subscription || !isClientLimitReached();
+
+    // ✅ CORREÇÃO: Component para renderizar cliente com key correta
+    const ClientCard = ({ client }) => {
+        // Verificar se client existe e tem ID válido
+        if (!client || !client.id) {
+            console.warn('ClientCard: Cliente inválido recebido:', client);
             return null;
         }
 
-        const client = {
-            id: clientDoc.id,
-            ...clientDoc.data()
-        };
+        return (
+            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+                {/* Header do cartão */}
+                <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-center space-x-3">
+                        <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+                            <UserIconSolid className="w-6 h-6 text-white" />
+                        </div>
+                        <div>
+                            <h3 className="font-semibold text-gray-900">{client.name || 'Sem nome'}</h3>
+                            <p className="text-sm text-gray-500">{client.email || 'Sem email'}</p>
+                        </div>
+                    </div>
 
-        console.log('✅ ClientService: Cliente encontrado', { clientId: client.id, clientName: client.name });
-        return client;
+                    {/* Dropdown de ações */}
+                    <div className="relative">
+                        <button
+                            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                // Implementar dropdown de ações
+                            }}
+                        >
+                            <ChevronDownIcon className="w-4 h-4 text-gray-400" />
+                        </button>
+                    </div>
+                </div>
 
-    } catch (error) {
-        console.error('❌ ClientService: Erro ao buscar cliente:', error);
-        throw new Error(`Erro ao buscar cliente: ${error.message}`);
-    }
-};
+                {/* Informações do cliente */}
+                <div className="space-y-2 mb-4">
+                    {client.phone && (
+                        <div className="flex items-center space-x-2 text-sm text-gray-600">
+                            <PhoneIcon className="w-4 h-4" />
+                            <span>{client.phone}</span>
+                        </div>
+                    )}
 
-/**
- * ✅ FUNÇÃO CORRIGIDA: Listar todos os clientes do consultor com paginação
- */
-export const listClients = async (consultorId, options = {}) => {
-    try {
-        const {
-            page = 1,
-            pageSize = DEFAULT_PAGE_SIZE,
-            orderField = 'createdAt',
-            orderDirection = 'desc',
-            lastDoc = null,
-            filters = {}
-        } = options;
+                    {client.maritalStatus && client.maritalStatus !== 'other' && (
+                        <div className="flex items-center space-x-2 text-sm text-gray-600">
+                            <HeartIcon className="w-4 h-4" />
+                            <span>{CLIENT_MARITAL_STATUS[client.maritalStatus] || client.maritalStatus}</span>
+                        </div>
+                    )}
 
-        console.log('📋 ClientService: Listando clientes...', {
-            consultorId,
-            page,
-            pageSize,
-            orderField,
-            filters
-        });
+                    {client.hasFinancialInfo && (
+                        <div className="flex items-center space-x-2 text-sm text-gray-600">
+                            <CurrencyEuroIcon className="w-4 h-4" />
+                            <span>Info Financeira</span>
+                        </div>
+                    )}
+                </div>
 
-        // ✅ CORREÇÃO: Construir query de forma mais simples
-        let clientQuery;
+                {/* Tags */}
+                {client.tags && client.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mb-4">
+                        {client.tags.slice(0, 3).map((tag, index) => (
+                            <span
+                                key={`${client.id}-tag-${index}`}
+                                className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full"
+                            >
+                                {CLIENT_AVAILABLE_TAGS[tag] || tag}
+                            </span>
+                        ))}
+                        {client.tags.length > 3 && (
+                            <span className="px-2 py-1 bg-gray-100 text-gray-600 text-xs rounded-full">
+                                +{client.tags.length - 3}
+                            </span>
+                        )}
+                    </div>
+                )}
 
-        try {
-            // Query base simples
-            clientQuery = query(
-                getClientCollection(consultorId),
-                where('isActive', '==', true)
-            );
+                {/* Ações do cartão */}
+                <div className="flex justify-between items-center pt-4 border-t border-gray-100">
+                    <div className="flex space-x-2">
+                        <button
+                            onClick={() => navigate(`/clients/${client.id}`)}
+                            className="p-2 hover:bg-blue-50 text-blue-600 rounded-lg transition-colors"
+                            title="Ver detalhes"
+                        >
+                            <EyeIcon className="w-4 h-4" />
+                        </button>
+                        <button
+                            onClick={() => navigate(`/clients/${client.id}/edit`)}
+                            className="p-2 hover:bg-green-50 text-green-600 rounded-lg transition-colors"
+                            title="Editar"
+                        >
+                            <PencilIcon className="w-4 h-4" />
+                        </button>
+                    </div>
 
-            // ✅ CORREÇÃO: Aplicar orderBy somente se não houver filtros conflituosos
-            const hasComplexFilters = (filters.tag && filters.tag !== 'all') ||
-                (filters.maritalStatus && filters.maritalStatus !== 'all');
-
-            if (!hasComplexFilters) {
-                clientQuery = query(clientQuery, orderBy(orderField, orderDirection));
-            }
-
-            // Aplicar limite
-            clientQuery = query(clientQuery, limit(pageSize));
-
-            // Paginação (apenas se tiver orderBy)
-            if (lastDoc && !hasComplexFilters) {
-                clientQuery = query(clientQuery, startAfter(lastDoc));
-            }
-
-            console.log('📋 ClientService: Query construída com sucesso');
-
-        } catch (queryError) {
-            console.error('❌ ClientService: Erro ao construir query:', queryError);
-            // Query de fallback sem orderBy
-            clientQuery = query(
-                getClientCollection(consultorId),
-                where('isActive', '==', true),
-                limit(pageSize)
-            );
-            console.log('📋 ClientService: Usando query de fallback simples');
-        }
-
-        // Executar query
-        const snapshot = await getDocs(clientQuery);
-
-        // ✅ CORREÇÃO: Mapeamento com debug detalhado
-        console.log('📋 ClientService: Snapshot recebido', {
-            size: snapshot.size,
-            empty: snapshot.empty
-        });
-
-        const clients = [];
-
-        snapshot.forEach((doc) => {
-            // ✅ DEBUG: Verificar cada documento individualmente
-            const docId = doc.id;
-            const docData = doc.data();
-
-            console.log('📋 ClientService: Processando documento', {
-                docId,
-                hasData: !!docData,
-                dataKeys: Object.keys(docData || {})
-            });
-
-            if (docId && docData) {
-                const client = {
-                    id: docId,
-                    ...docData
-                };
-
-                // ✅ VERIFICAÇÃO FINAL: Garantir que o ID existe
-                if (client.id) {
-                    clients.push(client);
-                    console.log('✅ ClientService: Cliente adicionado', {
-                        id: client.id,
-                        name: client.name
-                    });
-                } else {
-                    console.error('❌ ClientService: Cliente sem ID válido', client);
-                }
-            } else {
-                console.error('❌ ClientService: Documento inválido', { docId, hasData: !!docData });
-            }
-        });
-
-        // ✅ APLICAR FILTROS MANUALMENTE (após buscar dados)
-        let filteredClients = clients;
-
-        if (filters.tag && filters.tag !== 'all') {
-            filteredClients = filteredClients.filter(client =>
-                client.tags && client.tags.includes(filters.tag)
-            );
-        }
-
-        if (filters.maritalStatus && filters.maritalStatus !== 'all') {
-            filteredClients = filteredClients.filter(client =>
-                client.maritalStatus === filters.maritalStatus
-            );
-        }
-
-        if (filters.hasEmail && filters.hasEmail !== 'all') {
-            const hasEmailFilter = filters.hasEmail === 'true';
-            filteredClients = filteredClients.filter(client =>
-                hasEmailFilter ? !!client.email : !client.email
-            );
-        }
-
-        if (filters.hasFinancialInfo && filters.hasFinancialInfo !== 'all') {
-            const hasFinancialFilter = filters.hasFinancialInfo === 'true';
-            filteredClients = filteredClients.filter(client =>
-                hasFinancialFilter ? !!(client.financial && client.financial.monthlyIncome) :
-                    !(client.financial && client.financial.monthlyIncome)
-            );
-        }
-
-        // Ordenar manualmente se necessário
-        if (hasComplexFilters && orderField) {
-            filteredClients.sort((a, b) => {
-                const aValue = a[orderField];
-                const bValue = b[orderField];
-
-                if (!aValue && !bValue) return 0;
-                if (!aValue) return 1;
-                if (!bValue) return -1;
-
-                if (orderDirection === 'desc') {
-                    return bValue > aValue ? 1 : -1;
-                } else {
-                    return aValue > bValue ? 1 : -1;
-                }
-            });
-        }
-
-        const hasMore = snapshot.docs.length === pageSize;
-        const lastDocument = snapshot.docs[snapshot.docs.length - 1];
-
-        console.log('✅ ClientService: Clientes listados', {
-            totalFromQuery: clients.length,
-            filteredCount: filteredClients.length,
-            hasMore,
-            allIdsValid: filteredClients.every(c => !!c.id)
-        });
-
-        // ✅ VERIFICAÇÃO FINAL: Garantir que todos os clientes têm ID
-        const validClients = filteredClients.filter(client => client.id);
-
-        if (validClients.length !== filteredClients.length) {
-            console.error('❌ ClientService: Alguns clientes sem ID foram filtrados', {
-                original: filteredClients.length,
-                valid: validClients.length
-            });
-        }
-
-        return {
-            clients: validClients,
-            pagination: {
-                page,
-                pageSize,
-                hasMore,
-                lastDoc: lastDocument,
-                total: null
-            }
-        };
-
-    } catch (error) {
-        console.error('❌ ClientService: Erro ao listar clientes:', error);
-        throw new Error(`Erro ao listar clientes: ${error.message}`);
-    }
-};
-
-/**
- * Buscar clientes por texto (nome, email, telefone)
- */
-export const searchClients = async (consultorId, searchTerm, maxResults = 10) => {
-    try {
-        console.log('🔎 ClientService: Buscando clientes por termo...', { consultorId, searchTerm });
-
-        if (!searchTerm || searchTerm.trim().length < 2) {
-            return [];
-        }
-
-        const searchTermLower = searchTerm.toLowerCase().trim();
-
-        // Buscar todos os clientes ativos e filtrar manualmente
-        const allClientsQuery = query(
-            getClientCollection(consultorId),
-            where('isActive', '==', true),
-            limit(50) // Limite razoável para busca
+                    <button
+                        onClick={() => handleDeactivateClient(client.id)}
+                        className="p-2 hover:bg-red-50 text-red-600 rounded-lg transition-colors"
+                        title="Desativar"
+                    >
+                        <TrashIcon className="w-4 h-4" />
+                    </button>
+                </div>
+            </div>
         );
+    };
 
-        const snapshot = await getDocs(allClientsQuery);
-
-        const clients = [];
-        snapshot.forEach((doc) => {
-            if (doc.id && doc.data()) {
-                clients.push({
-                    id: doc.id,
-                    ...doc.data()
-                });
-            }
-        });
-
-        // Filtrar resultados que contenham o termo de busca
-        const results = clients
-            .filter(client => {
-                const name = (client.name || '').toLowerCase();
-                const email = (client.email || '').toLowerCase();
-                const phone = (client.phone || '').toLowerCase();
-                const nif = (client.nif || '').toLowerCase();
-
-                return name.includes(searchTermLower) ||
-                    email.includes(searchTermLower) ||
-                    phone.includes(searchTermLower) ||
-                    nif.includes(searchTermLower);
-            })
-            .slice(0, maxResults);
-
-        console.log('✅ ClientService: Busca concluída', {
-            totalResults: results.length,
-            allIdsValid: results.every(c => !!c.id)
-        });
-
-        return results;
-
-    } catch (error) {
-        console.error('❌ ClientService: Erro na busca:', error);
-        throw new Error(`Erro na busca: ${error.message}`);
-    }
-};
-
-// ===== UPDATE OPERATIONS =====
-
-/**
- * Atualizar cliente
- */
-export const updateClient = async (consultorId, clientId, updates) => {
-    try {
-        console.log('📝 ClientService: Atualizando cliente...', { consultorId, clientId });
-
-        const updateData = {
-            ...updates,
-            updatedAt: Timestamp.now()
-        };
-
-        await updateDoc(getClientDoc(consultorId, clientId), updateData);
-
-        console.log('✅ ClientService: Cliente atualizado com sucesso');
-        return true;
-
-    } catch (error) {
-        console.error('❌ ClientService: Erro ao atualizar cliente:', error);
-        throw new Error(`Erro ao atualizar cliente: ${error.message}`);
-    }
-};
-
-/**
- * Atualizar tags do cliente
- */
-export const updateClientTags = async (consultorId, clientId, tags) => {
-    try {
-        console.log('🏷️ ClientService: Atualizando tags...', { consultorId, clientId, tags });
-
-        await updateDoc(getClientDoc(consultorId, clientId), {
-            tags,
-            updatedAt: Timestamp.now()
-        });
-
-        console.log('✅ ClientService: Tags atualizadas com sucesso');
-        return true;
-
-    } catch (error) {
-        console.error('❌ ClientService: Erro ao atualizar tags:', error);
-        throw new Error(`Erro ao atualizar tags: ${error.message}`);
-    }
-};
-
-// ===== DELETE OPERATIONS =====
-
-/**
- * Desativar cliente (soft delete)
- */
-export const deactivateClient = async (consultorId, clientId) => {
-    try {
-        console.log('❌ ClientService: Desativando cliente...', { consultorId, clientId });
-
-        await updateDoc(getClientDoc(consultorId, clientId), {
-            isActive: false,
-            deactivatedAt: Timestamp.now(),
-            updatedAt: Timestamp.now()
-        });
-
-        console.log('✅ ClientService: Cliente desativado com sucesso');
-        return true;
-
-    } catch (error) {
-        console.error('❌ ClientService: Erro ao desativar cliente:', error);
-        throw new Error(`Erro ao desativar cliente: ${error.message}`);
-    }
-};
-
-/**
- * Reativar cliente
- */
-export const reactivateClient = async (consultorId, clientId) => {
-    try {
-        console.log('♻️ ClientService: Reativando cliente...', { consultorId, clientId });
-
-        await updateDoc(getClientDoc(consultorId, clientId), {
-            isActive: true,
-            deactivatedAt: null,
-            updatedAt: Timestamp.now()
-        });
-
-        console.log('✅ ClientService: Cliente reativado com sucesso');
-        return true;
-
-    } catch (error) {
-        console.error('❌ ClientService: Erro ao reativar cliente:', error);
-        throw new Error(`Erro ao reativar cliente: ${error.message}`);
-    }
-};
-
-/**
- * Deletar cliente permanentemente
- */
-export const deleteClient = async (consultorId, clientId) => {
-    try {
-        console.log('🔥 ClientService: DELETANDO cliente permanentemente...', { consultorId, clientId });
-
-        await deleteDoc(getClientDoc(consultorId, clientId));
-
-        console.log('✅ ClientService: Cliente deletado permanentemente');
-        return true;
-
-    } catch (error) {
-        console.error('❌ ClientService: Erro ao deletar cliente:', error);
-        throw new Error(`Erro ao deletar cliente: ${error.message}`);
-    }
-};
-
-// ===== STATISTICS =====
-
-/**
- * ✅ FUNÇÃO CORRIGIDA: Calcular estatísticas dos clientes
- */
-export const getClientStats = async (consultorId) => {
-    try {
-        console.log('📊 ClientService: Calculando estatísticas...', { consultorId });
-
-        // Buscar todos os clientes ativos
-        const activeQuery = query(
-            getClientCollection(consultorId),
-            where('isActive', '==', true)
+    // Loading state inicial
+    if (loading.list && clients.length === 0) {
+        return (
+            <Layout>
+                <div className="flex items-center justify-center h-64">
+                    <div className="text-center">
+                        <div className="animate-spin w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+                        <p className="text-gray-600">Carregando clientes...</p>
+                    </div>
+                </div>
+            </Layout>
         );
-
-        const activeSnapshot = await getDocs(activeQuery);
-
-        const activeClients = [];
-        activeSnapshot.forEach((doc) => {
-            if (doc.id && doc.data()) {
-                activeClients.push({
-                    id: doc.id,
-                    ...doc.data()
-                });
-            }
-        });
-
-        // Calcular estatísticas
-        const stats = {
-            total: activeClients.length,
-            withEmail: activeClients.filter(c => c.email).length,
-            withFinancialInfo: activeClients.filter(c => c.financial?.monthlyIncome).length,
-            married: activeClients.filter(c => ['married', 'union'].includes(c.maritalStatus)).length,
-            vipClients: activeClients.filter(c => c.tags?.includes('VIP')).length,
-            urgentClients: activeClients.filter(c => c.tags?.includes('Urgente')).length,
-            byContactPreference: {
-                phone: activeClients.filter(c => c.contactPreference === 'phone').length,
-                email: activeClients.filter(c => c.contactPreference === 'email').length,
-                whatsapp: activeClients.filter(c => c.contactPreference === 'whatsapp').length,
-                any: activeClients.filter(c => c.contactPreference === 'any').length
-            },
-            byMaritalStatus: {
-                single: activeClients.filter(c => c.maritalStatus === 'single').length,
-                married: activeClients.filter(c => c.maritalStatus === 'married').length,
-                union: activeClients.filter(c => c.maritalStatus === 'union').length,
-                divorced: activeClients.filter(c => c.maritalStatus === 'divorced').length,
-                widowed: activeClients.filter(c => c.maritalStatus === 'widowed').length
-            }
-        };
-
-        console.log('✅ ClientService: Estatísticas calculadas', {
-            total: stats.total,
-            withValidIds: activeClients.every(c => !!c.id)
-        });
-
-        return stats;
-
-    } catch (error) {
-        console.error('❌ ClientService: Erro ao calcular estatísticas:', error);
-        throw new Error(`Erro ao calcular estatísticas: ${error.message}`);
     }
+
+    return (
+        <Layout>
+            <div className="p-6">
+                {/* Header com Botão Adicionar Cliente */}
+                <div className="flex justify-between items-center mb-6">
+                    <div>
+                        <h1 className="text-2xl font-bold text-gray-900">Clientes</h1>
+                        <p className="text-gray-600">Gerir a sua carteira de clientes</p>
+                    </div>
+
+                    {/* Botão Adicionar Cliente */}
+                    {canAddClient ? (
+                        <Link
+                            to="/clients/new"
+                            className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all shadow-lg font-medium"
+                        >
+                            <PlusIcon className="w-5 h-5" />
+                            Novo Cliente
+                        </Link>
+                    ) : (
+                        <div className="text-right">
+                            <p className="text-sm text-red-600 font-medium">
+                                Limite de clientes atingido
+                            </p>
+                            <p className="text-xs text-gray-500">
+                                {stats?.total || 0}/{subscription?.limiteClientes || 0} clientes
+                            </p>
+                        </div>
+                    )}
+                </div>
+
+                {/* Estatísticas rápidas */}
+                {stats && (
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                        <div className="bg-blue-50 p-4 rounded-lg">
+                            <div className="flex items-center space-x-2">
+                                <UserGroupIcon className="w-5 h-5 text-blue-600" />
+                                <span className="text-sm font-medium text-blue-800">Total</span>
+                            </div>
+                            <p className="text-2xl font-bold text-blue-900">{stats.total || 0}</p>
+                        </div>
+
+                        <div className="bg-green-50 p-4 rounded-lg">
+                            <div className="flex items-center space-x-2">
+                                <EnvelopeIcon className="w-5 h-5 text-green-600" />
+                                <span className="text-sm font-medium text-green-800">Com Email</span>
+                            </div>
+                            <p className="text-2xl font-bold text-green-900">{stats.withEmail || 0}</p>
+                        </div>
+
+                        <div className="bg-purple-50 p-4 rounded-lg">
+                            <div className="flex items-center space-x-2">
+                                <HeartIconSolid className="w-5 h-5 text-purple-600" />
+                                <span className="text-sm font-medium text-purple-800">Casados</span>
+                            </div>
+                            <p className="text-2xl font-bold text-purple-900">{stats.married || 0}</p>
+                        </div>
+
+                        <div className="bg-yellow-50 p-4 rounded-lg">
+                            <div className="flex items-center space-x-2">
+                                <StarIconSolid className="w-5 h-5 text-yellow-600" />
+                                <span className="text-sm font-medium text-yellow-800">VIP</span>
+                            </div>
+                            <p className="text-2xl font-bold text-yellow-900">{stats.vipClients || 0}</p>
+                        </div>
+                    </div>
+                )}
+
+                {/* Barra de Busca e Filtros */}
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-6">
+                    <div className="flex flex-col md:flex-row gap-4">
+                        {/* Campo de busca */}
+                        <div className="flex-1 relative">
+                            <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                            <input
+                                type="text"
+                                placeholder="Buscar clientes por nome, email ou telefone..."
+                                value={searchTerm}
+                                onChange={(e) => handleSearch(e.target.value)}
+                                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            />
+                            {searchTerm && (
+                                <button
+                                    onClick={() => handleSearch('')}
+                                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                >
+                                    <XMarkIcon className="w-5 h-5" />
+                                </button>
+                            )}
+                        </div>
+
+                        {/* Botão de filtros */}
+                        <button
+                            onClick={() => setShowFilters(!showFilters)}
+                            className={`flex items-center gap-2 px-4 py-2 border rounded-lg transition-colors ${activeFiltersCount > 0
+                                    ? 'border-blue-500 bg-blue-50 text-blue-700'
+                                    : 'border-gray-300 hover:bg-gray-50'
+                                }`}
+                        >
+                            <FunnelIcon className="w-5 h-5" />
+                            Filtros
+                            {activeFiltersCount > 0 && (
+                                <span className="bg-blue-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                                    {activeFiltersCount}
+                                </span>
+                            )}
+                        </button>
+                    </div>
+
+                    {/* Painel de filtros expandido */}
+                    {showFilters && (
+                        <div className="mt-4 pt-4 border-t border-gray-200">
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                {/* Filtro por tag */}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Tag
+                                    </label>
+                                    <select
+                                        value={filters.tag}
+                                        onChange={(e) => handleFilterChange({ ...filters, tag: e.target.value })}
+                                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    >
+                                        <option value="all">Todas</option>
+                                        {Object.entries(CLIENT_AVAILABLE_TAGS).map(([value, label]) => (
+                                            <option key={value} value={value}>{label}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {/* Filtro por estado civil */}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Estado Civil
+                                    </label>
+                                    <select
+                                        value={filters.maritalStatus}
+                                        onChange={(e) => handleFilterChange({ ...filters, maritalStatus: e.target.value })}
+                                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    >
+                                        <option value="all">Todos</option>
+                                        {Object.entries(CLIENT_MARITAL_STATUS).map(([value, label]) => (
+                                            <option key={value} value={value}>{label}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {/* Filtro por email */}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Tem Email
+                                    </label>
+                                    <select
+                                        value={filters.hasEmail}
+                                        onChange={(e) => handleFilterChange({ ...filters, hasEmail: e.target.value })}
+                                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    >
+                                        <option value="all">Todos</option>
+                                        <option value="true">Sim</option>
+                                        <option value="false">Não</option>
+                                    </select>
+                                </div>
+
+                                {/* Filtro por info financeira */}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Info Financeira
+                                    </label>
+                                    <select
+                                        value={filters.hasFinancialInfo}
+                                        onChange={(e) => handleFilterChange({ ...filters, hasFinancialInfo: e.target.value })}
+                                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    >
+                                        <option value="all">Todos</option>
+                                        <option value="true">Sim</option>
+                                        <option value="false">Não</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            {/* Botão limpar filtros */}
+                            {activeFiltersCount > 0 && (
+                                <div className="mt-4">
+                                    <button
+                                        onClick={() => handleFilterChange({
+                                            tag: 'all',
+                                            maritalStatus: 'all',
+                                            hasEmail: 'all',
+                                            hasFinancialInfo: 'all'
+                                        })}
+                                        className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                                    >
+                                        Limpar todos os filtros
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+
+                {/* Lista de Clientes */}
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+                    {/* Controles da lista */}
+                    <div className="p-4 border-b border-gray-200">
+                        <div className="flex justify-between items-center">
+                            <div className="flex items-center space-x-4">
+                                <span className="text-sm text-gray-600">
+                                    {displayClients.length} {displayClients.length === 1 ? 'cliente' : 'clientes'}
+                                    {isSearching && hasSearchResults && ` encontrado${displayClients.length === 1 ? '' : 's'}`}
+                                </span>
+
+                                {selectedClients.length > 0 && (
+                                    <span className="text-sm text-blue-600 font-medium">
+                                        {selectedClients.length} selecionado{selectedClients.length === 1 ? '' : 's'}
+                                    </span>
+                                )}
+                            </div>
+
+                            <div className="flex items-center space-x-2">
+                                {/* Seleção múltipla */}
+                                {displayClients.length > 0 && (
+                                    <button
+                                        onClick={handleSelectAll}
+                                        className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                                    >
+                                        {selectedClients.length === displayClients.length ? 'Deselecionar' : 'Selecionar'} todos
+                                    </button>
+                                )}
+
+                                {/* Alternador de visualização */}
+                                <div className="flex border border-gray-300 rounded-lg overflow-hidden">
+                                    <button
+                                        onClick={() => setViewMode('grid')}
+                                        className={`px-3 py-1 text-sm ${viewMode === 'grid'
+                                                ? 'bg-blue-500 text-white'
+                                                : 'bg-white text-gray-700 hover:bg-gray-50'
+                                            }`}
+                                    >
+                                        Grade
+                                    </button>
+                                    <button
+                                        onClick={() => setViewMode('table')}
+                                        className={`px-3 py-1 text-sm ${viewMode === 'table'
+                                                ? 'bg-blue-500 text-white'
+                                                : 'bg-white text-gray-700 hover:bg-gray-50'
+                                            }`}
+                                    >
+                                        Tabela
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Conteúdo da lista */}
+                    <div className="p-6">
+                        {displayClients.length === 0 ? (
+                            <div className="text-center py-12">
+                                <UserGroupIcon className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                                <h3 className="text-lg font-medium text-gray-900 mb-2">
+                                    {isSearching ? 'Nenhum cliente encontrado' : 'Nenhum cliente cadastrado'}
+                                </h3>
+                                <p className="text-gray-600 mb-6">
+                                    {isSearching
+                                        ? 'Tente ajustar os termos de busca ou filtros.'
+                                        : 'Comece adicionando o seu primeiro cliente.'}
+                                </p>
+
+                                {!isSearching && canAddClient && (
+                                    <Link
+                                        to="/clients/new"
+                                        className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                                    >
+                                        <PlusIcon className="w-5 h-5" />
+                                        Adicionar Primeiro Cliente
+                                    </Link>
+                                )}
+
+                                {!canAddClient && (
+                                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-center">
+                                        <p className="text-yellow-800 mb-2">
+                                            Limite de clientes atingido
+                                        </p>
+                                        <button className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors">
+                                            Fazer Upgrade do Plano
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                                {displayClients.map((client) => (
+                                    <ClientCard key={client.id} client={client} />
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Paginação */}
+                    {pagination.hasMore && (
+                        <div className="p-6 border-t border-gray-100 text-center">
+                            <button
+                                onClick={() => fetchClients({ loadMore: true })}
+                                disabled={loading.list}
+                                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {loading.list ? 'Carregando...' : 'Carregar Mais'}
+                            </button>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </Layout>
+    );
 };
 
-// ===== BATCH OPERATIONS =====
-
-/**
- * Operações em lote para múltiplos clientes
- */
-export const batchUpdateClients = async (consultorId, updates) => {
-    try {
-        console.log('📦 ClientService: Iniciando operação em lote...', {
-            consultorId,
-            operationsCount: updates.length
-        });
-
-        const batch = writeBatch(db);
-
-        updates.forEach(({ clientId, data }) => {
-            const clientRef = getClientDoc(consultorId, clientId);
-            batch.update(clientRef, {
-                ...data,
-                updatedAt: Timestamp.now()
-            });
-        });
-
-        await batch.commit();
-
-        console.log('✅ ClientService: Operação em lote concluída');
-        return true;
-
-    } catch (error) {
-        console.error('❌ ClientService: Erro na operação em lote:', error);
-        throw new Error(`Erro na operação em lote: ${error.message}`);
-    }
-};
+export default ClientListPage;
