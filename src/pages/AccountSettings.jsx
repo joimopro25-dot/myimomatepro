@@ -1,6 +1,13 @@
+/**
+ * ACCOUNT SETTINGS PAGE - MyImoMatePro
+ * Página de configurações da conta com layout unificado
+ * MODIFICAÇÃO: Integrado com Layout component e Sidebar
+ */
+
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
+import Layout from '../components/Layout';
 import {
     CreditCardIcon,
     CalendarIcon,
@@ -49,7 +56,6 @@ export default function AccountSettings() {
         changePlan,
         getTrialDaysLeft,
         getDaysUntilNextPayment,
-        // CORREÇÃO: Adicionadas as funções em falta
         getClientUsagePercentage,
         getVolumeUsagePercentage,
         formatCurrency
@@ -95,12 +101,14 @@ export default function AccountSettings() {
 
     if (!subscription) {
         return (
-            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-                <div className="text-center">
-                    <h2 className="text-2xl font-bold text-gray-900 mb-4">Sem subscrição ativa</h2>
-                    <p className="text-gray-600">Por favor, selecione um plano para continuar.</p>
+            <Layout>
+                <div className="flex items-center justify-center h-64">
+                    <div className="text-center">
+                        <h2 className="text-2xl font-bold text-gray-900 mb-4">Sem subscrição ativa</h2>
+                        <p className="text-gray-600">Por favor, selecione um plano para continuar.</p>
+                    </div>
                 </div>
-            </div>
+            </Layout>
         );
     }
 
@@ -109,8 +117,9 @@ export default function AccountSettings() {
     const isTrialActive = subscription.trial && trialDaysLeft > 0;
 
     return (
-        <div className="min-h-screen bg-gray-50 py-8">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <Layout>
+            <div className="p-6">
+                {/* Header */}
                 <div className="mb-8">
                     <h1 className="text-3xl font-bold text-gray-900">Gestão de Conta</h1>
                     <p className="text-gray-600">Gerir o seu plano e configurações de pagamento</p>
@@ -254,14 +263,14 @@ export default function AccountSettings() {
                                     onClick={() => handleChangeBillingCycle('mensal')}
                                     disabled={loading || subscription.ciclo === 'mensal'}
                                     className={`w-full text-left p-3 rounded-lg border transition-colors ${subscription.ciclo === 'mensal'
-                                            ? 'border-primary-500 bg-primary-50'
+                                            ? 'border-blue-500 bg-blue-50'
                                             : 'border-gray-200 hover:border-gray-300'
                                         }`}
                                 >
                                     <div className="flex justify-between items-center">
                                         <span>Faturação Mensal</span>
                                         {subscription.ciclo === 'mensal' && (
-                                            <CheckCircleIcon className="w-5 h-5 text-primary-600" />
+                                            <CheckCircleIcon className="w-5 h-5 text-blue-600" />
                                         )}
                                     </div>
                                 </button>
@@ -270,7 +279,7 @@ export default function AccountSettings() {
                                     onClick={() => handleChangeBillingCycle('anual')}
                                     disabled={loading || subscription.ciclo === 'anual'}
                                     className={`w-full text-left p-3 rounded-lg border transition-colors ${subscription.ciclo === 'anual'
-                                            ? 'border-primary-500 bg-primary-50'
+                                            ? 'border-blue-500 bg-blue-50'
                                             : 'border-gray-200 hover:border-gray-300'
                                         }`}
                                 >
@@ -280,7 +289,7 @@ export default function AccountSettings() {
                                             2 meses grátis
                                         </span>
                                         {subscription.ciclo === 'anual' && (
-                                            <CheckCircleIcon className="w-5 h-5 text-primary-600" />
+                                            <CheckCircleIcon className="w-5 h-5 text-blue-600" />
                                         )}
                                     </div>
                                 </button>
@@ -297,7 +306,7 @@ export default function AccountSettings() {
                                 <div
                                     key={plano.nome}
                                     className={`p-4 rounded-lg border transition-colors ${subscription.plano === plano.nome
-                                            ? 'border-primary-500 bg-primary-50'
+                                            ? 'border-blue-500 bg-blue-50'
                                             : 'border-gray-200 hover:border-gray-300'
                                         }`}
                                 >
@@ -310,12 +319,12 @@ export default function AccountSettings() {
                                             </p>
                                         </div>
                                         {subscription.plano === plano.nome ? (
-                                            <CheckCircleIcon className="w-5 h-5 text-primary-600" />
+                                            <CheckCircleIcon className="w-5 h-5 text-blue-600" />
                                         ) : (
                                             <button
                                                 onClick={() => handleChangePlan(plano.nome)}
                                                 disabled={loading}
-                                                className="px-3 py-1 text-sm bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50"
+                                                className="px-3 py-1 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
                                             >
                                                 {loading ? <ArrowPathIcon className="w-4 h-4 animate-spin" /> : 'Selecionar'}
                                             </button>
@@ -398,7 +407,7 @@ export default function AccountSettings() {
 
                             <button
                                 onClick={() => setShowPaymentModal(false)}
-                                className="w-full px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+                                className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                             >
                                 Fechar
                             </button>
@@ -406,6 +415,6 @@ export default function AccountSettings() {
                     </div>
                 )}
             </div>
-        </div>
+        </Layout>
     );
 }

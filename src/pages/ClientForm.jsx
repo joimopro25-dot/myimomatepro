@@ -1,19 +1,14 @@
 /**
- * CLIENT FORM PAGE - MyImoMatePro INTEGRADO
- * Formulário completo para criar/editar clientes - VERSÃO REAL
- * 
- * INTEGRAÇÃO COMPLETA:
- * - Remoção de funções mock
- * - Integração com ClientContext
- * - Serviços reais do Firebase
- * - Loading states e error handling robustos
- * - Navegação correta após operações
+ * CLIENT FORM PAGE - MyImoMatePro
+ * Formulário completo para criar/editar clientes
+ * CORREÇÃO: Fixed constants usage - arrays instead of Object.entries()
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useClients } from '../contexts/ClientContext';
 import { validateClientData, CLIENT_CONTACT_PREFERENCES, CLIENT_MARITAL_STATUS, CLIENT_MARRIAGE_REGIMES, CLIENT_CREDIT_TYPES, CLIENT_LEAD_SOURCES, CLIENT_AVAILABLE_TAGS } from '../models/clientModel';
+import Layout from '../components/Layout';
 import {
     ArrowLeftIcon,
     CheckCircleIcon,
@@ -47,14 +42,14 @@ const ClientFormPage = () => {
     const [touched, setTouched] = useState({});
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    // Função para dados iniciais do formulário
+    // Inicializar dados do formulário
     function getInitialFormData() {
         return {
-            // DADOS PESSOAIS (Obrigatórios)
+            // Dados pessoais obrigatórios
             name: '',
             phone: '',
 
-            // DADOS PESSOAIS (Opcionais)
+            // Dados pessoais opcionais
             email: '',
             contactPreference: 'phone',
             bestContactTime: '',
@@ -70,7 +65,7 @@ const ClientFormPage = () => {
             maritalStatus: 'single',
             marriageRegime: '',
 
-            // DADOS DO CÔNJUGE
+            // Dados do cônjuge
             spouse: {
                 name: '',
                 phone: '',
@@ -79,341 +74,191 @@ const ClientFormPage = () => {
                 ccValidity: '',
                 profession: '',
                 nif: '',
-                birthPlace: '',
+                birthPlace: ''
+            },
+
+            // Morada
+            address: {
+                street: '',
+                number: '',
+                floor: '',
+                zipCode: '',
+                city: '',
                 parish: '',
                 municipality: '',
                 district: ''
             },
 
-            // MORADA
-            address: {
-                street: '',
-                number: '',
-                postalCode: '',
-                city: '',
-                country: 'Portugal'
-            },
-
-            // NOTAS
-            notes: '',
-            attachedDocuments: [],
-
-            // INFORMAÇÕES FINANCEIRAS
+            // Informações financeiras
             financial: {
+                profession: '',
                 monthlyIncome: '',
+                spouseProfession: '',
                 spouseMonthlyIncome: '',
-                totalHouseholdIncome: '',
                 availableCapital: '',
-                credits: {
-                    mortgage: { active: false, amount: '', entity: '' },
-                    personal: { active: false, amount: '', entity: '' },
-                    auto: { active: false, amount: '', entity: '' },
-                    credit_card: { active: false, amount: '', entity: '' },
-                    other: { active: false, amount: '', entity: '', description: '' }
-                },
+                creditSituation: 'no_credit',
                 relationshipBank: '',
-                hasBankApproval: false,
-                bankApprovalWhere: '',
-                bankApprovalAmount: '',
-                bankApprovalNotes: ''
+                hasPreApproval: false,
+                preApprovalDetails: ''
             },
 
-            // DOCUMENTAÇÃO
-            documents: {
-                ccFront: false,
-                ccBack: false,
-                ibanProof: false,
-                irsDeclaration: false,
-                salaryReceipts: false,
-                birthCertificate: false,
-                marriageCertificate: false,
-                propertyRegistry: false,
-                residenceCertificate: false,
-                workContract: false
-            },
-
-            // TAGS E OBSERVAÇÕES
+            // Documentação e observações
+            availableDocuments: [],
             tags: [],
-            consultorObservations: '',
-            howDidYouFindUs: 'website',
+            leadSource: '',
+            observations: '',
             nextContactDate: '',
-
-            // GDPR
-            gdpr: {
-                consent: false,
-                marketingConsent: false
-            }
+            gdprConsent: false,
+            marketingConsent: false
         };
     }
 
-    // Carregar cliente em modo edição
+    // Carregar dados do cliente se estiver em modo edição
     useEffect(() => {
         if (isEditMode && clientId) {
-            console.log('🔄 Carregando cliente para edição...', { clientId });
-            fetchClient(clientId).catch(error => {
+            fetchClient(clientId).then(client => {
+                if (client) {
+                    setFormData({
+                        ...getInitialFormData(),
+                        ...client
+                    });
+                }
+            }).catch(error => {
                 console.error('Erro ao carregar cliente:', error);
-                navigate('/clients');
             });
         }
 
-        // Cleanup ao desmontar
         return () => {
-            if (!isEditMode) {
+            if (isEditMode) {
                 clearCurrentClient();
             }
         };
-    }, [isEditMode, clientId, fetchClient, clearCurrentClient, navigate]);
+    }, [isEditMode, clientId, fetchClient, clearCurrentClient]);
 
-    // Preencher formulário com dados do cliente carregado
-    useEffect(() => {
-        if (currentClient && isEditMode) {
-            console.log('📝 Preenchendo formulário com dados do cliente...', { clientId: currentClient.id });
-
-            setFormData({
-                ...getInitialFormData(),
-                ...currentClient,
-                address: { ...getInitialFormData().address, ...currentClient.address },
-                spouse: { ...getInitialFormData().spouse, ...currentClient.spouse },
-                financial: { ...getInitialFormData().financial, ...currentClient.financial },
-                documents: { ...getInitialFormData().documents, ...currentClient.documents },
-                gdpr: { ...getInitialFormData().gdpr, ...currentClient.gdpr }
-            });
-        }
-    }, [currentClient, isEditMode]);
-
-    // Calcular rendimento total do agregado
-    const calculateTotalHouseholdIncome = useCallback(() => {
-        const monthly = parseFloat(formData.financial.monthlyIncome) || 0;
-        const spouseMonthly = parseFloat(formData.financial.spouseMonthlyIncome) || 0;
-        const total = monthly + spouseMonthly;
-
-        setFormData(prev => ({
-            ...prev,
-            financial: {
-                ...prev.financial,
-                totalHouseholdIncome: total > 0 ? total.toString() : ''
-            }
-        }));
-    }, [formData.financial.monthlyIncome, formData.financial.spouseMonthlyIncome]);
-
-    // Recalcular quando rendimentos mudam
-    useEffect(() => {
-        calculateTotalHouseholdIncome();
-    }, [formData.financial.monthlyIncome, formData.financial.spouseMonthlyIncome, calculateTotalHouseholdIncome]);
-
-    // Validação de campo individual
-    const validateField = useCallback((fieldName, value) => {
-        const errors = { ...validationErrors };
-
-        switch (fieldName) {
-            case 'name':
-                if (!value || value.trim().length < 2) {
-                    errors.name = 'Nome deve ter pelo menos 2 caracteres';
-                } else {
-                    delete errors.name;
-                }
-                break;
-
-            case 'phone':
-                if (!value) {
-                    errors.phone = 'Telefone é obrigatório';
-                } else if (!/^[+]?[(]?[\d\s\-()]{9,}$/.test(value.replace(/\s/g, ''))) {
-                    errors.phone = 'Formato de telefone inválido';
-                } else {
-                    delete errors.phone;
-                }
-                break;
-
-            case 'email':
-                if (value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
-                    errors.email = 'Email inválido';
-                } else {
-                    delete errors.email;
-                }
-                break;
-
-            case 'nif':
-                if (value && !/^\d{9}$/.test(value.replace(/\s/g, ''))) {
-                    errors.nif = 'NIF deve ter 9 dígitos';
-                } else {
-                    delete errors.nif;
-                }
-                break;
-
-            case 'postalCode':
-                if (value && !/^\d{4}-\d{3}$/.test(value)) {
-                    errors.postalCode = 'Código postal inválido (ex: 1234-567)';
-                } else {
-                    delete errors.postalCode;
-                }
-                break;
-
-            default:
-                break;
-        }
-
-        setValidationErrors(errors);
-    }, [validationErrors]);
-
-    // Validação completa do formulário
+    // Validar formulário
     const validateForm = useCallback(() => {
         const validation = validateClientData(formData);
-        setValidationErrors(validation.errors);
+        setValidationErrors(validation.errors || {});
         return validation.isValid;
     }, [formData]);
 
-    // Handler para mudanças nos campos
-    const handleFieldChange = useCallback((fieldPath, value) => {
-        setFormData(prev => {
-            const newData = { ...prev };
-            const pathArray = fieldPath.split('.');
-
-            let current = newData;
-            for (let i = 0; i < pathArray.length - 1; i++) {
-                if (!current[pathArray[i]]) {
-                    current[pathArray[i]] = {};
+    // Handlers
+    const handleFieldChange = (field, value) => {
+        if (field.includes('.')) {
+            const [parent, child] = field.split('.');
+            setFormData(prev => ({
+                ...prev,
+                [parent]: {
+                    ...prev[parent],
+                    [child]: value
                 }
-                current = current[pathArray[i]];
-            }
-            current[pathArray[pathArray.length - 1]] = value;
-
-            return newData;
-        });
-
-        // Marcar campo como tocado
-        setTouched(prev => ({ ...prev, [fieldPath]: true }));
-
-        // Validar campo se foi tocado
-        if (touched[fieldPath]) {
-            validateField(fieldPath, value);
+            }));
+        } else {
+            setFormData(prev => ({
+                ...prev,
+                [field]: value
+            }));
         }
-    }, [touched, validateField]);
 
-    // Navegação entre steps
-    const nextStep = useCallback(() => {
+        // Marcar campo como touched
+        setTouched(prev => ({
+            ...prev,
+            [field]: true
+        }));
+
+        // Limpar erro do campo específico
+        if (validationErrors[field]) {
+            setValidationErrors(prev => ({
+                ...prev,
+                [field]: undefined
+            }));
+        }
+    };
+
+    const nextStep = () => {
         if (currentStep < totalSteps) {
             setCurrentStep(currentStep + 1);
         }
-    }, [currentStep, totalSteps]);
+    };
 
-    const prevStep = useCallback(() => {
+    const prevStep = () => {
         if (currentStep > 1) {
             setCurrentStep(currentStep - 1);
         }
-    }, [currentStep]);
+    };
 
-    // Ir para o primeiro step com erro
-    const goToFirstErrorStep = useCallback(() => {
-        const errorFields = Object.keys(validationErrors);
-
-        // Step 1: Dados pessoais
-        if (errorFields.some(field => ['name', 'phone', 'email', 'nif', 'postalCode'].includes(field))) {
-            setCurrentStep(1);
-            return;
-        }
-
-        // Step 3: GDPR
-        if (errorFields.includes('gdprConsent')) {
-            setCurrentStep(3);
-            return;
-        }
-    }, [validationErrors]);
-
-    // Submissão do formulário
-    const handleSubmit = useCallback(async () => {
-        console.log('💾 Iniciando submissão do formulário...', { isEditMode, clientId });
-
-        // Validar formulário
-        if (!validateForm()) {
-            console.log('❌ Formulário inválido', validationErrors);
-            goToFirstErrorStep();
-            return;
-        }
-
-        setIsSubmitting(true);
-
+    const handleSubmit = async () => {
         try {
+            setIsSubmitting(true);
             clearError(isEditMode ? 'update' : 'create');
 
-            if (isEditMode) {
-                console.log('✏️ Atualizando cliente...', { clientId });
-                await updateClient(clientId, formData);
-                console.log('✅ Cliente atualizado com sucesso');
-            } else {
-                console.log('🆕 Criando novo cliente...');
-                const newClient = await createClient(formData);
-                console.log('✅ Cliente criado com sucesso', { clientId: newClient.id });
+            // Validar formulário
+            if (!validateForm()) {
+                setCurrentStep(1); // Voltar ao primeiro step se houver erros
+                return;
             }
 
-            // Navegar para lista após sucesso
-            setTimeout(() => {
-                navigate('/clients');
-            }, 1500);
+            if (isEditMode) {
+                await updateClient(clientId, formData);
+            } else {
+                await createClient(formData);
+            }
+
+            // Sucesso - redirecionar
+            navigate('/clients');
 
         } catch (error) {
-            console.error('❌ Erro na submissão:', error);
-            // Error é tratado pelo context
+            console.error('Erro ao submeter formulário:', error);
         } finally {
             setIsSubmitting(false);
         }
-    }, [formData, validateForm, goToFirstErrorStep, isEditMode, clientId, updateClient, createClient, clearError, navigate]);
+    };
 
     // Renderização dos steps
-    const renderPersonalData = () => {
-        const showSpouseFields = ['married', 'union'].includes(formData.maritalStatus);
+    const renderPersonalData = () => (
+        <div className="space-y-8">
+            <div>
+                <h2 className="text-xl font-semibold text-gray-900 mb-6">Dados Pessoais</h2>
 
-        return (
-            <div className="space-y-8">
-                <h2 className="text-xl font-semibold text-gray-900">Dados Pessoais</h2>
-
-                {/* Campos Obrigatórios */}
-                <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                    <div className="flex items-center mb-4">
-                        <InformationCircleIcon className="w-5 h-5 text-blue-600 mr-2" />
-                        <h3 className="text-lg font-medium text-blue-900">Informações Obrigatórias</h3>
+                {/* Campos obrigatórios */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Nome Completo *
+                        </label>
+                        <input
+                            type="text"
+                            value={formData.name}
+                            onChange={(e) => handleFieldChange('name', e.target.value)}
+                            className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${validationErrors.name ? 'border-red-500' : 'border-gray-300'
+                                }`}
+                            placeholder="João Silva"
+                        />
+                        {validationErrors.name && (
+                            <p className="mt-1 text-sm text-red-600">{validationErrors.name}</p>
+                        )}
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        {/* Nome */}
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Nome Completo *
-                            </label>
-                            <input
-                                type="text"
-                                value={formData.name}
-                                onChange={(e) => handleFieldChange('name', e.target.value)}
-                                className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${validationErrors.name ? 'border-red-500' : 'border-gray-300'
-                                    }`}
-                                placeholder="João Silva"
-                            />
-                            {validationErrors.name && (
-                                <p className="mt-1 text-sm text-red-600">{validationErrors.name}</p>
-                            )}
-                        </div>
-
-                        {/* Telefone */}
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Telefone *
-                            </label>
-                            <input
-                                type="tel"
-                                value={formData.phone}
-                                onChange={(e) => handleFieldChange('phone', e.target.value)}
-                                className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${validationErrors.phone ? 'border-red-500' : 'border-gray-300'
-                                    }`}
-                                placeholder="912345678"
-                            />
-                            {validationErrors.phone && (
-                                <p className="mt-1 text-sm text-red-600">{validationErrors.phone}</p>
-                            )}
-                        </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Telefone *
+                        </label>
+                        <input
+                            type="tel"
+                            value={formData.phone}
+                            onChange={(e) => handleFieldChange('phone', e.target.value)}
+                            className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${validationErrors.phone ? 'border-red-500' : 'border-gray-300'
+                                }`}
+                            placeholder="912345678"
+                        />
+                        {validationErrors.phone && (
+                            <p className="mt-1 text-sm text-red-600">{validationErrors.phone}</p>
+                        )}
                     </div>
                 </div>
 
                 {/* Email e Preferências */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
                         <input
@@ -422,7 +267,7 @@ const ClientFormPage = () => {
                             onChange={(e) => handleFieldChange('email', e.target.value)}
                             className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${validationErrors.email ? 'border-red-500' : 'border-gray-300'
                                 }`}
-                            placeholder="joao@email.com"
+                            placeholder="joao@exemplo.pt"
                         />
                         {validationErrors.email && (
                             <p className="mt-1 text-sm text-red-600">{validationErrors.email}</p>
@@ -450,7 +295,9 @@ const ClientFormPage = () => {
                 {/* Estado Civil */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Estado Civil</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Estado Civil
+                        </label>
                         <select
                             value={formData.maritalStatus}
                             onChange={(e) => handleFieldChange('maritalStatus', e.target.value)}
@@ -464,7 +311,7 @@ const ClientFormPage = () => {
                         </select>
                     </div>
 
-                    {formData.maritalStatus === 'married' && (
+                    {(formData.maritalStatus === 'married' || formData.maritalStatus === 'union') && (
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">
                                 Regime de Casamento
@@ -474,362 +321,202 @@ const ClientFormPage = () => {
                                 onChange={(e) => handleFieldChange('marriageRegime', e.target.value)}
                                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                             >
-                                <option value="">Selecione o regime...</option>
-                                {CLIENT_MARRIAGE_REGIMES.map(regime => (
-                                    <option key={regime.value} value={regime.value}>
-                                        {regime.label}
+                                <option value="">Selecionar...</option>
+                                {CLIENT_MARRIAGE_REGIMES.map(option => (
+                                    <option key={option.value} value={option.value}>
+                                        {option.label}
                                     </option>
                                 ))}
                             </select>
                         </div>
                     )}
                 </div>
+            </div>
+        </div>
+    );
 
-                {/* Dados do Cônjuge */}
-                {showSpouseFields && (
-                    <div className="bg-yellow-50 p-6 rounded-lg border border-yellow-200">
-                        <h3 className="text-lg font-medium text-yellow-800 mb-4">Dados do Cônjuge</h3>
+    const renderFinancialInfo = () => (
+        <div className="space-y-8">
+            <div>
+                <h2 className="text-xl font-semibold text-gray-900 mb-6">Informações Financeiras</h2>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Nome do Cônjuge
-                                </label>
-                                <input
-                                    type="text"
-                                    value={formData.spouse.name}
-                                    onChange={(e) => handleFieldChange('spouse.name', e.target.value)}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                    placeholder="Maria Silva"
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Telefone do Cônjuge
-                                </label>
-                                <input
-                                    type="tel"
-                                    value={formData.spouse.phone}
-                                    onChange={(e) => handleFieldChange('spouse.phone', e.target.value)}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                    placeholder="913456789"
-                                />
-                            </div>
-                        </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Profissão
+                        </label>
+                        <input
+                            type="text"
+                            value={formData.financial.profession}
+                            onChange={(e) => handleFieldChange('financial.profession', e.target.value)}
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            placeholder="Engenheiro Civil"
+                        />
                     </div>
-                )}
 
-                {/* Morada */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Rendimento Mensal (€)
+                        </label>
+                        <input
+                            type="number"
+                            value={formData.financial.monthlyIncome}
+                            onChange={(e) => handleFieldChange('financial.monthlyIncome', e.target.value)}
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            placeholder="2500"
+                        />
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Capital Disponível (€)
+                        </label>
+                        <input
+                            type="number"
+                            value={formData.financial.availableCapital}
+                            onChange={(e) => handleFieldChange('financial.availableCapital', e.target.value)}
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            placeholder="50000"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Banco de Relacionamento
+                        </label>
+                        <input
+                            type="text"
+                            value={formData.financial.relationshipBank}
+                            onChange={(e) => handleFieldChange('financial.relationshipBank', e.target.value)}
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            placeholder="Banco Millennium"
+                        />
+                    </div>
+                </div>
+
+                {/* Pré-aprovação bancária */}
                 <div className="space-y-4">
-                    <h3 className="text-lg font-medium text-gray-900">Morada de Residência</h3>
+                    <label className="flex items-center space-x-3">
+                        <input
+                            type="checkbox"
+                            checked={formData.financial.hasPreApproval}
+                            onChange={(e) => handleFieldChange('financial.hasPreApproval', e.target.checked)}
+                            className="form-checkbox h-4 w-4 text-blue-600"
+                        />
+                        <span className="text-sm font-medium text-gray-700">
+                            Tem pré-aprovação bancária
+                        </span>
+                    </label>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="md:col-span-2">
-                            <label className="block text-sm font-medium text-gray-700 mb-2">Rua</label>
+                    {formData.financial.hasPreApproval && (
+                        <div className="ml-7 space-y-4">
                             <input
                                 type="text"
-                                value={formData.address.street}
-                                onChange={(e) => handleFieldChange('address.street', e.target.value)}
+                                value={formData.financial.preApprovalDetails}
+                                onChange={(e) => handleFieldChange('financial.preApprovalDetails', e.target.value)}
                                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                placeholder="Rua das Flores"
+                                placeholder="Detalhes da pré-aprovação..."
                             />
                         </div>
-
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">Número/Andar</label>
-                            <input
-                                type="text"
-                                value={formData.address.number}
-                                onChange={(e) => handleFieldChange('address.number', e.target.value)}
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                placeholder="123, 2º Dto"
-                            />
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">Código Postal</label>
-                            <input
-                                type="text"
-                                value={formData.address.postalCode}
-                                onChange={(e) => handleFieldChange('address.postalCode', e.target.value)}
-                                className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${validationErrors.postalCode ? 'border-red-500' : 'border-gray-300'
-                                    }`}
-                                placeholder="1234-567"
-                                maxLength="8"
-                            />
-                            {validationErrors.postalCode && (
-                                <p className="mt-1 text-sm text-red-600">{validationErrors.postalCode}</p>
-                            )}
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">Cidade</label>
-                            <input
-                                type="text"
-                                value={formData.address.city}
-                                onChange={(e) => handleFieldChange('address.city', e.target.value)}
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                placeholder="Lisboa"
-                            />
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">País</label>
-                            <select
-                                value={formData.address.country}
-                                onChange={(e) => handleFieldChange('address.country', e.target.value)}
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                            >
-                                <option value="Portugal">Portugal</option>
-                                <option value="Brasil">Brasil</option>
-                                <option value="Angola">Angola</option>
-                                <option value="Moçambique">Moçambique</option>
-                                <option value="Outro">Outro</option>
-                            </select>
-                        </div>
-                    </div>
+                    )}
                 </div>
             </div>
-        );
-    };
-
-    const renderFinancialInfo = () => {
-        const hasSpouse = ['married', 'union'].includes(formData.maritalStatus);
-
-        return (
-            <div className="space-y-6">
-                <h2 className="text-xl font-semibold text-gray-900">Informações Financeiras</h2>
-
-                {/* Rendimentos */}
-                <div className="space-y-4">
-                    <h3 className="text-lg font-medium text-gray-900">Rendimentos</h3>
-
-                    <div className={`grid grid-cols-1 gap-6 ${hasSpouse ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Rendimento Mensal (€)
-                            </label>
-                            <input
-                                type="number"
-                                value={formData.financial.monthlyIncome}
-                                onChange={(e) => handleFieldChange('financial.monthlyIncome', e.target.value)}
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                placeholder="2500"
-                            />
-                        </div>
-
-                        {hasSpouse && (
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Rendimento Mensal do Cônjuge (€)
-                                </label>
-                                <input
-                                    type="number"
-                                    value={formData.financial.spouseMonthlyIncome}
-                                    onChange={(e) => handleFieldChange('financial.spouseMonthlyIncome', e.target.value)}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                    placeholder="2000"
-                                />
-                            </div>
-                        )}
-
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Rendimento do Agregado (€)
-                            </label>
-                            <input
-                                type="number"
-                                value={formData.financial.totalHouseholdIncome}
-                                className="w-full px-4 py-2 bg-blue-50 border border-blue-200 rounded-lg text-blue-900 font-medium cursor-not-allowed"
-                                placeholder="Soma automática"
-                                readOnly
-                            />
-                        </div>
-                    </div>
-                </div>
-
-                {/* Situação de Crédito */}
-                <div className="space-y-4">
-                    <h3 className="text-lg font-medium text-gray-900">Situação de Crédito</h3>
-
-                    <div className="space-y-4">
-                        {CLIENT_CREDIT_TYPES.map(credit => (
-                            <div
-                                key={credit.key}
-                                className={`bg-white p-4 rounded-lg border ${formData.financial.credits[credit.key].active
-                                        ? 'border-blue-200 bg-blue-50'
-                                        : 'border-gray-200'
-                                    }`}
-                            >
-                                <div className="flex items-center mb-3">
-                                    <label className="flex items-center space-x-3 cursor-pointer">
-                                        <input
-                                            type="checkbox"
-                                            checked={formData.financial.credits[credit.key].active}
-                                            onChange={(e) => handleFieldChange(`financial.credits.${credit.key}.active`, e.target.checked)}
-                                            className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
-                                        />
-                                        <span className="text-lg">{credit.icon}</span>
-                                        <span className="text-sm font-medium text-gray-900">{credit.label}</span>
-                                    </label>
-                                </div>
-
-                                {formData.financial.credits[credit.key].active && (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
-                                        <div>
-                                            <label className="block text-xs font-medium text-gray-600 mb-1">
-                                                Valor em Dívida (€)
-                                            </label>
-                                            <input
-                                                type="number"
-                                                value={formData.financial.credits[credit.key].amount}
-                                                onChange={(e) => handleFieldChange(`financial.credits.${credit.key}.amount`, e.target.value)}
-                                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                                placeholder="Ex: 150000"
-                                            />
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-xs font-medium text-gray-600 mb-1">
-                                                Entidade Credora
-                                            </label>
-                                            <input
-                                                type="text"
-                                                value={formData.financial.credits[credit.key].entity}
-                                                onChange={(e) => handleFieldChange(`financial.credits.${credit.key}.entity`, e.target.value)}
-                                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                                placeholder="Ex: Banco CGD"
-                                            />
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            </div>
-        );
-    };
+        </div>
+    );
 
     const renderDocumentationAndObservations = () => (
         <div className="space-y-8">
-            <h2 className="text-xl font-semibold text-gray-900">Documentação e Observações</h2>
-
-            {/* Tags */}
-            <div className="space-y-4">
-                <h3 className="text-lg font-medium text-gray-900">Tags</h3>
-                <div className="flex flex-wrap gap-2">
-                    {CLIENT_AVAILABLE_TAGS.map(tag => (
-                        <button
-                            key={tag}
-                            type="button"
-                            onClick={() => {
-                                const currentTags = formData.tags || [];
-                                const newTags = currentTags.includes(tag)
-                                    ? currentTags.filter(t => t !== tag)
-                                    : [...currentTags, tag];
-                                handleFieldChange('tags', newTags);
-                            }}
-                            className={`px-3 py-1 rounded-full text-sm transition-colors ${formData.tags?.includes(tag)
-                                    ? 'bg-blue-600 text-white'
-                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                }`}
-                        >
-                            {tag}
-                        </button>
-                    ))}
-                </div>
-            </div>
-
-            {/* Observações */}
             <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Observações do Consultor
-                </label>
-                <textarea
-                    rows="4"
-                    value={formData.consultorObservations}
-                    onChange={(e) => handleFieldChange('consultorObservations', e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Observações internas sobre o cliente..."
-                />
-            </div>
+                <h2 className="text-xl font-semibold text-gray-900 mb-6">Documentação e Observações</h2>
 
-            {/* Como nos conheceu */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Como nos conheceu?
-                    </label>
-                    <select
-                        value={formData.howDidYouFindUs}
-                        onChange={(e) => handleFieldChange('howDidYouFindUs', e.target.value)}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                        {CLIENT_LEAD_SOURCES.map(option => (
-                            <option key={option.value} value={option.value}>
-                                {option.label}
-                            </option>
-                        ))}
-                    </select>
-                </div>
+                <div className="space-y-6">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Tags
+                        </label>
+                        <div className="flex flex-wrap gap-2">
+                            {CLIENT_AVAILABLE_TAGS.map((tag) => (
+                                <label key={tag} className="inline-flex items-center">
+                                    <input
+                                        type="checkbox"
+                                        checked={formData.tags.includes(tag)}
+                                        onChange={(e) => {
+                                            if (e.target.checked) {
+                                                handleFieldChange('tags', [...formData.tags, tag]);
+                                            } else {
+                                                handleFieldChange('tags', formData.tags.filter(t => t !== tag));
+                                            }
+                                        }}
+                                        className="form-checkbox h-4 w-4 text-blue-600"
+                                    />
+                                    <span className="ml-2 text-sm text-gray-700">{tag}</span>
+                                </label>
+                            ))}
+                        </div>
+                    </div>
 
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Data do Próximo Contacto
-                    </label>
-                    <input
-                        type="datetime-local"
-                        value={formData.nextContactDate}
-                        onChange={(e) => handleFieldChange('nextContactDate', e.target.value)}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                </div>
-            </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Como nos conheceu?
+                        </label>
+                        <select
+                            value={formData.leadSource}
+                            onChange={(e) => handleFieldChange('leadSource', e.target.value)}
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        >
+                            <option value="">Selecionar...</option>
+                            {CLIENT_LEAD_SOURCES.map(option => (
+                                <option key={option.value} value={option.value}>
+                                    {option.label}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
 
-            {/* GDPR */}
-            <div className="bg-gray-50 p-6 rounded-lg border border-gray-200">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">Consentimentos GDPR</h3>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Observações do Consultor
+                        </label>
+                        <textarea
+                            value={formData.observations}
+                            onChange={(e) => handleFieldChange('observations', e.target.value)}
+                            rows={4}
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            placeholder="Notas importantes sobre o cliente..."
+                        />
+                    </div>
 
-                <div className="space-y-4">
-                    <div className="bg-white rounded-lg p-4 border">
-                        <label className="flex items-start space-x-3 cursor-pointer">
+                    {/* Consentimentos GDPR */}
+                    <div className="space-y-4 p-4 bg-gray-50 rounded-lg">
+                        <h3 className="font-medium text-gray-900">Consentimentos</h3>
+
+                        <label className="flex items-start space-x-3">
                             <input
                                 type="checkbox"
-                                checked={formData.gdpr.consent}
-                                onChange={(e) => handleFieldChange('gdpr.consent', e.target.checked)}
-                                className="w-5 h-5 mt-0.5 text-blue-600 rounded focus:ring-blue-500"
+                                checked={formData.gdprConsent}
+                                onChange={(e) => handleFieldChange('gdprConsent', e.target.checked)}
+                                className="form-checkbox h-4 w-4 text-blue-600 mt-1"
                             />
-                            <div>
-                                <span className="text-sm font-medium text-gray-700">
-                                    Consentimento para Tratamento de Dados Pessoais *
-                                </span>
-                                <p className="text-xs text-gray-500 mt-1">
+                            <div className="text-sm text-gray-700">
+                                <p className="font-medium">Consentimento para tratamento de dados *</p>
+                                <p className="text-gray-600">
                                     Consinto no tratamento dos meus dados pessoais para fins de prestação de serviços imobiliários.
                                 </p>
                             </div>
                         </label>
-                        {validationErrors.gdprConsent && (
-                            <p className="mt-2 text-sm text-red-600">{validationErrors.gdprConsent}</p>
-                        )}
-                    </div>
 
-                    <div className="bg-white rounded-lg p-4 border">
-                        <label className="flex items-start space-x-3 cursor-pointer">
+                        <label className="flex items-start space-x-3">
                             <input
                                 type="checkbox"
-                                checked={formData.gdpr.marketingConsent}
-                                onChange={(e) => handleFieldChange('gdpr.marketingConsent', e.target.checked)}
-                                className="w-5 h-5 mt-0.5 text-blue-600 rounded focus:ring-blue-500"
+                                checked={formData.marketingConsent}
+                                onChange={(e) => handleFieldChange('marketingConsent', e.target.checked)}
+                                className="form-checkbox h-4 w-4 text-blue-600 mt-1"
                             />
-                            <div>
-                                <span className="text-sm font-medium text-gray-700">
-                                    Consentimento para Marketing e Comunicações
-                                </span>
-                                <p className="text-xs text-gray-500 mt-1">
+                            <div className="text-sm text-gray-700">
+                                <p className="font-medium">Comunicações promocionais</p>
+                                <p className="text-gray-600">
                                     Consinto em receber comunicações promocionais por email, SMS ou telefone.
                                 </p>
                             </div>
@@ -856,43 +543,41 @@ const ClientFormPage = () => {
     // Loading state para carregamento inicial
     if (isEditMode && loading.current) {
         return (
-            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-                <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                    <p className="text-gray-600">Carregando dados do cliente...</p>
+            <Layout>
+                <div className="flex items-center justify-center h-64">
+                    <div className="text-center">
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                        <p className="text-gray-600">Carregando dados do cliente...</p>
+                    </div>
                 </div>
-            </div>
+            </Layout>
         );
     }
 
     return (
-        <div className="min-h-screen bg-gray-50">
-            {/* Header */}
-            <header className="bg-white shadow-sm border-b">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="flex justify-between items-center h-16">
-                        <div className="flex items-center space-x-3">
-                            <button
-                                onClick={() => navigate('/clients')}
-                                className="text-gray-500 hover:text-gray-700 transition-colors"
-                            >
-                                <ArrowLeftIcon className="w-5 h-5" />
-                            </button>
-                            <h1 className="text-2xl font-bold text-gray-900">
-                                {isEditMode ? 'Editar Cliente' : 'Novo Cliente'}
-                            </h1>
-                        </div>
+        <Layout>
+            <div className="p-6">
+                {/* Header com Navegação */}
+                <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center space-x-3">
                         <button
                             onClick={() => navigate('/clients')}
-                            className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                            className="text-gray-500 hover:text-gray-700 transition-colors"
                         >
-                            Cancelar
+                            <ArrowLeftIcon className="w-5 h-5" />
                         </button>
+                        <h1 className="text-2xl font-bold text-gray-900">
+                            {isEditMode ? 'Editar Cliente' : 'Novo Cliente'}
+                        </h1>
                     </div>
+                    <button
+                        onClick={() => navigate('/clients')}
+                        className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                        Cancelar
+                    </button>
                 </div>
-            </header>
 
-            <div className="max-w-6xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
                 {/* Alertas de erro */}
                 {(contextErrors.create || contextErrors.update) && (
                     <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
@@ -982,7 +667,7 @@ const ClientFormPage = () => {
                     </div>
                 </div>
             </div>
-        </div>
+        </Layout>
     );
 };
 

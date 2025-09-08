@@ -1,16 +1,15 @@
 /**
  * CLIENT LIST PAGE - MyImoMatePro
  * Página principal de listagem e gestão de clientes
- * Integração completa com ClientContext e SubscriptionContext
- * CORREÇÃO: Adicionado import e uso do SubscriptionContext
+ * MODIFICAÇÃO: Integrado com Layout component e Sidebar
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useClients } from '../contexts/ClientContext';
-// CORREÇÃO: Adicionado import do SubscriptionContext
 import { useSubscription } from '../contexts/SubscriptionContext';
 import { CLIENT_AVAILABLE_TAGS, CLIENT_MARITAL_STATUS } from '../models/clientModel';
+import Layout from '../components/Layout';
 import {
     MagnifyingGlassIcon,
     PlusIcon,
@@ -62,7 +61,7 @@ const ClientListPage = () => {
         clearError
     } = useClients();
 
-    // CORREÇÃO: Context da Subscrição
+    // Context da Subscrição
     const {
         subscription,
         isClientLimitReached
@@ -139,7 +138,7 @@ const ClientListPage = () => {
         setSelectedClients([]);
     };
 
-    // CORREÇÃO: Verificar se pode adicionar cliente
+    // Verificar se pode adicionar cliente
     const canAddClient = !subscription || !isClientLimitReached();
 
     // Component para renderizar cliente
@@ -186,7 +185,7 @@ const ClientListPage = () => {
                         <HeartIconSolid className="w-4 h-4 text-red-500" />
                     )}
                     <span className="text-sm text-gray-600 capitalize">
-                        {CLIENT_MARITAL_STATUS[client.maritalStatus] || client.maritalStatus}
+                        {CLIENT_MARITAL_STATUS.find(status => status.value === client.maritalStatus)?.label || client.maritalStatus}
                     </span>
                 </div>
 
@@ -265,51 +264,49 @@ const ClientListPage = () => {
     // Loading state
     if (loading.list && clients.length === 0) {
         return (
-            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-                <div className="text-center">
-                    <div className="animate-spin w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full mx-auto mb-4"></div>
-                    <p className="text-gray-600">Carregando clientes...</p>
+            <Layout>
+                <div className="flex items-center justify-center h-64">
+                    <div className="text-center">
+                        <div className="animate-spin w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+                        <p className="text-gray-600">Carregando clientes...</p>
+                    </div>
                 </div>
-            </div>
+            </Layout>
         );
     }
 
     return (
-        <div className="min-h-screen bg-gray-50">
-            {/* Header */}
-            <div className="bg-white shadow-sm border-b border-gray-200">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="flex justify-between items-center h-16">
-                        <div>
-                            <h1 className="text-2xl font-bold text-gray-900">Clientes</h1>
-                            <p className="text-gray-600">Gerir a sua carteira de clientes</p>
-                        </div>
-
-                        {/* Botão Adicionar Cliente */}
-                        {canAddClient ? (
-                            <Link
-                                to="/clients/new"
-                                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
-                            >
-                                <PlusIcon className="w-5 h-5" />
-                                Novo Cliente
-                            </Link>
-                        ) : (
-                            <div className="text-right">
-                                <p className="text-sm text-red-600 font-medium">
-                                    Limite de clientes atingido
-                                </p>
-                                <p className="text-xs text-gray-500">
-                                    {stats?.totalClientes || 0}/{subscription?.limiteClientes || 0} clientes
-                                </p>
-                            </div>
-                        )}
+        <Layout>
+            <div className="p-6">
+                {/* Header com Botão Adicionar Cliente */}
+                <div className="flex justify-between items-center mb-6">
+                    <div>
+                        <h1 className="text-2xl font-bold text-gray-900">Clientes</h1>
+                        <p className="text-gray-600">Gerir a sua carteira de clientes</p>
                     </div>
-                </div>
-            </div>
 
-            {/* Barra de Busca e Filtros */}
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                    {/* Botão Adicionar Cliente */}
+                    {canAddClient ? (
+                        <Link
+                            to="/clients/new"
+                            className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all shadow-lg font-medium"
+                        >
+                            <PlusIcon className="w-5 h-5" />
+                            Novo Cliente
+                        </Link>
+                    ) : (
+                        <div className="text-right">
+                            <p className="text-sm text-red-600 font-medium">
+                                Limite de clientes atingido
+                            </p>
+                            <p className="text-xs text-gray-500">
+                                {stats?.totalClientes || 0}/{subscription?.limiteClientes || 0} clientes
+                            </p>
+                        </div>
+                    )}
+                </div>
+
+                {/* Barra de Busca e Filtros */}
                 <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 mb-6">
                     <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
                         {/* Busca */}
@@ -536,7 +533,7 @@ const ClientListPage = () => {
                     )}
                 </div>
             </div>
-        </div>
+        </Layout>
     );
 };
 
