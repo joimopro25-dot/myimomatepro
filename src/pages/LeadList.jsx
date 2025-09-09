@@ -1,19 +1,21 @@
 /**
  * LEAD LIST PAGE - MyImoMatePro
- * Página de listagem de leads com filtros e ações
- * ✅ CORRIGIDO: formatPhone adicionado e todas as melhorias aplicadas
+ * Lista simplificada de leads com filtros e ações
+ * Mostra clientes com badge PROSPECT
  * 
  * Caminho: src/pages/LeadList.jsx
  */
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useLeads } from '../contexts/LeadContext';
 import {
-    LEAD_STATUS_LABELS,
+    LEAD_TYPE_LABELS,
     LEAD_SOURCE_LABELS,
-    LEAD_INTEREST_LABELS,
-    LEAD_TEMPERATURE_LABELS,
+    LEAD_FUNNEL_LABELS,
+    LEAD_FUNNEL_COLORS,
+    formatCurrency,
+    getFunnelProgress,
     getRelativeTime
 } from '../models/leadModel';
 import Layout from '../components/Layout';
@@ -23,487 +25,312 @@ import {
     MagnifyingGlassIcon,
     PhoneIcon,
     EnvelopeIcon,
-    ExclamationTriangleIcon,
-    FireIcon,
-    ClockIcon,
-    UserPlusIcon,
+    UserIcon,
+    TagIcon,
+    ArrowRightIcon,
     PencilIcon,
-    EyeIcon,
-    XMarkIcon,
-    ArrowPathIcon,
-    BellAlertIcon,
-    ChevronRightIcon,
     TrashIcon,
     CheckCircleIcon,
-    ChartBarIcon
+    XMarkIcon,
+    ChartBarIcon,
+    DocumentTextIcon,
+    HomeIcon,
+    CurrencyEuroIcon,
+    MapPinIcon,
+    AdjustmentsHorizontalIcon,
+    ArrowPathIcon
 } from '@heroicons/react/24/outline';
-import { Snowflake } from 'lucide-react';
 
 const LeadListPage = () => {
     const navigate = useNavigate();
-    const location = useLocation();
     const {
         leads,
         loading,
         errors,
         filters,
         searchTerm,
-        pagination,
         stats,
-        alertLeads,
         fetchLeads,
         searchLeads,
         setFilters,
         resetFilters,
-        clearSearch,
-        clearError,
-        fetchStats,
-        fetchAlertLeads,
-        deleteLead
+        deleteLead,
+        convertLead,
+        fetchStats
     } = useLeads();
 
     // Estados locais
     const [showFilters, setShowFilters] = useState(false);
-    const [showAlerts, setShowAlerts] = useState(false);
     const [localSearchTerm, setLocalSearchTerm] = useState('');
-    const [selectedLeads, setSelectedLeads] = useState([]);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [leadToDelete, setLeadToDelete] = useState(null);
-
-    // Refs para controlar requisições
-    const loadingRef = useRef(false);
-    const abortControllerRef = useRef(null);
-
-    // Função para formatar telefone
-    const formatPhone = (phone) => {
-        if (!phone) return '';
-        // Formatar telefone português
-        const cleaned = phone.replace(/\D/g, '');
-        if (cleaned.length === 9) {
-            return `${cleaned.slice(0, 3)} ${cleaned.slice(3, 6)} ${cleaned.slice(6)}`;
-        }
-        return phone;
-    };
+    const [showConvertConfirm, setShowConvertConfirm] = useState(false);
+    const [leadToConvert, setLeadToConvert] = useState(null);
+    const [successMessage, setSuccessMessage] = useState('');
 
     // Carregar dados ao montar
     useEffect(() => {
-        let mounted = true;
-
-        const loadData = async () => {
-            if (!mounted) return;
-
-            try {
-                // Carregar em paralelo mas aguardar todas
-                await Promise.all([
-                    fetchLeads(),
-                    fetchStats(),
-                    fetchAlertLeads()
-                ]);
-            } catch (error) {
-                console.error('Erro ao carregar dados das leads:', error);
-            }
-        };
-
         loadData();
+    }, [filters]);
 
-        // Verificar se veio do formulário
-        if (location.state?.fromForm) {
-            window.history.replaceState({}, document.title);
-        }
+    const loadData = async () => {
+        await fetchLeads({ reset: true });
+        await fetchStats();
+    };
 
-        // Cleanup function
-        return () => {
-            mounted = false;
-        };
-    }, []); // Removido location.state como dependência
+    // Pesquisar leads
+    const handleSearch = (e) => {
+        e.preventDefault();
+        searchLeads(localSearchTerm);
+    };
 
-    // Pesquisa com debounce
-    useEffect(() => {
-        // Cancelar requisição anterior se existir
-        if (abortControllerRef.current) {
-            abortControllerRef.current.abort();
-        }
-
-        const timer = setTimeout(() => {
-            if (localSearchTerm !== searchTerm) {
-                // Criar novo AbortController para esta requisição
-                abortControllerRef.current = new AbortController();
-
-                searchLeads(localSearchTerm)
-                    .catch(error => {
-                        // Ignorar erros de cancelamento
-                        if (error.name !== 'AbortError') {
-                            console.error('Erro na pesquisa:', error);
-                        }
-                    });
-            }
-        }, 500);
-
-        return () => {
-            clearTimeout(timer);
-            // Cancelar requisição pendente ao desmontar
-            if (abortControllerRef.current) {
-                abortControllerRef.current.abort();
-            }
-        };
-    }, [localSearchTerm, searchTerm, searchLeads]);
-
-    // Aplicar filtros
-    const handleFilterChange = useCallback((filterType, value) => {
-        setFilters({ [filterType]: value });
-        // Usar setTimeout para dar tempo do estado atualizar
-        setTimeout(() => {
-            fetchLeads({ preserveExisting: true });
-        }, 0);
-    }, [setFilters, fetchLeads]);
-
-    // Limpar todos os filtros
-    const handleResetFilters = useCallback(() => {
-        resetFilters();
+    // Limpar pesquisa
+    const handleClearSearch = () => {
         setLocalSearchTerm('');
-        clearSearch();
-        fetchLeads();
-    }, [resetFilters, clearSearch, fetchLeads]);
-
-    // Navegar para criar nova lead
-    const handleCreateLead = () => {
-        navigate('/leads/new');
+        searchLeads('');
     };
 
-    // Navegar para detalhes da lead
-    const handleViewLead = (leadId) => {
-        navigate(`/leads/${leadId}`);
+    // Aplicar filtro
+    const handleFilterChange = (filterType, value) => {
+        setFilters({
+            ...filters,
+            [filterType]: value === 'all' ? null : value
+        });
     };
 
-    // Navegar para editar lead
-    const handleEditLead = (leadId, e) => {
-        e.stopPropagation();
-        navigate(`/leads/${leadId}/edit`);
+    // Limpar filtros
+    const handleResetFilters = () => {
+        resetFilters();
+        setShowFilters(false);
     };
 
     // Confirmar exclusão
-    const handleDeleteClick = (lead, e) => {
-        e.stopPropagation();
+    const handleDeleteClick = (lead) => {
         setLeadToDelete(lead);
         setShowDeleteConfirm(true);
     };
 
-    // Excluir lead
+    // Deletar lead
     const handleDeleteConfirm = async () => {
-        if (leadToDelete && leadToDelete.id) {
-            try {
-                await deleteLead(leadToDelete.id);
-                setShowDeleteConfirm(false);
-                setLeadToDelete(null);
+        if (!leadToDelete) return;
 
-                // Recarregar lista preservando existentes durante o loading
-                await Promise.all([
-                    fetchLeads({ preserveExisting: true }),
-                    fetchStats()
-                ]);
-            } catch (error) {
-                console.error('Erro ao excluir lead:', error);
-            }
-        }
-    };
-
-    // Recarregar dados
-    const handleRefresh = async () => {
         try {
-            // Não limpar as leads existentes antes de carregar novas
-            await Promise.all([
-                fetchLeads({ preserveExisting: true }),
-                fetchStats(),
-                fetchAlertLeads()
-            ]);
+            await deleteLead(leadToDelete.id);
+            setSuccessMessage('Lead excluída com sucesso');
+            setTimeout(() => setSuccessMessage(''), 3000);
         } catch (error) {
-            console.error('Erro ao atualizar dados:', error);
+            console.error('Erro ao deletar lead:', error);
+        } finally {
+            setShowDeleteConfirm(false);
+            setLeadToDelete(null);
         }
     };
 
-    // Componente de temperatura
-    const TemperatureIcon = ({ temperatura }) => {
-        switch (temperatura) {
-            case 'quente':
-                return <FireIcon className="h-5 w-5 text-red-500" />;
-            case 'morno':
-                return <ClockIcon className="h-5 w-5 text-yellow-500" />;
-            case 'frio':
-                return <Snowflake className="h-5 w-5 text-blue-500" />;
-            default:
-                return null;
+    // Confirmar conversão
+    const handleConvertClick = (lead) => {
+        setLeadToConvert(lead);
+        setShowConvertConfirm(true);
+    };
+
+    // Converter lead
+    const handleConvertConfirm = async () => {
+        if (!leadToConvert) return;
+
+        try {
+            await convertLead(leadToConvert.id);
+            setSuccessMessage('Lead convertida com sucesso');
+            setTimeout(() => setSuccessMessage(''), 3000);
+            loadData();
+        } catch (error) {
+            console.error('Erro ao converter lead:', error);
+        } finally {
+            setShowConvertConfirm(false);
+            setLeadToConvert(null);
         }
     };
 
-    // Componente de status badge
-    const StatusBadge = ({ status }) => {
+    // Obter cor do badge por tipo
+    const getTypeBadgeColor = (type) => {
         const colors = {
-            novo: 'bg-blue-100 text-blue-800',
-            contactado: 'bg-yellow-100 text-yellow-800',
-            qualificado: 'bg-green-100 text-green-800',
-            proposta: 'bg-purple-100 text-purple-800',
-            negociacao: 'bg-orange-100 text-orange-800',
-            ganho: 'bg-green-500 text-white',
-            perdido: 'bg-red-100 text-red-800',
-            standby: 'bg-gray-100 text-gray-800'
+            comprador: 'bg-blue-100 text-blue-800',
+            vendedor: 'bg-green-100 text-green-800',
+            inquilino: 'bg-purple-100 text-purple-800',
+            senhorio: 'bg-orange-100 text-orange-800',
+            investidor: 'bg-yellow-100 text-yellow-800'
         };
-
-        return (
-            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${colors[status] || 'bg-gray-100 text-gray-800'}`}>
-                {LEAD_STATUS_LABELS[status] || status}
-            </span>
-        );
+        return colors[type] || 'bg-gray-100 text-gray-800';
     };
 
     return (
         <Layout>
             <div className="space-y-6">
                 {/* Header */}
-                <div className="flex justify-between items-center">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
                     <div>
                         <h1 className="text-2xl font-bold text-gray-900">Leads</h1>
                         <p className="mt-1 text-sm text-gray-600">
-                            Gerir e acompanhar potenciais clientes
+                            Gestão de clientes prospect e qualificações
                         </p>
                     </div>
                     <button
-                        onClick={handleCreateLead}
-                        className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                        onClick={() => navigate('/leads/new')}
+                        className="mt-4 sm:mt-0 inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
                     >
-                        <PlusIcon className="-ml-1 mr-2 h-5 w-5" />
+                        <PlusIcon className="w-5 h-5 mr-2" />
                         Nova Lead
                     </button>
                 </div>
 
-                {/* Stats Cards */}
-                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-                    <div className="bg-white overflow-hidden shadow rounded-lg">
-                        <div className="p-5">
-                            <div className="flex items-center">
-                                <div className="flex-shrink-0">
-                                    <ChartBarIcon className="h-6 w-6 text-gray-400" />
-                                </div>
-                                <div className="ml-5 w-0 flex-1">
-                                    <dl>
-                                        <dt className="text-sm font-medium text-gray-500 truncate">
-                                            Total Leads
-                                        </dt>
-                                        <dd className="text-lg font-semibold text-gray-900">
-                                            {stats.total || 0}
-                                        </dd>
-                                    </dl>
-                                </div>
+                {/* Estatísticas */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                    <div className="bg-white rounded-lg shadow p-4">
+                        <div className="flex items-center">
+                            <div className="p-2 bg-gray-100 rounded-lg">
+                                <ChartBarIcon className="w-6 h-6 text-gray-600" />
+                            </div>
+                            <div className="ml-3">
+                                <p className="text-sm text-gray-600">Total</p>
+                                <p className="text-xl font-semibold">{stats.total}</p>
                             </div>
                         </div>
                     </div>
 
-                    <div className="bg-white overflow-hidden shadow rounded-lg">
-                        <div className="p-5">
-                            <div className="flex items-center">
-                                <div className="flex-shrink-0">
-                                    <FireIcon className="h-6 w-6 text-orange-400" />
-                                </div>
-                                <div className="ml-5 w-0 flex-1">
-                                    <dl>
-                                        <dt className="text-sm font-medium text-gray-500 truncate">
-                                            Leads Quentes
-                                        </dt>
-                                        <dd className="text-lg font-semibold text-gray-900">
-                                            {stats.porTemperatura?.quente || 0}
-                                        </dd>
-                                    </dl>
-                                </div>
+                    <div className="bg-white rounded-lg shadow p-4">
+                        <div className="flex items-center">
+                            <div className="p-2 bg-gray-100 rounded-lg">
+                                <FunnelIcon className="w-6 h-6 text-gray-600" />
+                            </div>
+                            <div className="ml-3">
+                                <p className="text-sm text-gray-600">Entrada</p>
+                                <p className="text-xl font-semibold">{stats.byFunnelState?.entrada || 0}</p>
                             </div>
                         </div>
                     </div>
 
-                    <div className="bg-white overflow-hidden shadow rounded-lg">
-                        <div className="p-5">
-                            <div className="flex items-center">
-                                <div className="flex-shrink-0">
-                                    <BellAlertIcon className="h-6 w-6 text-yellow-400" />
-                                </div>
-                                <div className="ml-5 w-0 flex-1">
-                                    <dl>
-                                        <dt className="text-sm font-medium text-gray-500 truncate">
-                                            Alertas
-                                        </dt>
-                                        <dd className="text-lg font-semibold text-gray-900">
-                                            {stats.alertas || 0}
-                                        </dd>
-                                    </dl>
-                                </div>
+                    <div className="bg-white rounded-lg shadow p-4">
+                        <div className="flex items-center">
+                            <div className="p-2 bg-blue-100 rounded-lg">
+                                <DocumentTextIcon className="w-6 h-6 text-blue-600" />
+                            </div>
+                            <div className="ml-3">
+                                <p className="text-sm text-gray-600">Qualificando</p>
+                                <p className="text-xl font-semibold">{stats.byFunnelState?.qualificando || 0}</p>
                             </div>
                         </div>
                     </div>
 
-                    <div className="bg-white overflow-hidden shadow rounded-lg">
-                        <div className="p-5">
-                            <div className="flex items-center">
-                                <div className="flex-shrink-0">
-                                    <CheckCircleIcon className="h-6 w-6 text-green-400" />
-                                </div>
-                                <div className="ml-5 w-0 flex-1">
-                                    <dl>
-                                        <dt className="text-sm font-medium text-gray-500 truncate">
-                                            Taxa Conversão
-                                        </dt>
-                                        <dd className="text-lg font-semibold text-gray-900">
-                                            {stats.taxaConversao || 0}%
-                                        </dd>
-                                    </dl>
-                                </div>
+                    <div className="bg-white rounded-lg shadow p-4">
+                        <div className="flex items-center">
+                            <div className="p-2 bg-green-100 rounded-lg">
+                                <CheckCircleIcon className="w-6 h-6 text-green-600" />
+                            </div>
+                            <div className="ml-3">
+                                <p className="text-sm text-gray-600">Convertidas</p>
+                                <p className="text-xl font-semibold">{stats.byFunnelState?.convertido || 0}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="bg-white rounded-lg shadow p-4">
+                        <div className="flex items-center">
+                            <div className="p-2 bg-purple-100 rounded-lg">
+                                <ChartBarIcon className="w-6 h-6 text-purple-600" />
+                            </div>
+                            <div className="ml-3">
+                                <p className="text-sm text-gray-600">Taxa Conv.</p>
+                                <p className="text-xl font-semibold">{stats.conversionRate?.toFixed(1)}%</p>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                {/* Alertas */}
-                {showAlerts && alertLeads && alertLeads.length > 0 && (
-                    <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4">
-                        <div className="flex">
-                            <div className="flex-shrink-0">
-                                <ExclamationTriangleIcon className="h-5 w-5 text-yellow-400" />
-                            </div>
-                            <div className="ml-3 flex-1">
-                                <p className="text-sm text-yellow-700">
-                                    Existem {alertLeads.length} leads que necessitam atenção
-                                </p>
-                                <div className="mt-2 text-sm">
-                                    {alertLeads.slice(0, 3).map(lead => (
-                                        <div key={lead.id} className="mt-1">
-                                            <button
-                                                onClick={() => handleViewLead(lead.id)}
-                                                className="text-yellow-700 hover:text-yellow-600 font-medium"
-                                            >
-                                                {lead.name}
-                                            </button>
-                                            <span className="text-yellow-600 ml-2">
-                                                - {lead.alerts[0]?.message}
-                                            </span>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                            <div className="ml-auto pl-3">
-                                <button
-                                    onClick={() => setShowAlerts(false)}
-                                    className="text-yellow-400 hover:text-yellow-500"
-                                >
-                                    <XMarkIcon className="h-5 w-5" />
-                                </button>
-                            </div>
-                        </div>
+                {/* Mensagem de sucesso */}
+                {successMessage && (
+                    <div className="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg flex items-center">
+                        <CheckCircleIcon className="w-5 h-5 mr-2" />
+                        {successMessage}
                     </div>
                 )}
 
-                {/* Toolbar */}
-                <div className="bg-white shadow rounded-lg">
-                    <div className="px-4 py-3 border-b border-gray-200 sm:px-6">
-                        <div className="flex items-center justify-between">
-                            <div className="flex-1 flex items-center">
-                                {/* Pesquisa */}
-                                <div className="w-full max-w-lg lg:max-w-xs">
-                                    <label htmlFor="search" className="sr-only">
-                                        Pesquisar leads
-                                    </label>
-                                    <div className="relative">
-                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                            <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" />
-                                        </div>
-                                        <input
-                                            id="search"
-                                            name="search"
-                                            className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                                            placeholder="Pesquisar leads..."
-                                            type="search"
-                                            value={localSearchTerm}
-                                            onChange={(e) => setLocalSearchTerm(e.target.value)}
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Ações */}
-                            <div className="ml-4 flex items-center space-x-2">
-                                <button
-                                    onClick={() => setShowFilters(!showFilters)}
-                                    className={`inline-flex items-center px-3 py-2 border text-sm leading-4 font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 ${showFilters
-                                            ? 'border-indigo-500 text-indigo-700 bg-indigo-50'
-                                            : 'border-gray-300 text-gray-700 bg-white hover:bg-gray-50'
-                                        }`}
-                                >
-                                    <FunnelIcon className="-ml-0.5 mr-2 h-4 w-4" />
-                                    Filtros
-                                    {Object.values(filters).filter(v => v).length > 0 && (
-                                        <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
-                                            {Object.values(filters).filter(v => v).length}
-                                        </span>
+                {/* Barra de pesquisa e filtros */}
+                <div className="bg-white rounded-lg shadow">
+                    <div className="p-4 border-b">
+                        <div className="flex flex-col sm:flex-row gap-4">
+                            <form onSubmit={handleSearch} className="flex-1">
+                                <div className="relative">
+                                    <input
+                                        type="text"
+                                        value={localSearchTerm}
+                                        onChange={(e) => setLocalSearchTerm(e.target.value)}
+                                        placeholder="Pesquisar por nome, email, telefone..."
+                                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md"
+                                    />
+                                    <MagnifyingGlassIcon className="w-5 h-5 text-gray-400 absolute left-3 top-2.5" />
+                                    {localSearchTerm && (
+                                        <button
+                                            type="button"
+                                            onClick={handleClearSearch}
+                                            className="absolute right-3 top-2.5"
+                                        >
+                                            <XMarkIcon className="w-5 h-5 text-gray-400" />
+                                        </button>
                                     )}
-                                </button>
+                                </div>
+                            </form>
 
-                                {alertLeads && alertLeads.length > 0 && (
-                                    <button
-                                        onClick={() => setShowAlerts(!showAlerts)}
-                                        className="inline-flex items-center px-3 py-2 border border-gray-300 text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                                    >
-                                        <BellAlertIcon className="-ml-0.5 mr-2 h-4 w-4" />
-                                        Alertas
-                                        <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                                            {alertLeads.length}
-                                        </span>
-                                    </button>
+                            <button
+                                onClick={() => setShowFilters(!showFilters)}
+                                className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
+                            >
+                                <AdjustmentsHorizontalIcon className="w-5 h-5 mr-2" />
+                                Filtros
+                                {(filters.type || filters.source || filters.funnelState) && (
+                                    <span className="ml-2 px-2 py-0.5 text-xs bg-blue-100 text-blue-800 rounded-full">
+                                        {Object.values(filters).filter(v => v).length}
+                                    </span>
                                 )}
+                            </button>
 
-                                <button
-                                    onClick={handleRefresh}
-                                    className="inline-flex items-center px-3 py-2 border border-gray-300 text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                                >
-                                    <ArrowPathIcon className="h-4 w-4" />
-                                </button>
-                            </div>
+                            <button
+                                onClick={loadData}
+                                className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
+                            >
+                                <ArrowPathIcon className={`w-5 h-5 ${loading.list ? 'animate-spin' : ''}`} />
+                            </button>
                         </div>
 
-                        {/* Filtros */}
+                        {/* Filtros expandidos */}
                         {showFilters && (
-                            <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                                {/* Status */}
-                                <div>
-                                    <label htmlFor="filter-status" className="block text-sm font-medium text-gray-700">
-                                        Status
-                                    </label>
-                                    <div className="mt-1">
+                            <div className="mt-4 pt-4 border-t">
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                            Tipo de Lead
+                                        </label>
                                         <select
-                                            id="filter-status"
-                                            name="status"
-                                            value={filters.status || ''}
-                                            onChange={(e) => handleFilterChange('status', e.target.value)}
-                                            className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
+                                            value={filters.type || 'all'}
+                                            onChange={(e) => handleFilterChange('type', e.target.value)}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-md"
                                         >
-                                            <option value="">Todos</option>
-                                            {Object.entries(LEAD_STATUS_LABELS).map(([value, label]) => (
+                                            <option value="all">Todos</option>
+                                            {Object.entries(LEAD_TYPE_LABELS).map(([value, label]) => (
                                                 <option key={value} value={value}>
                                                     {label}
                                                 </option>
                                             ))}
                                         </select>
                                     </div>
-                                </div>
 
-                                {/* Fonte */}
-                                <div>
-                                    <label htmlFor="filter-source" className="block text-sm font-medium text-gray-700">
-                                        Fonte
-                                    </label>
-                                    <div className="mt-1">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                            Fonte
+                                        </label>
                                         <select
-                                            id="filter-source"
-                                            name="source"
-                                            value={filters.leadSource || ''}
-                                            onChange={(e) => handleFilterChange('leadSource', e.target.value)}
-                                            className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
+                                            value={filters.source || 'all'}
+                                            onChange={(e) => handleFilterChange('source', e.target.value)}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-md"
                                         >
-                                            <option value="">Todas</option>
+                                            <option value="all">Todas</option>
                                             {Object.entries(LEAD_SOURCE_LABELS).map(([value, label]) => (
                                                 <option key={value} value={value}>
                                                     {label}
@@ -511,23 +338,18 @@ const LeadListPage = () => {
                                             ))}
                                         </select>
                                     </div>
-                                </div>
 
-                                {/* Interesse */}
-                                <div>
-                                    <label htmlFor="filter-interest" className="block text-sm font-medium text-gray-700">
-                                        Interesse
-                                    </label>
-                                    <div className="mt-1">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                            Estado do Funil
+                                        </label>
                                         <select
-                                            id="filter-interest"
-                                            name="interest"
-                                            value={filters.interesse || ''}
-                                            onChange={(e) => handleFilterChange('interesse', e.target.value)}
-                                            className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
+                                            value={filters.funnelState || 'all'}
+                                            onChange={(e) => handleFilterChange('funnelState', e.target.value)}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-md"
                                         >
-                                            <option value="">Todos</option>
-                                            {Object.entries(LEAD_INTEREST_LABELS).map(([value, label]) => (
+                                            <option value="all">Todos</option>
+                                            {Object.entries(LEAD_FUNNEL_LABELS).map(([value, label]) => (
                                                 <option key={value} value={value}>
                                                     {label}
                                                 </option>
@@ -536,247 +358,248 @@ const LeadListPage = () => {
                                     </div>
                                 </div>
 
-                                {/* Temperatura */}
-                                <div>
-                                    <label htmlFor="filter-temperature" className="block text-sm font-medium text-gray-700">
-                                        Temperatura
-                                    </label>
-                                    <div className="mt-1">
-                                        <select
-                                            id="filter-temperature"
-                                            name="temperature"
-                                            value={filters.temperatura || ''}
-                                            onChange={(e) => handleFilterChange('temperatura', e.target.value)}
-                                            className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
-                                        >
-                                            <option value="">Todas</option>
-                                            {Object.entries(LEAD_TEMPERATURE_LABELS).map(([value, label]) => (
-                                                <option key={value} value={value}>
-                                                    {label}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                </div>
-
-                                {/* Limpar Filtros */}
-                                {Object.values(filters).filter(v => v).length > 0 && (
-                                    <div className="mt-3 col-span-full">
-                                        <button
-                                            onClick={handleResetFilters}
-                                            className="text-sm text-indigo-600 hover:text-indigo-500"
-                                        >
-                                            Limpar todos os filtros
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Lista de Leads */}
-                    <div className="overflow-hidden relative">
-                        {loading.list && leads.length === 0 ? (
-                            // Só mostrar loading se não houver leads carregadas
-                            <div className="flex justify-center items-center py-12">
-                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-                            </div>
-                        ) : leads.length === 0 && !loading.list ? (
-                            // Só mostrar "sem leads" se não estiver carregando
-                            <div className="text-center py-12">
-                                <UserPlusIcon className="mx-auto h-12 w-12 text-gray-400" />
-                                <h3 className="mt-2 text-sm font-medium text-gray-900">Sem leads</h3>
-                                <p className="mt-1 text-sm text-gray-500">
-                                    Comece por adicionar uma nova lead.
-                                </p>
-                                <div className="mt-6">
+                                <div className="mt-4 flex justify-end">
                                     <button
-                                        onClick={handleCreateLead}
-                                        className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                                        onClick={handleResetFilters}
+                                        className="text-sm text-gray-600 hover:text-gray-900"
                                     >
-                                        <PlusIcon className="-ml-1 mr-2 h-5 w-5" />
-                                        Nova Lead
+                                        Limpar filtros
                                     </button>
                                 </div>
                             </div>
-                        ) : (
-                            // Mostrar a tabela mesmo durante o loading se já houver leads
-                            <>
-                                {loading.list && (
-                                    <div className="absolute top-2 right-2 z-10">
-                                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600"></div>
-                                    </div>
-                                )}
-                                <table className="min-w-full divide-y divide-gray-200">
-                                    <thead className="bg-gray-50">
-                                        <tr>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                Lead
-                                            </th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                Contacto
-                                            </th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                Status
-                                            </th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                Fonte
-                                            </th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                Temperatura
-                                            </th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                Último Contacto
-                                            </th>
-                                            <th className="relative px-6 py-3">
-                                                <span className="sr-only">Ações</span>
-                                            </th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="bg-white divide-y divide-gray-200">
-                                        {leads && leads.length > 0 && leads.map((lead, index) => {
-                                            // Validar lead antes de renderizar
-                                            if (!lead) return null;
-
-                                            // Garantir que lead tem ID válido
-                                            const leadId = lead.id || `temp-lead-${index}`;
-
-                                            return (
-                                                <tr
-                                                    key={leadId}
-                                                    className="hover:bg-gray-50 cursor-pointer"
-                                                    onClick={() => lead.id && handleViewLead(lead.id)}
-                                                >
-                                                    <td className="px-6 py-4 whitespace-nowrap">
-                                                        <div className="flex items-center">
-                                                            <div>
-                                                                <div className="text-sm font-medium text-gray-900">
-                                                                    {lead.name || 'Sem nome'}
-                                                                </div>
-                                                                <div className="text-sm text-gray-500">
-                                                                    {lead.empresa || 'Sem empresa'}
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap">
-                                                        <div className="text-sm text-gray-900">
-                                                            {lead.phone && formatPhone(lead.phone)}
-                                                        </div>
-                                                        <div className="text-sm text-gray-500">
-                                                            {lead.email || '-'}
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap">
-                                                        <StatusBadge status={lead.status || 'novo'} />
-                                                    </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                                        {LEAD_SOURCE_LABELS[lead.leadSource] || lead.leadSource || '-'}
-                                                    </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap">
-                                                        <TemperatureIcon temperatura={lead.temperatura || 'frio'} />
-                                                    </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                                        {lead.ultimoContacto ? getRelativeTime(lead.ultimoContacto) : 'Nunca contactado'}
-                                                    </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                                        <div className="flex items-center justify-end space-x-2">
-                                                            {lead.id && (
-                                                                <>
-                                                                    <button
-                                                                        onClick={(e) => handleEditLead(lead.id, e)}
-                                                                        className="text-indigo-600 hover:text-indigo-900"
-                                                                        title="Editar"
-                                                                    >
-                                                                        <PencilIcon className="h-4 w-4" />
-                                                                    </button>
-                                                                    <button
-                                                                        onClick={(e) => handleDeleteClick(lead, e)}
-                                                                        className="text-red-600 hover:text-red-900"
-                                                                        title="Eliminar"
-                                                                    >
-                                                                        <TrashIcon className="h-4 w-4" />
-                                                                    </button>
-                                                                </>
-                                                            )}
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
-                            </>
                         )}
                     </div>
 
-                    {/* Paginação */}
-                    {leads.length > 0 && pagination.hasMore && (
-                        <div className="bg-white px-4 py-3 border-t border-gray-200 sm:px-6">
-                            <div className="flex items-center justify-between">
-                                <div className="text-sm text-gray-700">
-                                    A mostrar <span className="font-medium">{leads.length}</span> leads
-                                </div>
+                    {/* Lista de leads */}
+                    {loading.list ? (
+                        <div className="p-8 text-center">
+                            <ArrowPathIcon className="w-8 h-8 text-gray-400 animate-spin mx-auto mb-4" />
+                            <p className="text-gray-600">Carregando leads...</p>
+                        </div>
+                    ) : leads.length === 0 ? (
+                        <div className="p-8 text-center">
+                            <FunnelIcon className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                            <p className="text-gray-600 mb-2">Nenhuma lead encontrada</p>
+                            <p className="text-sm text-gray-500">
+                                {searchTerm ? 'Tente ajustar sua pesquisa' : 'Comece criando sua primeira lead'}
+                            </p>
+                            {!searchTerm && (
                                 <button
-                                    onClick={() => fetchLeads({ loadMore: true })}
-                                    disabled={loading.list}
-                                    className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                                    onClick={() => navigate('/leads/new')}
+                                    className="mt-4 inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
                                 >
-                                    Carregar mais
+                                    <PlusIcon className="w-5 h-5 mr-2" />
+                                    Criar Lead
                                 </button>
-                            </div>
+                            )}
+                        </div>
+                    ) : (
+                        <div className="divide-y">
+                            {leads.map((lead) => (
+                                <div key={lead.id} className="p-4 hover:bg-gray-50">
+                                    <div className="flex items-start justify-between">
+                                        <div className="flex-1">
+                                            {/* Cliente com badge PROSPECT */}
+                                            <div className="flex items-center mb-2">
+                                                <h3 className="text-lg font-medium text-gray-900">
+                                                    {lead.client?.name || 'Cliente não encontrado'}
+                                                </h3>
+                                                <span className="ml-2 px-2 py-1 text-xs font-medium bg-orange-100 text-orange-800 rounded-full">
+                                                    PROSPECT
+                                                </span>
+                                                <span className={`ml-2 px-2 py-1 text-xs font-medium rounded-full ${getTypeBadgeColor(lead.type)}`}>
+                                                    {LEAD_TYPE_LABELS[lead.type]}
+                                                </span>
+                                            </div>
+
+                                            {/* Contatos do cliente */}
+                                            <div className="flex items-center gap-4 text-sm text-gray-600 mb-2">
+                                                {lead.client?.email && (
+                                                    <div className="flex items-center">
+                                                        <EnvelopeIcon className="w-4 h-4 mr-1" />
+                                                        {lead.client.email}
+                                                    </div>
+                                                )}
+                                                {lead.client?.phone && (
+                                                    <div className="flex items-center">
+                                                        <PhoneIcon className="w-4 h-4 mr-1" />
+                                                        {lead.client.phone}
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Informações de qualificação */}
+                                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
+                                                {/* Fonte */}
+                                                <div className="flex items-center text-gray-600">
+                                                    <TagIcon className="w-4 h-4 mr-1" />
+                                                    <span className="font-medium mr-1">Fonte:</span>
+                                                    {LEAD_SOURCE_LABELS[lead.source]}
+                                                </div>
+
+                                                {/* Campos específicos por tipo */}
+                                                {(lead.type === 'comprador' || lead.type === 'inquilino') && lead.qualification?.budget && (
+                                                    <div className="flex items-center text-gray-600">
+                                                        <CurrencyEuroIcon className="w-4 h-4 mr-1" />
+                                                        <span className="font-medium mr-1">Orçamento:</span>
+                                                        {formatCurrency(lead.qualification.budget)}
+                                                    </div>
+                                                )}
+
+                                                {(lead.type === 'vendedor' || lead.type === 'senhorio') && (
+                                                    <>
+                                                        {lead.qualification?.propertyLocation && (
+                                                            <div className="flex items-center text-gray-600">
+                                                                <MapPinIcon className="w-4 h-4 mr-1" />
+                                                                <span className="font-medium mr-1">Local:</span>
+                                                                {lead.qualification.propertyLocation}
+                                                            </div>
+                                                        )}
+                                                        {lead.qualification?.askingPrice && (
+                                                            <div className="flex items-center text-gray-600">
+                                                                <CurrencyEuroIcon className="w-4 h-4 mr-1" />
+                                                                <span className="font-medium mr-1">Valor:</span>
+                                                                {formatCurrency(lead.qualification.askingPrice)}
+                                                            </div>
+                                                        )}
+                                                    </>
+                                                )}
+
+                                                {lead.type === 'investidor' && (
+                                                    <>
+                                                        {lead.qualification?.investmentLocation && (
+                                                            <div className="flex items-center text-gray-600">
+                                                                <MapPinIcon className="w-4 h-4 mr-1" />
+                                                                <span className="font-medium mr-1">Local:</span>
+                                                                {lead.qualification.investmentLocation}
+                                                            </div>
+                                                        )}
+                                                        {lead.qualification?.investmentBudget && (
+                                                            <div className="flex items-center text-gray-600">
+                                                                <CurrencyEuroIcon className="w-4 h-4 mr-1" />
+                                                                <span className="font-medium mr-1">Investimento:</span>
+                                                                {formatCurrency(lead.qualification.investmentBudget)}
+                                                            </div>
+                                                        )}
+                                                    </>
+                                                )}
+                                            </div>
+
+                                            {/* Estado do funil */}
+                                            <div className="mt-3">
+                                                <div className="flex items-center gap-2">
+                                                    <span className={`px-2 py-1 text-xs font-medium rounded ${LEAD_FUNNEL_COLORS[lead.funnelState]}`}>
+                                                        {LEAD_FUNNEL_LABELS[lead.funnelState]}
+                                                    </span>
+                                                    <div className="flex-1 max-w-xs">
+                                                        <div className="w-full bg-gray-200 rounded-full h-2">
+                                                            <div
+                                                                className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                                                                style={{ width: `${getFunnelProgress(lead.funnelState)}%` }}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                    <span className="text-xs text-gray-500">
+                                                        {getRelativeTime(lead.createdAt)}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Ações */}
+                                        <div className="flex items-center gap-2 ml-4">
+                                            <button
+                                                onClick={() => navigate(`/leads/${lead.id}/edit`)}
+                                                className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded"
+                                                title="Editar"
+                                            >
+                                                <PencilIcon className="w-5 h-5" />
+                                            </button>
+
+                                            {lead.funnelState !== 'convertido' && (
+                                                <button
+                                                    onClick={() => handleConvertClick(lead)}
+                                                    className="p-2 text-gray-600 hover:text-green-600 hover:bg-green-50 rounded"
+                                                    title="Converter"
+                                                >
+                                                    <CheckCircleIcon className="w-5 h-5" />
+                                                </button>
+                                            )}
+
+                                            <button
+                                                onClick={() => handleDeleteClick(lead)}
+                                                className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded"
+                                                title="Excluir"
+                                            >
+                                                <TrashIcon className="w-5 h-5" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
                         </div>
                     )}
                 </div>
 
-                {/* Modal de Confirmação de Exclusão */}
+                {/* Modal de confirmação de exclusão */}
                 {showDeleteConfirm && (
-                    <div className="fixed z-10 inset-0 overflow-y-auto">
-                        <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-                            <div className="fixed inset-0 transition-opacity" aria-hidden="true">
-                                <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
+                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                        <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+                            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                                Confirmar Exclusão
+                            </h3>
+                            <p className="text-gray-600 mb-6">
+                                Tem certeza que deseja excluir a lead de <strong>{leadToDelete?.client?.name}</strong>?
+                                Esta ação não pode ser desfeita.
+                            </p>
+                            <div className="flex justify-end gap-3">
+                                <button
+                                    onClick={() => {
+                                        setShowDeleteConfirm(false);
+                                        setLeadToDelete(null);
+                                    }}
+                                    className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    onClick={handleDeleteConfirm}
+                                    className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+                                >
+                                    Excluir
+                                </button>
                             </div>
+                        </div>
+                    </div>
+                )}
 
-                            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-
-                            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-                                <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                                    <div className="sm:flex sm:items-start">
-                                        <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
-                                            <ExclamationTriangleIcon className="h-6 w-6 text-red-600" />
-                                        </div>
-                                        <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
-                                            <h3 className="text-lg leading-6 font-medium text-gray-900">
-                                                Eliminar Lead
-                                            </h3>
-                                            <div className="mt-2">
-                                                <p className="text-sm text-gray-500">
-                                                    Tem a certeza que deseja eliminar a lead <strong>{leadToDelete?.name}</strong>?
-                                                    Esta ação não pode ser revertida.
-                                                </p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                                    <button
-                                        type="button"
-                                        onClick={handleDeleteConfirm}
-                                        className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm"
-                                    >
-                                        Eliminar
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setShowDeleteConfirm(false);
-                                            setLeadToDelete(null);
-                                        }}
-                                        className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
-                                    >
-                                        Cancelar
-                                    </button>
-                                </div>
+                {/* Modal de confirmação de conversão */}
+                {showConvertConfirm && (
+                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                        <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+                            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                                Converter Lead
+                            </h3>
+                            <p className="text-gray-600 mb-6">
+                                Converter a lead de <strong>{leadToConvert?.client?.name}</strong> em cliente ativo?
+                                O badge PROSPECT será removido e a lead será marcada como convertida.
+                            </p>
+                            <div className="flex justify-end gap-3">
+                                <button
+                                    onClick={() => {
+                                        setShowConvertConfirm(false);
+                                        setLeadToConvert(null);
+                                    }}
+                                    className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    onClick={handleConvertConfirm}
+                                    className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
+                                >
+                                    Converter
+                                </button>
                             </div>
                         </div>
                     </div>
