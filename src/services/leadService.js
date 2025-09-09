@@ -1,7 +1,6 @@
 /**
  * LEAD SERVICE - MyImoMatePro
  * CRUD completo para gestão de leads no Firestore
- * ✅ CORRIGIDO: Constantes LEAD_STATUS inconsistentes
  * 
  * Caminho: src/services/leadService.js
  * Estrutura: consultores/{consultorId}/leads/{leadId}
@@ -462,7 +461,6 @@ export const getLeadContacts = async (consultorId, leadId) => {
 
 /**
  * Converter lead para cliente
- * ✅ CORRIGIDO: LEAD_STATUS.CONVERTIDA → LEAD_STATUS.CONVERTIDO
  */
 export const convertLeadToClient = async (consultorId, leadId, conversionNotes = '') => {
     try {
@@ -495,9 +493,9 @@ export const convertLeadToClient = async (consultorId, leadId, conversionNotes =
         const { createClient } = await import('./clientService');
         const newClient = await createClient(consultorId, clientData);
 
-        // ✅ CORREÇÃO: Usar constante correta CONVERTIDO em vez de CONVERTIDA
+        // Marcar lead como convertida
         await updateDoc(getLeadDoc(consultorId, leadId), {
-            status: LEAD_STATUS.CONVERTIDO,
+            status: LEAD_STATUS.CONVERTIDA,
             'conversao.convertida': true,
             'conversao.dataConversao': Timestamp.now(),
             'conversao.clienteId': newClient.id,
@@ -520,16 +518,15 @@ export const convertLeadToClient = async (consultorId, leadId, conversionNotes =
 
 /**
  * Pesquisar leads por texto
- * ✅ CORRIGIDO: NOVA, CONTACTADA, QUALIFICADA → NOVO, CONTACTADO, QUALIFICADO
  */
 export const searchLeads = async (consultorId, searchTerm, options = {}) => {
     try {
         const { limit: searchLimit = 50 } = options;
 
-        // ✅ CORREÇÃO: Usar constantes corretas que existem no leadModel.js
+        // Obter todas as leads ativas (Firestore não suporta busca full-text nativa)
         const leadsQuery = query(
             getLeadCollection(consultorId),
-            where('status', 'in', [LEAD_STATUS.NOVO, LEAD_STATUS.CONTACTADO, LEAD_STATUS.QUALIFICADO]),
+            where('status', 'in', [LEAD_STATUS.NOVA, LEAD_STATUS.CONTACTADA, LEAD_STATUS.QUALIFICADA]),
             orderBy('criadoEm', 'desc'),
             limit(searchLimit)
         );
@@ -567,7 +564,6 @@ export const searchLeads = async (consultorId, searchTerm, options = {}) => {
 
 /**
  * Obter estatísticas das leads
- * ✅ CORRIGIDO: Todas as constantes LEAD_STATUS inconsistentes
  */
 export const getLeadStats = async (consultorId) => {
     try {
@@ -609,22 +605,22 @@ export const getLeadStats = async (consultorId) => {
             return stats;
         }
 
-        // ✅ CORREÇÃO: Usar constantes corretas do leadModel.js
+        // Contar por status
         leads.forEach(lead => {
             switch (lead.status) {
-                case LEAD_STATUS.NOVO:
+                case LEAD_STATUS.NOVA:
                     stats.novas++;
                     break;
-                case LEAD_STATUS.CONTACTADO:
+                case LEAD_STATUS.CONTACTADA:
                     stats.contactadas++;
                     break;
-                case LEAD_STATUS.QUALIFICADO:
+                case LEAD_STATUS.QUALIFICADA:
                     stats.qualificadas++;
                     break;
-                case LEAD_STATUS.CONVERTIDO:
+                case LEAD_STATUS.CONVERTIDA:
                     stats.convertidas++;
                     break;
-                case LEAD_STATUS.PERDIDO:
+                case LEAD_STATUS.PERDIDA:
                     stats.perdidas++;
                     break;
             }
@@ -655,8 +651,7 @@ export const getLeadStats = async (consultorId) => {
         stats.scoresMedios.geral = scoresGerais.length > 0 ?
             scoresGerais.reduce((a, b) => a + b, 0) / scoresGerais.length : 0;
 
-        // ✅ CORREÇÃO: Usar constante correta CONVERTIDO
-        const leadsConvertidas = leads.filter(lead => lead.status === LEAD_STATUS.CONVERTIDO);
+        const leadsConvertidas = leads.filter(lead => lead.status === LEAD_STATUS.CONVERTIDA);
         if (leadsConvertidas.length > 0) {
             const scoresConvertidas = leadsConvertidas.map(lead => lead.score || 0);
             stats.scoresMedios.convertidas = scoresConvertidas.reduce((a, b) => a + b, 0) / scoresConvertidas.length;
@@ -674,14 +669,13 @@ export const getLeadStats = async (consultorId) => {
 
 /**
  * Obter leads que precisam de alerta
- * ✅ CORRIGIDO: Constantes + remover orderBy problemático
  */
 export const getLeadsNeedingAlert = async (consultorId) => {
     try {
-        // ✅ CORREÇÃO: Usar constantes corretas + remover orderBy problemático
         const leadsQuery = query(
             getLeadCollection(consultorId),
-            where('status', 'in', [LEAD_STATUS.NOVO, LEAD_STATUS.CONTACTADO, LEAD_STATUS.QUALIFICADO])
+            where('status', 'in', [LEAD_STATUS.NOVA, LEAD_STATUS.CONTACTADA, LEAD_STATUS.QUALIFICADA]),
+            orderBy('ultimoContacto', 'asc')
         );
 
         const snapshot = await getDocs(leadsQuery);
@@ -693,20 +687,11 @@ export const getLeadsNeedingAlert = async (consultorId) => {
                 ...doc.data()
             };
 
-            // Verificar se needsAlert retorna true antes de processar
             if (needsAlert(leadData)) {
                 leadData.temperatura = calculateLeadTemperature(leadData.ultimoContacto);
                 leadData.nextAction = getNextRecommendedAction(leadData);
                 leadsWithAlerts.push(leadData);
             }
-        });
-
-        // Ordenar no JavaScript após buscar os dados
-        // Ordenar por ultimoContacto (nulls primeiro), depois por criadaEm
-        leadsWithAlerts.sort((a, b) => {
-            const aContacto = a.ultimoContacto?.toDate() || a.criadaEm?.toDate() || new Date(0);
-            const bContacto = b.ultimoContacto?.toDate() || b.criadaEm?.toDate() || new Date(0);
-            return aContacto - bContacto;
         });
 
         return leadsWithAlerts;
