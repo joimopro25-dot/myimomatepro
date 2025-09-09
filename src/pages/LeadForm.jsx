@@ -338,11 +338,17 @@ const LeadFormPage = () => {
             if (isEditMode) {
                 await updateLead(leadId, formData);
             } else {
-                await createLead(formData);
+                // ✅ NOVA: Aguardar criação completa
+                const newLead = await createLead(formData);
+                console.log('✅ Lead criada com sucesso:', newLead.id);
+
+                // ✅ NOVA: Pequeno delay para garantir que o contexto atualize
+                await new Promise(resolve => setTimeout(resolve, 500));
             }
 
-            // Navegar para a lista de leads após sucesso
-            navigate('/leads');
+            // ✅ NOVA: Navegar com replace para garantir atualização
+            navigate('/leads', { replace: true });
+
         } catch (error) {
             console.error('Erro ao salvar lead:', error);
             // O erro já será mostrado pelo contexto através de contextErrors

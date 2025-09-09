@@ -3,11 +3,11 @@
  * Página de listagem de leads com filtros e ações
  * 
  * Caminho: src/pages/LeadList.jsx
- * ✅ CORREÇÃO: Adicionado carregamento inicial das leads
+ * ✅ CORREÇÃO: Sincronização automática e detecção de mudanças
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useLeads } from '../contexts/LeadContext';
 import {
     LEAD_STATUS_LABELS,
@@ -35,6 +35,7 @@ import { Snowflake } from 'lucide-react';
 
 const LeadListPage = () => {
     const navigate = useNavigate();
+    const location = useLocation(); // ✅ ADICIONADO: Para detectar mudanças de navegação
     const {
         leads,
         loading,
@@ -59,18 +60,89 @@ const LeadListPage = () => {
     const [showFilters, setShowFilters] = useState(false);
     const [showAlerts, setShowAlerts] = useState(false);
     const [localSearchTerm, setLocalSearchTerm] = useState('');
+    const [lastFilterChange, setLastFilterChange] = useState(Date.now()); // ✅ ADICIONADO: Controle de filtros
 
-    // ✅ CORREÇÃO: Carregar leads inicialmente quando o componente monta
+    // ✅ MELHORADO: useEffect principal - carregamento inicial e detecção de mudanças
     useEffect(() => {
-        console.log('LeadList montado - carregando leads iniciais...');
-        fetchLeads({ resetPagination: true });
-    }, []); // Executa apenas uma vez na montagem
+        console.log('🔄 LeadList: Componente montado/atualizado');
 
-    // Carregar leads quando os filtros mudam (mas não na primeira montagem)
+        // Verificar se veio do formulário
+        const fromForm = location.state?.fromForm;
+        const action = location.state?.action;
+
+        if (fromForm) {
+            console.log(`✅ Voltou do formulário - Ação: ${action}`);
+
+            // Limpar o state para não recarregar desnecessariamente
+            navigate(location.pathname, { replace: true, state: {} });
+
+            // Força recarregamento completo
+            setTimeout(() => {
+                console.log('🔄 Recarregando dados após voltar do formulário...');
+                fetchLeads({ resetPagination: true });
+                fetchStats();
+            }, 100);
+        } else {
+            // Carregamento normal na montagem
+            console.log('📊 Carregamento inicial de leads e estatísticas...');
+            fetchLeads({ resetPagination: true });
+        }
+
+    }, [location.pathname, location.state?.fromForm]); // ✅ CORRIGIDO: Dependências específicas
+
+    // ✅ MELHORADO: useEffect para mudanças nos filtros (com debounce)
     useEffect(() => {
-        console.log('Filtros mudaram - recarregando leads...', filters);
-        fetchLeads({ resetPagination: true });
-    }, [filters]);
+        // Evitar recarregamento imediato na primeira montagem
+        const timeSinceLastChange = Date.now() - lastFilterChange;
+        if (timeSinceLastChange < 100) return;
+
+        console.log('🔍 Filtros mudaram - recarregando leads...', filters);
+
+        const timeoutId = setTimeout(() => {
+            fetchLeads({ resetPagination: true });
+        }, 300); // ✅ ADICIONADO: Debounce de 300ms
+
+        return () => clearTimeout(timeoutId);
+    }, [filters, fetchLeads]); // ✅ CORRIGIDO: Dependências adequadas
+
+    // ✅ NOVO: useEffect para debug e feedback visual
+    useEffect(() => {
+        if (leads.length > 0) {
+            console.log(`✅ Lista atualizada: ${leads.length} leads carregadas`);
+        } else if (!loading.list && !loading.stats) {
+            console.log('📭 Nenhuma lead encontrada');
+        }
+    }, [leads.length, loading.list, loading.stats]);
+
+    // ✅ NOVO: useEffect para sincronização automática das estatísticas
+    useEffect(() => {
+        // Sincronizar estatísticas a cada 30 segundos (quando não está carregando)
+        const statsInterval = setInterval(() => {
+            if (!loading.stats && !loading.list && !document.hidden) {
+                console.log('🔄 Sincronização automática de estatísticas...');
+                fetchStats();
+            }
+        }, 30000); // 30 segundos
+
+        // Cleanup
+        return () => clearInterval(statsInterval);
+    }, [loading.stats, loading.list, fetchStats]);
+
+    // ✅ NOVO: useEffect para detectar quando há erro de carregamento
+    useEffect(() => {
+        if (errors.list) {
+            console.error('❌ Erro ao carregar leads:', errors.list);
+
+            // Tentar recarregar após 3 segundos em caso de erro
+            const retryTimeout = setTimeout(() => {
+                console.log('🔄 Tentando recarregar após erro...');
+                clearError('list');
+                fetchLeads({ resetPagination: true });
+            }, 3000);
+
+            return () => clearTimeout(retryTimeout);
+        }
+    }, [errors.list, clearError, fetchLeads]);
 
     // Função de pesquisa com debounce
     const handleSearch = useCallback((term) => {
@@ -100,25 +172,32 @@ const LeadListPage = () => {
         }
     };
 
-    // Aplicar filtros
+    // ✅ MELHORADO: Aplicar filtros com controle de timing
     const handleFilterChange = (key, value) => {
+        setLastFilterChange(Date.now());
         setFilters({ [key]: value });
     };
 
     // Reset filtros
     const handleResetFilters = () => {
+        setLastFilterChange(Date.now());
         resetFilters();
         setLocalSearchTerm('');
         clearSearch();
     };
 
-    // Refresh dados
-    const handleRefresh = () => {
-        console.log('Refreshing dados...');
+    // ✅ MELHORADO: Refresh dados com limpeza de erros
+    const handleRefresh = useCallback(() => {
+        console.log('🔄 Refresh manual de dados...');
+
+        // Limpar todos os erros
+        Object.keys(errors).forEach(key => clearError(key));
+
+        // Recarregar tudo
         fetchLeads({ resetPagination: true });
         fetchStats();
         fetchAlertLeads();
-    };
+    }, [errors, clearError, fetchLeads, fetchStats, fetchAlertLeads]);
 
     // Obter badge de temperatura
     const getTemperatureBadge = (temperatura) => {
@@ -175,6 +254,24 @@ const LeadListPage = () => {
     // Determinar quais leads mostrar
     const displayLeads = searchTerm ? searchResults : leads;
 
+    // ✅ NOVO: Debug global para troubleshooting
+    if (typeof window !== 'undefined') {
+        window.debugLeadList = () => {
+            console.log('🔍 Lead List Debug:', {
+                leads: leads.length,
+                displayLeads: displayLeads.length,
+                stats,
+                filters,
+                loading,
+                errors,
+                pagination,
+                searchTerm,
+                location: location.pathname,
+                locationState: location.state
+            });
+        };
+    }
+
     return (
         <Layout>
             <div className="space-y-6">
@@ -184,15 +281,22 @@ const LeadListPage = () => {
                         <h1 className="text-2xl font-bold text-gray-900">Leads</h1>
                         <p className="mt-2 text-sm text-gray-700">
                             {stats ? `${stats.total} leads total` : 'Carregando...'}
+                            {/* ✅ ADICIONADO: Indicador de sincronização */}
+                            {loading.stats && (
+                                <span className="ml-2 text-xs text-blue-600">
+                                    (sincronizando...)
+                                </span>
+                            )}
                         </p>
                     </div>
                     <div className="mt-4 sm:mt-0 flex gap-3">
                         <button
                             onClick={handleRefresh}
-                            disabled={loading.list}
+                            disabled={loading.list || loading.stats}
                             className="inline-flex items-center gap-2 px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                            title="Atualizar dados" // ✅ ADICIONADO: Tooltip
                         >
-                            <ArrowPathIcon className={`h-4 w-4 ${loading.list ? 'animate-spin' : ''}`} />
+                            <ArrowPathIcon className={`h-4 w-4 ${(loading.list || loading.stats) ? 'animate-spin' : ''}`} />
                             Atualizar
                         </button>
                         <button
@@ -525,12 +629,14 @@ const LeadListPage = () => {
                                                         <button
                                                             onClick={() => navigate(`/leads/${lead.id}`)}
                                                             className="text-blue-600 hover:text-blue-900"
+                                                            title="Ver detalhes"
                                                         >
                                                             <EyeIcon className="h-4 w-4" />
                                                         </button>
                                                         <button
                                                             onClick={() => navigate(`/leads/${lead.id}/edit`)}
                                                             className="text-gray-600 hover:text-gray-900"
+                                                            title="Editar lead"
                                                         >
                                                             <PencilIcon className="h-4 w-4" />
                                                         </button>

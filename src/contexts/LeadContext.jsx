@@ -410,9 +410,20 @@ export function LeadProvider({ children }) {
             setLoading('create');
             clearError('create');
 
+            // 1. Criar lead no Firestore
             const newLead = await createLead(currentUser.uid, leadData);
 
+            // 2. Adicionar ao estado local
             dispatch({ type: ACTIONS.ADD_LEAD, lead: newLead });
+
+            // 3. ✅ NOVA: Atualizar estatísticas imediatamente
+            try {
+                const updatedStats = await getLeadStats(currentUser.uid);
+                dispatch({ type: ACTIONS.SET_STATS, stats: updatedStats });
+            } catch (statsError) {
+                console.warn('Erro ao atualizar estatísticas:', statsError);
+                // Não falhar a criação por causa das estatísticas
+            }
 
             return newLead;
         } catch (error) {
