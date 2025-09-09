@@ -1,6 +1,7 @@
 /**
  * LEAD MODEL FINAL - MyImoMatePro
  * Modelo completo com todas as constantes e funções
+ * ✅ CORRIGIDO: getNextRecommendedAction retorna datas válidas
  * 
  * Caminho: src/models/leadModel.js
  */
@@ -350,16 +351,34 @@ export const validateTaskData = (taskData) => {
 };
 
 // ===== FUNÇÕES DE CÁLCULO =====
+
+/**
+ * ✅ CORRIGIDO: Validações defensivas para datas inválidas
+ */
 export const calculateLeadTemperature = (ultimoContacto) => {
     if (!ultimoContacto) return LEAD_TEMPERATURES.FRIO;
 
-    const agora = new Date();
-    const ultimaAtividade = ultimoContacto.toDate ? ultimoContacto.toDate() : new Date(ultimoContacto);
-    const diasSemContacto = Math.floor((agora - ultimaAtividade) / (1000 * 60 * 60 * 24));
+    try {
+        const agora = new Date();
+        const ultimaAtividade = ultimoContacto.toDate ?
+            ultimoContacto.toDate() :
+            new Date(ultimoContacto);
 
-    if (diasSemContacto <= 2) return LEAD_TEMPERATURES.QUENTE;
-    if (diasSemContacto <= 7) return LEAD_TEMPERATURES.MORNO;
-    return LEAD_TEMPERATURES.FRIO;
+        // Verificar se a data é válida
+        if (isNaN(ultimaAtividade.getTime())) {
+            console.warn('Data de ultimoContacto inválida:', ultimoContacto);
+            return LEAD_TEMPERATURES.FRIO;
+        }
+
+        const diasSemContacto = Math.floor((agora - ultimaAtividade) / (1000 * 60 * 60 * 24));
+
+        if (diasSemContacto <= 2) return LEAD_TEMPERATURES.QUENTE;
+        if (diasSemContacto <= 7) return LEAD_TEMPERATURES.MORNO;
+        return LEAD_TEMPERATURES.FRIO;
+    } catch (error) {
+        console.warn('Erro ao calcular temperatura da lead:', error);
+        return LEAD_TEMPERATURES.FRIO;
+    }
 };
 
 export const calculateLeadScore = (leadData) => {
@@ -406,31 +425,48 @@ export const calculateLeadScore = (leadData) => {
     return Math.min(score, 100);
 };
 
+/**
+ * ✅ CORRIGIDO: Retornar objetos Date válidos em vez de strings
+ * PROBLEMA: Retornava strings 'imediato', '2_horas', '1_semana'
+ * SOLUÇÃO: Retornar datas calculadas corretamente
+ */
 export const getNextRecommendedAction = (leadData) => {
     const agora = new Date();
     const criadaEm = leadData.criadaEm?.toDate() || agora;
     const horasDesdeEm = (agora - criadaEm) / (1000 * 60 * 60);
 
     if (horasDesdeEm < 1) {
+        // ✅ CORREÇÃO: Retornar data atual + 15 minutos em vez de string 'imediato'
+        const prazoData = new Date();
+        prazoData.setMinutes(prazoData.getMinutes() + 15);
+
         return {
             tipo: TASK_TYPES.CALL,
-            prazo: 'imediato',
+            prazo: prazoData,
             descricao: 'Contacto inicial imediato'
         };
     }
 
     if (horasDesdeEm < 24 && leadData.status === LEAD_STATUS.NOVO) {
+        // ✅ CORREÇÃO: Retornar data atual + 2 horas em vez de string '2_horas'
+        const prazoData = new Date();
+        prazoData.setHours(prazoData.getHours() + 2);
+
         return {
             tipo: TASK_TYPES.CALL,
-            prazo: '2_horas',
+            prazo: prazoData,
             descricao: 'Follow-up de primeiro contacto'
         };
     }
 
     if (leadData.temperatura === LEAD_TEMPERATURES.FRIO) {
+        // ✅ CORREÇÃO: Retornar data atual + 1 semana em vez de string '1_semana'
+        const prazoData = new Date();
+        prazoData.setDate(prazoData.getDate() + 7);
+
         return {
             tipo: TASK_TYPES.EMAIL,
-            prazo: '1_semana',
+            prazo: prazoData,
             descricao: 'Reativar lead fria'
         };
     }
@@ -438,49 +474,70 @@ export const getNextRecommendedAction = (leadData) => {
     return null;
 };
 
+/**
+ * ✅ CORRIGIDO: Validações defensivas para evitar erros com undefined
+ */
 export const needsAlert = (leadData) => {
+    // ✅ CORREÇÃO: Validações defensivas para evitar erros com undefined
+    if (!leadData) return false;
+
     const agora = new Date();
 
     // Contacto em atraso
     if (leadData.proximoContacto) {
-        const dataContacto = leadData.proximoContacto.toDate ?
-            leadData.proximoContacto.toDate() :
-            new Date(leadData.proximoContacto);
+        try {
+            const dataContacto = leadData.proximoContacto.toDate ?
+                leadData.proximoContacto.toDate() :
+                new Date(leadData.proximoContacto);
 
-        if (dataContacto < agora) {
-            return {
-                tipo: 'contacto_atrasado',
-                urgencia: 'alta',
-                mensagem: 'Contacto agendado em atraso'
-            };
+            if (isNaN(dataContacto.getTime())) {
+                // Data inválida, ignorar este alerta
+                console.warn('Data de proximoContacto inválida:', leadData.proximoContacto);
+            } else if (dataContacto < agora) {
+                return {
+                    tipo: 'contacto_atrasado',
+                    urgencia: 'alta',
+                    mensagem: 'Contacto agendado em atraso'
+                };
+            }
+        } catch (error) {
+            console.warn('Erro ao processar proximoContacto:', error);
         }
     }
 
     // Lead fria
     if (leadData.temperatura === LEAD_TEMPERATURES.FRIO) {
-        const ultimoContacto = leadData.ultimoContacto?.toDate() || leadData.criadaEm?.toDate() || agora;
-        const diasSemContacto = Math.floor((agora - ultimoContacto) / (1000 * 60 * 60 * 24));
+        try {
+            const ultimoContacto = leadData.ultimoContacto?.toDate() || leadData.criadaEm?.toDate() || agora;
+            const diasSemContacto = Math.floor((agora - ultimoContacto) / (1000 * 60 * 60 * 24));
 
-        if (diasSemContacto >= 7) {
-            return {
-                tipo: 'lead_fria',
-                urgencia: 'media',
-                mensagem: `${diasSemContacto} dias sem contacto`
-            };
+            if (diasSemContacto >= 7) {
+                return {
+                    tipo: 'lead_fria',
+                    urgencia: 'media',
+                    mensagem: `${diasSemContacto} dias sem contacto`
+                };
+            }
+        } catch (error) {
+            console.warn('Erro ao calcular dias sem contacto:', error);
         }
     }
 
     // Lead urgente sem follow-up
     if (leadData.urgencia === 'imediata' || leadData.urgencia === 'alta') {
-        const criadaEm = leadData.criadaEm?.toDate() || agora;
-        const horasSemContacto = (agora - criadaEm) / (1000 * 60 * 60);
+        try {
+            const criadaEm = leadData.criadaEm?.toDate() || agora;
+            const horasSemContacto = (agora - criadaEm) / (1000 * 60 * 60);
 
-        if (horasSemContacto >= 24 && leadData.status === LEAD_STATUS.NOVO) {
-            return {
-                tipo: 'urgencia_alta',
-                urgencia: 'alta',
-                mensagem: 'Lead urgente sem follow-up há mais de 24h'
-            };
+            if (horasSemContacto >= 24 && leadData.status === LEAD_STATUS.NOVO) {
+                return {
+                    tipo: 'urgencia_alta',
+                    urgencia: 'alta',
+                    mensagem: 'Lead urgente sem follow-up há mais de 24h'
+                };
+            }
+        } catch (error) {
+            console.warn('Erro ao calcular horas sem contacto:', error);
         }
     }
 
