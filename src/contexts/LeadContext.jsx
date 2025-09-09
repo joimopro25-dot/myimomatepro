@@ -1,6 +1,7 @@
 /**
  * LEAD CONTEXT - MyImoMatePro
- * Contexto React para gestão de estado das leads
+ * Context simplificado para gestão de Leads
+ * Lead = Cliente PROSPECT com qualificação básica
  * 
  * Caminho: src/contexts/LeadContext.jsx
  */
@@ -8,6 +9,7 @@
 import React, { createContext, useContext, useReducer, useCallback, useEffect } from 'react';
 import { useAuth } from './AuthContext';
 import * as leadService from '../services/leadService';
+import { LEAD_FUNNEL_STATES } from '../models/leadModel';
 
 // ===== CONTEXT =====
 const LeadContext = createContext();
@@ -20,61 +22,47 @@ export const useLeads = () => {
     return context;
 };
 
-// ===== INITIAL STATE =====
+// ===== ESTADO INICIAL =====
 const initialState = {
-    // Dados
+    // Dados principais
     leads: [],
     currentLead: null,
-    leadTasks: [],
-    leadContacts: [],
-    searchResults: [],
-    alertLeads: [],
-    stats: {
-        total: 0,
-        porStatus: {},
-        porFonte: {},
-        porInteresse: {},
-        porTemperatura: {
-            frio: 0,
-            morno: 0,
-            quente: 0
-        },
-        alertas: 0,
-        taxaConversao: 0
-    },
 
     // Filtros e pesquisa
     filters: {
-        status: null,
-        leadSource: null,
-        interesse: null,
-        temperatura: null
+        type: null,
+        source: null,
+        funnelState: null
     },
     searchTerm: '',
-    sortBy: 'criadaEm',
-    sortOrder: 'desc',
 
     // Paginação
     pagination: {
-        currentPage: 1,
-        pageSize: 20,
         hasMore: false,
-        lastDoc: null
+        lastDoc: null,
+        limit: 20
     },
 
-    // Loading states
+    // Estatísticas
+    stats: {
+        total: 0,
+        byFunnelState: {
+            entrada: 0,
+            qualificando: 0,
+            convertido: 0
+        },
+        byType: {},
+        bySource: {},
+        conversionRate: 0
+    },
+
+    // Estados de loading
     loading: {
         list: false,
         create: false,
         update: false,
         delete: false,
-        fetch: false,
-        tasks: false,
-        contacts: false,
-        stats: false,
-        alerts: false,
-        search: false,
-        convert: false
+        stats: false
     },
 
     // Erros
@@ -83,14 +71,13 @@ const initialState = {
 
 // ===== ACTIONS =====
 const ACTIONS = {
-    // Loading states
+    // Loading
     SET_LOADING: 'SET_LOADING',
     CLEAR_LOADING: 'CLEAR_LOADING',
 
-    // Error handling
+    // Errors
     SET_ERROR: 'SET_ERROR',
     CLEAR_ERROR: 'CLEAR_ERROR',
-    CLEAR_ALL_ERRORS: 'CLEAR_ALL_ERRORS',
 
     // Leads
     SET_LEADS: 'SET_LEADS',
@@ -100,31 +87,16 @@ const ACTIONS = {
     SET_CURRENT_LEAD: 'SET_CURRENT_LEAD',
     CLEAR_CURRENT_LEAD: 'CLEAR_CURRENT_LEAD',
 
-    // Tasks
-    SET_LEAD_TASKS: 'SET_LEAD_TASKS',
-    ADD_TASK: 'ADD_TASK',
-    UPDATE_TASK: 'UPDATE_TASK',
-
-    // Contacts
-    SET_LEAD_CONTACTS: 'SET_LEAD_CONTACTS',
-    ADD_CONTACT: 'ADD_CONTACT',
-
-    // Pagination
-    SET_PAGINATION: 'SET_PAGINATION',
-    RESET_PAGINATION: 'RESET_PAGINATION',
-
-    // Filters
+    // Filtros e pesquisa
     SET_FILTERS: 'SET_FILTERS',
     RESET_FILTERS: 'RESET_FILTERS',
-
-    // Search
     SET_SEARCH_TERM: 'SET_SEARCH_TERM',
-    SET_SEARCH_RESULTS: 'SET_SEARCH_RESULTS',
-    CLEAR_SEARCH: 'CLEAR_SEARCH',
 
-    // Stats and alerts
-    SET_STATS: 'SET_STATS',
-    SET_ALERT_LEADS: 'SET_ALERT_LEADS'
+    // Paginação
+    SET_PAGINATION: 'SET_PAGINATION',
+
+    // Estatísticas
+    SET_STATS: 'SET_STATS'
 };
 
 // ===== REDUCER =====
@@ -154,25 +126,16 @@ function leadReducer(state, action) {
                 errors: {
                     ...state.errors,
                     [action.key]: action.error
-                },
-                loading: {
-                    ...state.loading,
-                    [action.key]: false
                 }
             };
 
         case ACTIONS.CLEAR_ERROR:
-            const newErrors = { ...state.errors };
-            delete newErrors[action.key];
             return {
                 ...state,
-                errors: newErrors
-            };
-
-        case ACTIONS.CLEAR_ALL_ERRORS:
-            return {
-                ...state,
-                errors: {}
+                errors: {
+                    ...state.errors,
+                    [action.key]: null
+                }
             };
 
         case ACTIONS.SET_LEADS:
@@ -229,83 +192,14 @@ function leadReducer(state, action) {
                 currentLead: action.lead,
                 loading: {
                     ...state.loading,
-                    fetch: false
+                    list: false
                 }
             };
 
         case ACTIONS.CLEAR_CURRENT_LEAD:
             return {
                 ...state,
-                currentLead: null,
-                leadTasks: [],
-                leadContacts: []
-            };
-
-        case ACTIONS.SET_LEAD_TASKS:
-            return {
-                ...state,
-                leadTasks: action.tasks,
-                loading: {
-                    ...state.loading,
-                    tasks: false
-                }
-            };
-
-        case ACTIONS.ADD_TASK:
-            return {
-                ...state,
-                leadTasks: [...state.leadTasks, action.task],
-                loading: {
-                    ...state.loading,
-                    tasks: false
-                }
-            };
-
-        case ACTIONS.UPDATE_TASK:
-            return {
-                ...state,
-                leadTasks: state.leadTasks.map(task =>
-                    task.id === action.task.id ? action.task : task
-                ),
-                loading: {
-                    ...state.loading,
-                    tasks: false
-                }
-            };
-
-        case ACTIONS.SET_LEAD_CONTACTS:
-            return {
-                ...state,
-                leadContacts: action.contacts,
-                loading: {
-                    ...state.loading,
-                    contacts: false
-                }
-            };
-
-        case ACTIONS.ADD_CONTACT:
-            return {
-                ...state,
-                leadContacts: [action.contact, ...state.leadContacts],
-                loading: {
-                    ...state.loading,
-                    contacts: false
-                }
-            };
-
-        case ACTIONS.SET_PAGINATION:
-            return {
-                ...state,
-                pagination: {
-                    ...state.pagination,
-                    ...action.pagination
-                }
-            };
-
-        case ACTIONS.RESET_PAGINATION:
-            return {
-                ...state,
-                pagination: initialState.pagination
+                currentLead: null
             };
 
         case ACTIONS.SET_FILTERS:
@@ -329,21 +223,13 @@ function leadReducer(state, action) {
                 searchTerm: action.term
             };
 
-        case ACTIONS.SET_SEARCH_RESULTS:
+        case ACTIONS.SET_PAGINATION:
             return {
                 ...state,
-                searchResults: action.results,
-                loading: {
-                    ...state.loading,
-                    search: false
+                pagination: {
+                    ...state.pagination,
+                    ...action.pagination
                 }
-            };
-
-        case ACTIONS.CLEAR_SEARCH:
-            return {
-                ...state,
-                searchTerm: '',
-                searchResults: []
             };
 
         case ACTIONS.SET_STATS:
@@ -353,16 +239,6 @@ function leadReducer(state, action) {
                 loading: {
                     ...state.loading,
                     stats: false
-                }
-            };
-
-        case ACTIONS.SET_ALERT_LEADS:
-            return {
-                ...state,
-                alertLeads: action.leads,
-                loading: {
-                    ...state.loading,
-                    alerts: false
                 }
             };
 
@@ -377,22 +253,19 @@ export function LeadProvider({ children }) {
     const { currentUser } = useAuth();
 
     // ===== HELPER FUNCTIONS =====
-    const setLoading = useCallback((key) => {
-        dispatch({ type: ACTIONS.SET_LOADING, key });
-    }, []);
 
-    const clearLoading = useCallback((key) => {
-        dispatch({ type: ACTIONS.CLEAR_LOADING, key });
+    const setLoading = useCallback((key, value) => {
+        if (value) {
+            dispatch({ type: ACTIONS.SET_LOADING, key });
+        } else {
+            dispatch({ type: ACTIONS.CLEAR_LOADING, key });
+        }
     }, []);
 
     const setError = useCallback((key, error) => {
-        console.error(`Erro em ${key}:`, error);
-        dispatch({
-            type: ACTIONS.SET_ERROR,
-            key,
-            error: error.message || 'Erro desconhecido'
-        });
-    }, []);
+        dispatch({ type: ACTIONS.SET_ERROR, key, error: error.message });
+        setLoading(key, false);
+    }, [setLoading]);
 
     const clearError = useCallback((key) => {
         dispatch({ type: ACTIONS.CLEAR_ERROR, key });
@@ -402,13 +275,11 @@ export function LeadProvider({ children }) {
 
     // Criar lead
     const createLead = useCallback(async (leadData) => {
-        if (!currentUser) throw new Error('Utilizador não autenticado');
-
-        setLoading('create');
+        setLoading('create', true);
         clearError('create');
 
         try {
-            const newLead = await leadService.createLead(currentUser.uid, leadData);
+            const newLead = await leadService.createLead(leadData, currentUser.uid);
             dispatch({ type: ACTIONS.ADD_LEAD, lead: newLead });
 
             // Atualizar estatísticas
@@ -421,42 +292,38 @@ export function LeadProvider({ children }) {
         }
     }, [currentUser]);
 
-    // Buscar lead individual
+    // Buscar lead por ID
     const fetchLead = useCallback(async (leadId) => {
-        if (!currentUser) throw new Error('Utilizador não autenticado');
-
-        setLoading('fetch');
-        clearError('fetch');
-
-        try {
-            const lead = await leadService.getLead(currentUser.uid, leadId);
-            dispatch({ type: ACTIONS.SET_CURRENT_LEAD, lead });
-            return lead;
-        } catch (error) {
-            setError('fetch', error);
-            throw error;
-        }
-    }, [currentUser]);
-
-    // Listar leads
-    const fetchLeads = useCallback(async (options = {}) => {
-        if (!currentUser) throw new Error('Utilizador não autenticado');
-
-        setLoading('list');
+        setLoading('list', true);
         clearError('list');
 
         try {
-            const queryOptions = {
+            const lead = await leadService.getLeadById(leadId);
+            dispatch({ type: ACTIONS.SET_CURRENT_LEAD, lead });
+            return lead;
+        } catch (error) {
+            setError('list', error);
+            throw error;
+        }
+    }, []);
+
+    // Listar leads
+    const fetchLeads = useCallback(async (customFilters = {}) => {
+        setLoading('list', true);
+        clearError('list');
+
+        try {
+            const filters = {
                 ...state.filters,
-                searchTerm: state.searchTerm,
-                sortBy: state.sortBy,
-                sortOrder: state.sortOrder,
-                pageSize: state.pagination.pageSize,
-                lastDoc: state.pagination.lastDoc,
-                ...options
+                ...customFilters,
+                limit: state.pagination.limit
             };
 
-            const result = await leadService.getLeads(currentUser.uid, queryOptions);
+            if (state.pagination.lastDoc && !customFilters.reset) {
+                filters.startAfter = state.pagination.lastDoc;
+            }
+
+            const result = await leadService.getLeads(currentUser.uid, filters);
 
             dispatch({ type: ACTIONS.SET_LEADS, leads: result.leads });
             dispatch({
@@ -467,234 +334,129 @@ export function LeadProvider({ children }) {
                 }
             });
 
-            return result;
+            return result.leads;
         } catch (error) {
             setError('list', error);
             throw error;
         }
-    }, [currentUser, state.filters, state.searchTerm, state.sortBy, state.sortOrder, state.pagination]);
+    }, [currentUser, state.filters, state.pagination]);
 
     // Atualizar lead
-    const updateLead = useCallback(async (leadId, updateData) => {
-        if (!currentUser) throw new Error('Utilizador não autenticado');
-
-        setLoading('update');
+    const updateLead = useCallback(async (leadId, updates) => {
+        setLoading('update', true);
         clearError('update');
 
         try {
-            const updatedLead = await leadService.updateLead(
-                currentUser.uid,
-                leadId,
-                updateData
-            );
+            await leadService.updateLead(leadId, updates);
+
+            // Buscar lead atualizada com dados do cliente
+            const updatedLead = await leadService.getLeadById(leadId);
             dispatch({ type: ACTIONS.UPDATE_LEAD, lead: updatedLead });
 
-            // Atualizar estatísticas
-            await fetchStats();
+            // Se mudou estado do funil, atualizar estatísticas
+            if (updates.funnelState) {
+                await fetchStats();
+            }
 
             return updatedLead;
         } catch (error) {
             setError('update', error);
             throw error;
         }
-    }, [currentUser]);
+    }, []);
 
-    // Eliminar lead
+    // Deletar lead
     const deleteLead = useCallback(async (leadId) => {
-        if (!currentUser) throw new Error('Utilizador não autenticado');
-
-        setLoading('delete');
+        setLoading('delete', true);
         clearError('delete');
 
         try {
-            await leadService.deleteLead(currentUser.uid, leadId);
+            await leadService.deleteLead(leadId);
             dispatch({ type: ACTIONS.DELETE_LEAD, leadId });
 
             // Atualizar estatísticas
             await fetchStats();
 
-            return true;
+            return leadId;
         } catch (error) {
             setError('delete', error);
             throw error;
         }
-    }, [currentUser]);
+    }, []);
 
-    // ===== TASK OPERATIONS =====
+    // ===== CONVERSÃO =====
 
-    // Criar tarefa
-    const createTask = useCallback(async (leadId, taskData) => {
-        if (!currentUser) throw new Error('Utilizador não autenticado');
-
-        setLoading('tasks');
-        clearError('tasks');
-
-        try {
-            const newTask = await leadService.createTask(
-                currentUser.uid,
-                leadId,
-                taskData
-            );
-            dispatch({ type: ACTIONS.ADD_TASK, task: newTask });
-
-            // Atualizar lead
-            await fetchLead(leadId);
-
-            return newTask;
-        } catch (error) {
-            setError('tasks', error);
-            throw error;
-        }
-    }, [currentUser, fetchLead]);
-
-    // Buscar tarefas da lead
-    const fetchLeadTasks = useCallback(async (leadId) => {
-        if (!currentUser) throw new Error('Utilizador não autenticado');
-
-        setLoading('tasks');
-        clearError('tasks');
-
-        try {
-            const tasks = await leadService.getLeadTasks(currentUser.uid, leadId);
-            dispatch({ type: ACTIONS.SET_LEAD_TASKS, tasks });
-            return tasks;
-        } catch (error) {
-            setError('tasks', error);
-            throw error;
-        }
-    }, [currentUser]);
-
-    // Completar tarefa
-    const completeTask = useCallback(async (leadId, taskId, resultData) => {
-        if (!currentUser) throw new Error('Utilizador não autenticado');
-
-        setLoading('tasks');
-        clearError('tasks');
-
-        try {
-            await leadService.completeTask(
-                currentUser.uid,
-                leadId,
-                taskId,
-                resultData
-            );
-
-            // Atualizar tarefas e lead
-            await fetchLeadTasks(leadId);
-            await fetchLead(leadId);
-
-            return true;
-        } catch (error) {
-            setError('tasks', error);
-            throw error;
-        }
-    }, [currentUser, fetchLeadTasks, fetchLead]);
-
-    // ===== CONTACT OPERATIONS =====
-
-    // Adicionar contacto
-    const addContact = useCallback(async (leadId, contactData) => {
-        if (!currentUser) throw new Error('Utilizador não autenticado');
-
-        setLoading('contacts');
-        clearError('contacts');
-
-        try {
-            const newContact = await leadService.addContact(
-                currentUser.uid,
-                leadId,
-                contactData
-            );
-            dispatch({ type: ACTIONS.ADD_CONTACT, contact: newContact });
-
-            // Atualizar lead
-            await fetchLead(leadId);
-
-            return newContact;
-        } catch (error) {
-            setError('contacts', error);
-            throw error;
-        }
-    }, [currentUser, fetchLead]);
-
-    // Buscar contactos da lead
-    const fetchLeadContacts = useCallback(async (leadId) => {
-        if (!currentUser) throw new Error('Utilizador não autenticado');
-
-        setLoading('contacts');
-        clearError('contacts');
-
-        try {
-            const contacts = await leadService.getLeadContacts(currentUser.uid, leadId);
-            dispatch({ type: ACTIONS.SET_LEAD_CONTACTS, contacts });
-            return contacts;
-        } catch (error) {
-            setError('contacts', error);
-            throw error;
-        }
-    }, [currentUser]);
-
-    // ===== CONVERSION OPERATIONS =====
-
-    // Converter lead em cliente
-    const convertLead = useCallback(async (leadId, clientData) => {
-        if (!currentUser) throw new Error('Utilizador não autenticado');
-
-        setLoading('convert');
-        clearError('convert');
-
-        try {
-            const result = await leadService.convertLeadToClient(
-                currentUser.uid,
-                leadId,
-                clientData
-            );
-
-            // Atualizar lead
-            await fetchLead(leadId);
-
-            // Atualizar estatísticas
-            await fetchStats();
-
-            return result;
-        } catch (error) {
-            setError('convert', error);
-            throw error;
-        }
-    }, [currentUser, fetchLead]);
-
-    // Marcar lead como perdida
-    const markAsLost = useCallback(async (leadId, motivoPerda) => {
-        if (!currentUser) throw new Error('Utilizador não autenticado');
-
-        setLoading('update');
+    // Converter lead em oportunidade
+    const convertLead = useCallback(async (leadId, opportunityData = null) => {
+        setLoading('update', true);
         clearError('update');
 
         try {
-            await leadService.markLeadAsLost(currentUser.uid, leadId, motivoPerda);
+            const result = await leadService.convertLead(leadId, opportunityData, currentUser.uid);
 
-            // Atualizar lead e estatísticas
-            await fetchLead(leadId);
-            await fetchStats();
+            // Atualizar lead no estado
+            await updateLead(leadId, {
+                funnelState: LEAD_FUNNEL_STATES.CONVERTIDO
+            });
 
-            return true;
+            return result;
         } catch (error) {
             setError('update', error);
             throw error;
         }
-    }, [currentUser, fetchLead]);
+    }, [currentUser, updateLead]);
 
-    // ===== STATS & ALERTS =====
+    // ===== PESQUISA E FILTROS =====
+
+    // Pesquisar leads
+    const searchLeads = useCallback(async (searchTerm) => {
+        dispatch({ type: ACTIONS.SET_SEARCH_TERM, term: searchTerm });
+
+        if (!searchTerm) {
+            return fetchLeads({ reset: true });
+        }
+
+        setLoading('list', true);
+        clearError('list');
+
+        try {
+            const results = await leadService.searchLeads(currentUser.uid, searchTerm);
+            dispatch({ type: ACTIONS.SET_LEADS, leads: results });
+            return results;
+        } catch (error) {
+            setError('list', error);
+            throw error;
+        }
+    }, [currentUser, fetchLeads]);
+
+    // Definir filtros
+    const setFilters = useCallback((filters) => {
+        dispatch({ type: ACTIONS.SET_FILTERS, filters });
+        // Reset paginação ao mudar filtros
+        dispatch({
+            type: ACTIONS.SET_PAGINATION,
+            pagination: { ...initialState.pagination }
+        });
+    }, []);
+
+    // Limpar filtros
+    const resetFilters = useCallback(() => {
+        dispatch({ type: ACTIONS.RESET_FILTERS });
+        dispatch({
+            type: ACTIONS.SET_PAGINATION,
+            pagination: { ...initialState.pagination }
+        });
+    }, []);
+
+    // ===== ESTATÍSTICAS =====
 
     // Buscar estatísticas
     const fetchStats = useCallback(async () => {
-        if (!currentUser) return;
-
-        setLoading('stats');
+        setLoading('stats', true);
         clearError('stats');
 
         try {
-            const stats = await leadService.getLeadsStats(currentUser.uid);
+            const stats = await leadService.getLeadStats(currentUser.uid);
             dispatch({ type: ACTIONS.SET_STATS, stats });
             return stats;
         } catch (error) {
@@ -703,66 +465,19 @@ export function LeadProvider({ children }) {
         }
     }, [currentUser]);
 
-    // Buscar leads com alertas
-    const fetchAlertLeads = useCallback(async () => {
-        if (!currentUser) return;
+    // ===== UTILITÁRIOS =====
 
-        setLoading('alerts');
-        clearError('alerts');
-
-        try {
-            const alertLeads = await leadService.getAlertLeads(currentUser.uid);
-            dispatch({ type: ACTIONS.SET_ALERT_LEADS, leads: alertLeads });
-            return alertLeads;
-        } catch (error) {
-            setError('alerts', error);
-            throw error;
-        }
-    }, [currentUser]);
-
-    // ===== SEARCH & FILTERS =====
-
-    // Pesquisar leads
-    const searchLeads = useCallback(async (searchTerm) => {
-        dispatch({ type: ACTIONS.SET_SEARCH_TERM, term: searchTerm });
-
-        if (!searchTerm) {
-            dispatch({ type: ACTIONS.CLEAR_SEARCH });
-            return;
-        }
-
-        await fetchLeads({ searchTerm });
-    }, [fetchLeads]);
-
-    // Definir filtros
-    const setFilters = useCallback((filters) => {
-        dispatch({ type: ACTIONS.SET_FILTERS, filters });
-        dispatch({ type: ACTIONS.RESET_PAGINATION });
-    }, []);
-
-    // Limpar filtros
-    const resetFilters = useCallback(() => {
-        dispatch({ type: ACTIONS.RESET_FILTERS });
-        dispatch({ type: ACTIONS.RESET_PAGINATION });
-    }, []);
-
-    // Limpar pesquisa
-    const clearSearch = useCallback(() => {
-        dispatch({ type: ACTIONS.CLEAR_SEARCH });
-    }, []);
-
-    // Limpar lead atual
     const clearCurrentLead = useCallback(() => {
         dispatch({ type: ACTIONS.CLEAR_CURRENT_LEAD });
     }, []);
 
     // ===== EFFECTS =====
 
-    // Carregar estatísticas ao montar
+    // Carregar dados iniciais
     useEffect(() => {
         if (currentUser) {
+            fetchLeads({ reset: true });
             fetchStats();
-            fetchAlertLeads();
         }
     }, [currentUser]);
 
@@ -771,41 +486,28 @@ export function LeadProvider({ children }) {
         // Estado
         ...state,
 
-        // Operações CRUD
+        // CRUD
         createLead,
         fetchLead,
         fetchLeads,
         updateLead,
         deleteLead,
 
-        // Operações de tarefas
-        createTask,
-        fetchLeadTasks,
-        completeTask,
-
-        // Operações de contactos
-        addContact,
-        fetchLeadContacts,
-
-        // Operações de conversão
+        // Conversão
         convertLead,
-        markAsLost,
-
-        // Estatísticas e alertas
-        fetchStats,
-        fetchAlertLeads,
 
         // Pesquisa e filtros
         searchLeads,
         setFilters,
         resetFilters,
-        clearSearch,
+
+        // Estatísticas
+        fetchStats,
 
         // Utilitários
         clearCurrentLead,
         clearError,
-        setLoading,
-        clearLoading
+        setLoading
     };
 
     return (
