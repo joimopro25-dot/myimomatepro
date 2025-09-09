@@ -155,11 +155,11 @@ const LeadFormPage = () => {
         };
     }, [isEditMode, leadId, fetchLead, clearCurrentLead]);
 
-    // Preencher formulário com dados da lead
+    // Preencher dados quando carregar lead para edição
     useEffect(() => {
         if (isEditMode && currentLead) {
             setFormData({
-                // Dados do cliente (reutilizados)
+                // Dados pessoais
                 name: currentLead.name || '',
                 phone: currentLead.phone || '',
                 email: currentLead.email || '',
@@ -168,7 +168,8 @@ const LeadFormPage = () => {
                 cc: currentLead.cc || '',
                 ccValidity: currentLead.ccValidity || '',
                 nif: currentLead.nif || '',
-                birthDate: currentLead.birthDate || '',
+                birthDate: currentLead.birthDate ?
+                    currentLead.birthDate.toDate?.()?.toISOString().split('T')[0] : '',
                 birthPlace: currentLead.birthPlace || '',
                 parish: currentLead.parish || '',
                 municipality: currentLead.municipality || '',
@@ -177,6 +178,7 @@ const LeadFormPage = () => {
                 maritalStatus: currentLead.maritalStatus || 'single',
                 marriageRegime: currentLead.marriageRegime || '',
 
+                // Dados do cônjuge
                 spouse: {
                     name: currentLead.spouse?.name || '',
                     phone: currentLead.spouse?.phone || '',
@@ -191,6 +193,7 @@ const LeadFormPage = () => {
                     district: currentLead.spouse?.district || ''
                 },
 
+                // Morada
                 address: {
                     street: currentLead.address?.street || '',
                     number: currentLead.address?.number || '',
@@ -202,6 +205,7 @@ const LeadFormPage = () => {
                     district: currentLead.address?.district || ''
                 },
 
+                // Financeiro
                 financial: {
                     monthlyIncome: currentLead.financial?.monthlyIncome || '',
                     spouseMonthlyIncome: currentLead.financial?.spouseMonthlyIncome || '',
@@ -214,6 +218,7 @@ const LeadFormPage = () => {
                     bankApprovalConditions: currentLead.financial?.bankApprovalConditions || ''
                 },
 
+                // Documentação
                 documents: {
                     ccFront: currentLead.documents?.ccFront || false,
                     ccBack: currentLead.documents?.ccBack || false,
@@ -227,6 +232,7 @@ const LeadFormPage = () => {
                     workContract: currentLead.documents?.workContract || false
                 },
 
+                // Tags e observações
                 tags: currentLead.tags || [],
                 consultorObservations: currentLead.consultorObservations || '',
                 nextContactDate: currentLead.nextContactDate ?
@@ -293,7 +299,7 @@ const LeadFormPage = () => {
         }
     };
 
-    // Submissão
+    // ===== SUBMISSÃO CORRIGIDA =====
     const handleSubmit = async (e) => {
         e.preventDefault();
 
@@ -309,9 +315,11 @@ const LeadFormPage = () => {
                 await createLead(formData);
             }
 
+            // Navegar para a lista de leads após sucesso
             navigate('/leads');
         } catch (error) {
             console.error('Erro ao salvar lead:', error);
+            // O erro já será mostrado pelo contexto através de contextErrors
         }
     };
 
@@ -347,7 +355,9 @@ const LeadFormPage = () => {
                             type="text"
                             value={formData.name}
                             onChange={(e) => updateField('name', e.target.value)}
-                            className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${validationErrors.name && touched.name ? 'border-red-500' : 'border-gray-300'
+                            className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${validationErrors.name && touched.name
+                                    ? 'border-red-300 bg-red-50'
+                                    : 'border-gray-300'
                                 }`}
                             placeholder="Nome completo do prospect"
                         />
@@ -359,15 +369,17 @@ const LeadFormPage = () => {
                     {/* Telefone */}
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Telefone
+                            Telefone *
                         </label>
                         <input
                             type="tel"
                             value={formData.phone}
                             onChange={(e) => updateField('phone', e.target.value)}
-                            className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${validationErrors.phone && touched.phone ? 'border-red-500' : 'border-gray-300'
+                            className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${validationErrors.phone && touched.phone
+                                    ? 'border-red-300 bg-red-50'
+                                    : 'border-gray-300'
                                 }`}
-                            placeholder="9XX XXX XXX"
+                            placeholder="911234567"
                         />
                         {validationErrors.phone && touched.phone && (
                             <p className="text-red-600 text-sm mt-1">{validationErrors.phone}</p>
@@ -377,15 +389,17 @@ const LeadFormPage = () => {
                     {/* Email */}
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Email
+                            Email *
                         </label>
                         <input
                             type="email"
                             value={formData.email}
                             onChange={(e) => updateField('email', e.target.value)}
-                            className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${validationErrors.email && touched.email ? 'border-red-500' : 'border-gray-300'
+                            className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${validationErrors.email && touched.email
+                                    ? 'border-red-300 bg-red-50'
+                                    : 'border-gray-300'
                                 }`}
-                            placeholder="email@exemplo.com"
+                            placeholder="exemplo@email.com"
                         />
                         {validationErrors.email && touched.email && (
                             <p className="text-red-600 text-sm mt-1">{validationErrors.email}</p>
@@ -393,98 +407,23 @@ const LeadFormPage = () => {
                     </div>
                 </div>
             </div>
-
-            {/* Dados pessoais opcionais - Igual ao ClientForm */}
-            <div className="bg-gray-50 p-6 rounded-xl border border-gray-200">
-                <div className="flex items-center mb-6">
-                    <div className="w-10 h-10 bg-gray-600 rounded-lg flex items-center justify-center">
-                        <InformationCircleIcon className="w-6 h-6 text-white" />
-                    </div>
-                    <h3 className="text-lg font-semibold text-gray-800 ml-3">Dados Complementares</h3>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Profissão */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Profissão
-                        </label>
-                        <input
-                            type="text"
-                            value={formData.profession}
-                            onChange={(e) => updateField('profession', e.target.value)}
-                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                            placeholder="Profissão atual"
-                        />
-                    </div>
-
-                    {/* Estado Civil */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Estado Civil
-                        </label>
-                        <select
-                            value={formData.maritalStatus}
-                            onChange={(e) => updateField('maritalStatus', e.target.value)}
-                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        >
-                            <option value="single">Solteiro(a)</option>
-                            <option value="married">Casado(a)</option>
-                            <option value="divorced">Divorciado(a)</option>
-                            <option value="widowed">Viúvo(a)</option>
-                            <option value="union">União de Facto</option>
-                        </select>
-                    </div>
-
-                    {/* Preferência de Contacto */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Preferência de Contacto
-                        </label>
-                        <select
-                            value={formData.contactPreference}
-                            onChange={(e) => updateField('contactPreference', e.target.value)}
-                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        >
-                            <option value="phone">Telefone</option>
-                            <option value="email">Email</option>
-                            <option value="whatsapp">WhatsApp</option>
-                        </select>
-                    </div>
-
-                    {/* Melhor Horário */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Melhor Horário de Contacto
-                        </label>
-                        <input
-                            type="text"
-                            value={formData.bestContactTime}
-                            onChange={(e) => updateField('bestContactTime', e.target.value)}
-                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                            placeholder="Ex: 9h-18h, Manhãs, Tardes"
-                        />
-                    </div>
-                </div>
-            </div>
         </div>
     );
 
-    // Renderizar informações de lead específicas
+    // Renderizar informações da lead
     const renderLeadInfo = () => (
         <div className="space-y-8">
             <div className="text-center mb-8">
-                <h2 className="text-2xl font-bold text-gray-900">Informações do Lead</h2>
-                <p className="text-gray-600 mt-2">Dados específicos do prospect imobiliário</p>
+                <h2 className="text-2xl font-bold text-gray-900">Informações da Lead</h2>
+                <p className="text-gray-600">Detalhes específicos sobre o interesse do prospect</p>
             </div>
 
-            {/* Informações específicas da lead */}
             <div className="bg-orange-50 p-6 rounded-xl border border-orange-200">
                 <div className="flex items-center mb-6">
                     <div className="w-10 h-10 bg-orange-600 rounded-lg flex items-center justify-center">
                         <TagIcon className="w-6 h-6 text-white" />
                     </div>
-                    <h3 className="text-lg font-semibold text-gray-800 ml-3">Dados do Prospect</h3>
+                    <h3 className="text-lg font-semibold text-gray-800 ml-3">Classificação da Lead</h3>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -496,70 +435,34 @@ const LeadFormPage = () => {
                         <select
                             value={formData.leadSource}
                             onChange={(e) => updateField('leadSource', e.target.value)}
-                            className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${validationErrors.leadSource && touched.leadSource ? 'border-red-500' : 'border-gray-300'
-                                }`}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         >
-                            {Object.entries(LEAD_SOURCE_LABELS).map(([key, label]) => (
-                                <option key={key} value={key}>{label}</option>
+                            {Object.entries(LEAD_SOURCE_LABELS).map(([value, label]) => (
+                                <option key={value} value={value}>{label}</option>
                             ))}
                         </select>
-                        {validationErrors.leadSource && touched.leadSource && (
-                            <p className="text-red-600 text-sm mt-1">{validationErrors.leadSource}</p>
-                        )}
                     </div>
 
-                    {/* O que procura */}
+                    {/* Interesse */}
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                            O que procura *
+                            Interesse Principal *
                         </label>
                         <select
                             value={formData.interesse}
                             onChange={(e) => updateField('interesse', e.target.value)}
-                            className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${validationErrors.interesse && touched.interesse ? 'border-red-500' : 'border-gray-300'
-                                }`}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         >
-                            {Object.entries(LEAD_INTEREST_LABELS).map(([key, label]) => (
-                                <option key={key} value={key}>{label}</option>
+                            {Object.entries(LEAD_INTEREST_LABELS).map(([value, label]) => (
+                                <option key={value} value={value}>{label}</option>
                             ))}
                         </select>
-                        {validationErrors.interesse && touched.interesse && (
-                            <p className="text-red-600 text-sm mt-1">{validationErrors.interesse}</p>
-                        )}
                     </div>
-                </div>
 
-                {/* Descrição do Prospect */}
-                <div className="mt-6">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Descrição do Prospect
-                    </label>
-                    <textarea
-                        value={formData.descricao}
-                        onChange={(e) => updateField('descricao', e.target.value)}
-                        rows={4}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        placeholder="Descreva as necessidades, preferências e situação específica do prospect..."
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                        Esta informação ajudará na qualificação e seguimento da lead
-                    </p>
-                </div>
-            </div>
-
-            {/* Follow-up */}
-            <div className="bg-green-50 p-6 rounded-xl border border-green-200">
-                <div className="flex items-center mb-6">
-                    <div className="w-10 h-10 bg-green-600 rounded-lg flex items-center justify-center">
-                        <ClockIcon className="w-6 h-6 text-white" />
-                    </div>
-                    <h3 className="text-lg font-semibold text-gray-800 ml-3">Agendamento de Follow-up</h3>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Data do próximo contacto */}
+                    {/* Próximo Contacto */}
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
+                            <ClockIcon className="w-4 h-4 inline mr-1" />
                             Próximo Contacto
                         </label>
                         <input
@@ -567,21 +470,20 @@ const LeadFormPage = () => {
                             value={formData.proximoContacto}
                             onChange={(e) => updateField('proximoContacto', e.target.value)}
                             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                            min={new Date().toISOString().split('T')[0]}
                         />
                     </div>
 
-                    {/* Observações do consultor */}
-                    <div>
+                    {/* Descrição */}
+                    <div className="md:col-span-2">
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Observações do Consultor
+                            Descrição / Observações
                         </label>
                         <textarea
-                            value={formData.consultorObservations}
-                            onChange={(e) => updateField('consultorObservations', e.target.value)}
-                            rows={3}
+                            value={formData.descricao}
+                            onChange={(e) => updateField('descricao', e.target.value)}
+                            rows={4}
                             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                            placeholder="Notas internas sobre o prospect..."
+                            placeholder="Informações adicionais sobre a lead..."
                         />
                     </div>
                 </div>
@@ -594,45 +496,40 @@ const LeadFormPage = () => {
         <div className="space-y-8">
             <div className="text-center mb-8">
                 <h2 className="text-2xl font-bold text-gray-900">Consentimentos</h2>
-                <p className="text-gray-600 mt-2">Autorizações legais obrigatórias</p>
+                <p className="text-gray-600">Autorizações GDPR necessárias</p>
             </div>
 
-            <div className="bg-red-50 p-6 rounded-xl border border-red-200">
+            <div className="bg-green-50 p-6 rounded-xl border border-green-200">
                 <div className="flex items-center mb-6">
-                    <div className="w-10 h-10 bg-red-600 rounded-lg flex items-center justify-center">
-                        <ExclamationTriangleIcon className="w-6 h-6 text-white" />
+                    <div className="w-10 h-10 bg-green-600 rounded-lg flex items-center justify-center">
+                        <DocumentArrowUpIcon className="w-6 h-6 text-white" />
                     </div>
-                    <h3 className="text-lg font-semibold text-gray-800 ml-3">Consentimentos GDPR</h3>
+                    <h3 className="text-lg font-semibold text-gray-800 ml-3">Autorizações GDPR</h3>
                 </div>
 
                 <div className="space-y-4">
                     {/* GDPR Obrigatório */}
-                    <div className="flex items-start space-x-3">
+                    <div className="flex items-start">
                         <input
                             type="checkbox"
-                            id="gdprConsent"
                             checked={formData.gdprConsent}
                             onChange={(e) => updateField('gdprConsent', e.target.checked)}
-                            className="mt-1 rounded border-gray-300 focus:ring-2 focus:ring-blue-500"
+                            className="w-4 h-4 text-green-600 bg-gray-100 border-gray-300 rounded focus:ring-green-500 focus:ring-2 mt-1"
                         />
-                        <label htmlFor="gdprConsent" className="text-sm text-gray-700">
-                            <span className="font-medium text-red-600">*</span> Consinto no tratamento dos meus dados pessoais para fins de prestação de serviços imobiliários, conforme descrito na Política de Privacidade.
+                        <label className="ml-3 text-sm text-gray-700">
+                            <span className="font-medium text-red-600">* Obrigatório:</span> Consinto no tratamento dos meus dados pessoais para fins de prestação de serviços imobiliários, conforme descrito na Política de Privacidade.
                         </label>
                     </div>
-                    {validationErrors.gdprConsent && touched.gdprConsent && (
-                        <p className="text-red-600 text-sm">{validationErrors.gdprConsent}</p>
-                    )}
 
                     {/* Marketing Opcional */}
-                    <div className="flex items-start space-x-3">
+                    <div className="flex items-start">
                         <input
                             type="checkbox"
-                            id="marketingConsent"
                             checked={formData.marketingConsent}
                             onChange={(e) => updateField('marketingConsent', e.target.checked)}
-                            className="mt-1 rounded border-gray-300 focus:ring-2 focus:ring-blue-500"
+                            className="w-4 h-4 text-green-600 bg-gray-100 border-gray-300 rounded focus:ring-green-500 focus:ring-2 mt-1"
                         />
-                        <label htmlFor="marketingConsent" className="text-sm text-gray-700">
+                        <label className="ml-3 text-sm text-gray-700">
                             Consinto em receber comunicações promocionais e de marketing por email, SMS ou telefone sobre novos imóveis e serviços.
                         </label>
                     </div>
@@ -705,7 +602,10 @@ const LeadFormPage = () => {
                                 {isEditMode ? 'Editar Lead' : 'Nova Lead'}
                             </h1>
                             <p className="text-gray-600">
-                                {isEditMode ? 'Atualizar informações do prospect' : 'Registar novo prospect'}
+                                {isEditMode ?
+                                    'Altere os dados da lead conforme necessário' :
+                                    'Registe um novo prospect qualificado'
+                                }
                             </p>
                         </div>
                     </div>
@@ -713,31 +613,18 @@ const LeadFormPage = () => {
 
                 {/* Progress Steps */}
                 <div className="mb-8">
-                    <nav aria-label="Progress">
-                        <ol className="flex items-center">
-                            {[1, 2, 3].map((step, index) => (
-                                <li key={step} className={`relative ${index !== 2 ? 'pr-8 sm:pr-20' : ''}`}>
-                                    <div className="absolute inset-0 flex items-center" aria-hidden="true">
-                                        {index !== 2 && (
-                                            <div className={`h-0.5 w-full ${step < currentStep ? 'bg-blue-600' : 'bg-gray-200'}`} />
-                                        )}
-                                    </div>
-                                    <div
-                                        className={`relative w-8 h-8 flex items-center justify-center rounded-full ${step < currentStep
+                    <nav>
+                        <ol className="flex items-center justify-center space-x-8">
+                            {[1, 2, 3].map((step) => (
+                                <li key={step} className="flex items-center">
+                                    <div className={`flex items-center ${step < 3 ? 'mr-8' : ''}`}>
+                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${step <= currentStep
                                                 ? 'bg-blue-600 text-white'
-                                                : step === currentStep
-                                                    ? 'bg-blue-600 text-white'
-                                                    : 'bg-gray-200 text-gray-500'
-                                            }`}
-                                    >
-                                        {step < currentStep ? (
-                                            <CheckCircleIcon className="w-5 h-5" />
-                                        ) : (
-                                            <span className="text-sm font-medium">{step}</span>
-                                        )}
-                                    </div>
-                                    <div className="mt-2">
-                                        <span className={`text-xs font-medium ${step <= currentStep ? 'text-blue-600' : 'text-gray-500'
+                                                : 'bg-gray-300 text-gray-600'
+                                            }`}>
+                                            {step}
+                                        </div>
+                                        <span className={`ml-3 text-sm font-medium ${step <= currentStep ? 'text-blue-600' : 'text-gray-500'
                                             }`}>
                                             {step === 1 ? 'Dados Pessoais' : step === 2 ? 'Info. Lead' : 'Consentimentos'}
                                         </span>
@@ -819,9 +706,9 @@ const LeadFormPage = () => {
                             <div className="ml-auto pl-3">
                                 <button
                                     onClick={() => clearError(isEditMode ? 'update' : 'create')}
-                                    className="text-red-400 hover:text-red-600"
+                                    className="text-red-500 hover:text-red-700"
                                 >
-                                    <XMarkIcon className="w-5 h-5" />
+                                    ×
                                 </button>
                             </div>
                         </div>
