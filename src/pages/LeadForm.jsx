@@ -1,492 +1,720 @@
 /**
  * LEAD FORM PAGE - MyImoMatePro
- * Formulário para criar/editar leads
+ * Formulário simplificado para criar/editar leads
+ * Integra criação de cliente + qualificação de lead
  * 
  * Caminho: src/pages/LeadForm.jsx
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useLeads } from '../contexts/LeadContext';
+import { useClients } from '../contexts/ClientContext';
 import {
     validateLeadData,
+    LEAD_TYPES,
+    LEAD_TYPE_LABELS,
     LEAD_SOURCES,
-    LEAD_INTERESTS,
     LEAD_SOURCE_LABELS,
-    LEAD_INTEREST_LABELS
+    formatCurrency,
+    getQualificationFieldsByType
 } from '../models/leadModel';
 import Layout from '../components/Layout';
 import {
     ArrowLeftIcon,
+    UserPlusIcon,
+    MagnifyingGlassIcon,
     CheckCircleIcon,
     ExclamationTriangleIcon,
-    DocumentArrowUpIcon,
-    InformationCircleIcon,
-    TagIcon,
-    ClockIcon,
+    UserIcon,
     PhoneIcon,
     EnvelopeIcon,
-    UserIcon,
-    HomeIcon,
+    MapPinIcon,
     CurrencyEuroIcon,
-    CalendarIcon,
-    ChatBubbleLeftIcon
+    HomeIcon,
+    DocumentTextIcon,
+    TagIcon,
+    BuildingOfficeIcon,
+    BanknotesIcon
 } from '@heroicons/react/24/outline';
 
 const LeadFormPage = () => {
     const { leadId } = useParams();
     const navigate = useNavigate();
+    const location = useLocation();
     const isEditMode = Boolean(leadId);
 
-    // Context de leads
+    // Verificar se veio de um cliente específico
+    const clientIdFromRoute = location.state?.clientId;
+    const clientFromRoute = location.state?.client;
+
+    // Contexts
     const {
         currentLead,
-        loading,
-        errors: contextErrors,
+        loading: leadLoading,
+        errors: leadErrors,
         createLead,
         fetchLead,
         updateLead,
         clearCurrentLead,
-        clearError
+        clearError: clearLeadError
     } = useLeads();
 
-    // Estados locais
-    const [currentStep, setCurrentStep] = useState(1);
-    const totalSteps = 3;
-    const [formData, setFormData] = useState(getInitialFormData());
-    const [validationErrors, setValidationErrors] = useState({});
+    const {
+        clients,
+        createClient,
+        fetchClients,
+        loading: clientLoading,
+        errors: clientErrors
+    } = useClients();
+
+    // Estados do formulário
+    const [step, setStep] = useState(1); // 1: Cliente, 2: Qualificação
+    const [clientMode, setClientMode] = useState(clientIdFromRoute ? 'existing' : 'new'); // 'new' ou 'existing'
+    const [selectedClient, setSelectedClient] = useState(clientFromRoute || null);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [showClientSearch, setShowClientSearch] = useState(false);
+
+    // Dados do formulário de cliente
+    const [clientData, setClientData] = useState({
+        name: '',
+        email: '',
+        phone: '',
+        nif: '',
+        address: '',
+        city: '',
+        postalCode: '',
+        notes: ''
+    });
+
+    // Dados do formulário de lead
+    const [leadData, setLeadData] = useState({
+        type: LEAD_TYPES.COMPRADOR,
+        source: LEAD_SOURCES.WEBSITE,
+        qualification: {
+            qualificationNotes: '',
+            budget: '',
+            propertyReference: '',
+            propertyLocation: '',
+            askingPrice: '',
+            investmentLocation: '',
+            investmentBudget: ''
+        }
+    });
+
+    // Estados de validação
+    const [errors, setErrors] = useState({});
     const [touched, setTouched] = useState({});
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [showSuccess, setShowSuccess] = useState(false);
 
-    // Função para dados iniciais
-    function getInitialFormData() {
-        return {
-            // Passo 1 - Dados Básicos
-            name: '',
-            phone: '',
-            email: '',
-            leadSource: LEAD_SOURCES.WEBSITE,
-            interesse: LEAD_INTERESTS.COMPRAR,
-
-            // Passo 2 - Qualificação
-            urgencia: 'media',
-            orcamentoEstimado: '',
-            zonaInteresse: '',
-            tipologiaInteresse: '',
-            melhorHorario: '',
-            contactPreference: 'phone',
-            statusQualificacao: 'por_qualificar',
-
-            // Passo 3 - Informações Adicionais
-            descricao: '',
-            consultorObservations: '',
-            proximoContacto: '',
-            tags: [],
-            gdprConsent: false,
-            marketingConsent: false
-        };
-    }
-
-    // Carregar dados da lead em modo de edição
+    // Carregar lead em modo de edição
     useEffect(() => {
-        const loadLead = async () => {
-            if (isEditMode && leadId) {
-                try {
-                    const lead = await fetchLead(leadId);
-                    if (lead) {
-                        setFormData({
-                            name: lead.name || '',
-                            phone: lead.phone || '',
-                            email: lead.email || '',
-                            leadSource: lead.leadSource || LEAD_SOURCES.WEBSITE,
-                            interesse: lead.interesse || LEAD_INTERESTS.COMPRAR,
-                            urgencia: lead.urgencia || 'media',
-                            orcamentoEstimado: lead.orcamentoEstimado || '',
-                            zonaInteresse: lead.zonaInteresse || '',
-                            tipologiaInteresse: lead.tipologiaInteresse || '',
-                            melhorHorario: lead.melhorHorario || '',
-                            contactPreference: lead.contactPreference || 'phone',
-                            statusQualificacao: lead.statusQualificacao || 'por_qualificar',
-                            descricao: lead.descricao || '',
-                            consultorObservations: lead.consultorObservations || '',
-                            proximoContacto: lead.proximoContacto ?
-                                new Date(lead.proximoContacto.toDate()).toISOString().slice(0, 16) : '',
-                            tags: lead.tags || [],
-                            gdprConsent: lead.gdprConsent || false,
-                            marketingConsent: lead.marketingConsent || false
-                        });
-                    }
-                } catch (error) {
-                    console.error('Erro ao carregar lead:', error);
-                    setValidationErrors({ global: 'Erro ao carregar dados da lead' });
-                }
+        if (isEditMode && leadId) {
+            loadLead();
+        }
+    }, [leadId]);
+
+    // Carregar clientes para pesquisa
+    useEffect(() => {
+        if (clientMode === 'existing' && !clients.length) {
+            fetchClients();
+        }
+    }, [clientMode]);
+
+    // Carregar dados da lead
+    const loadLead = async () => {
+        try {
+            const lead = await fetchLead(leadId);
+            if (lead) {
+                setLeadData({
+                    type: lead.type,
+                    source: lead.source,
+                    qualification: lead.qualification
+                });
+                setSelectedClient(lead.client);
+                setClientMode('existing');
             }
-        };
-
-        loadLead();
-    }, [isEditMode, leadId, fetchLead]);
-
-    // Limpar ao desmontar
-    useEffect(() => {
-        return () => {
-            clearCurrentLead();
-            clearError('create');
-            clearError('update');
-        };
-    }, [clearCurrentLead, clearError]);
-
-    // Manipular mudanças no formulário
-    const handleChange = useCallback((e) => {
-        const { name, value, type, checked } = e.target;
-        setFormData(prev => ({
-            ...prev,
-            [name]: type === 'checkbox' ? checked : value
-        }));
-
-        // Marcar como tocado
-        setTouched(prev => ({ ...prev, [name]: true }));
-
-        // Limpar erro do campo
-        if (validationErrors[name]) {
-            setValidationErrors(prev => {
-                const newErrors = { ...prev };
-                delete newErrors[name];
-                return newErrors;
-            });
+        } catch (error) {
+            console.error('Erro ao carregar lead:', error);
         }
-    }, [validationErrors]);
+    };
 
-    // Adicionar tag
-    const handleAddTag = useCallback((tag) => {
-        if (tag && !formData.tags.includes(tag)) {
-            setFormData(prev => ({
-                ...prev,
-                tags: [...prev.tags, tag]
-            }));
-        }
-    }, [formData.tags]);
+    // Validar formulário de cliente
+    const validateClient = () => {
+        const newErrors = {};
 
-    // Remover tag
-    const handleRemoveTag = useCallback((tagToRemove) => {
-        setFormData(prev => ({
-            ...prev,
-            tags: prev.tags.filter(tag => tag !== tagToRemove)
-        }));
-    }, []);
-
-    // Validar passo atual
-    const validateStep = useCallback((step) => {
-        const stepData = {};
-        const errors = {};
-
-        switch (step) {
-            case 1:
-                // Validar dados básicos
-                stepData.name = formData.name;
-                stepData.phone = formData.phone;
-                stepData.email = formData.email;
-
-                if (!formData.name?.trim()) {
-                    errors.name = 'Nome é obrigatório';
-                }
-                if (!formData.phone?.trim()) {
-                    errors.phone = 'Telefone é obrigatório';
-                } else if (!/^[0-9+\-\s()]+$/.test(formData.phone)) {
-                    errors.phone = 'Formato de telefone inválido';
-                }
-                if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-                    errors.email = 'Email inválido';
-                }
-                break;
-
-            case 2:
-                // Validar qualificação
-                if (formData.orcamentoEstimado && formData.orcamentoEstimado < 0) {
-                    errors.orcamentoEstimado = 'Orçamento deve ser positivo';
-                }
-                break;
-
-            case 3:
-                // Validar informações adicionais
-                if (!formData.gdprConsent) {
-                    errors.gdprConsent = 'Consentimento GDPR é obrigatório';
-                }
-                break;
+        if (clientMode === 'new') {
+            if (!clientData.name) newErrors.name = 'Nome é obrigatório';
+            if (!clientData.phone && !clientData.email) {
+                newErrors.contact = 'Telefone ou email é obrigatório';
+            }
+        } else if (clientMode === 'existing') {
+            if (!selectedClient) newErrors.client = 'Selecione um cliente';
         }
 
-        setValidationErrors(errors);
-        return Object.keys(errors).length === 0;
-    }, [formData]);
+        return newErrors;
+    };
 
-    // Navegar entre passos
-    const handleNextStep = useCallback(() => {
-        if (validateStep(currentStep)) {
-            setCurrentStep(prev => Math.min(prev + 1, totalSteps));
+    // Validar formulário de lead
+    const validateLead = () => {
+        const newErrors = {};
+        const fields = getQualificationFieldsByType(leadData.type);
+
+        // Validar campos específicos por tipo
+        if (leadData.type === LEAD_TYPES.COMPRADOR || leadData.type === LEAD_TYPES.INQUILINO) {
+            if (!leadData.qualification.budget) {
+                newErrors.budget = 'Orçamento é obrigatório';
+            }
         }
-    }, [currentStep, validateStep]);
 
-    const handlePrevStep = useCallback(() => {
-        setCurrentStep(prev => Math.max(prev - 1, 1));
-    }, []);
+        if (leadData.type === LEAD_TYPES.VENDEDOR || leadData.type === LEAD_TYPES.SENHORIO) {
+            if (!leadData.qualification.propertyLocation) {
+                newErrors.propertyLocation = 'Localização do imóvel é obrigatória';
+            }
+            if (!leadData.qualification.askingPrice) {
+                newErrors.askingPrice = 'Valor pretendido é obrigatório';
+            }
+        }
+
+        if (leadData.type === LEAD_TYPES.INVESTIDOR) {
+            if (!leadData.qualification.investmentBudget) {
+                newErrors.investmentBudget = 'Orçamento de investimento é obrigatório';
+            }
+            if (!leadData.qualification.investmentLocation) {
+                newErrors.investmentLocation = 'Local de investimento é obrigatório';
+            }
+        }
+
+        return newErrors;
+    };
+
+    // Avançar para próximo passo
+    const handleNextStep = () => {
+        const clientErrors = validateClient();
+
+        if (Object.keys(clientErrors).length > 0) {
+            setErrors(clientErrors);
+            return;
+        }
+
+        setErrors({});
+        setStep(2);
+    };
+
+    // Voltar ao passo anterior
+    const handlePreviousStep = () => {
+        setStep(1);
+        setErrors({});
+    };
 
     // Submeter formulário
     const handleSubmit = async (e) => {
         e.preventDefault();
 
-        // Validar todos os passos
-        let isValid = true;
-        for (let i = 1; i <= totalSteps; i++) {
-            if (!validateStep(i)) {
-                isValid = false;
-                setCurrentStep(i);
-                break;
-            }
+        // Validar dados da lead
+        const leadValidationErrors = validateLead();
+
+        if (Object.keys(leadValidationErrors).length > 0) {
+            setErrors(leadValidationErrors);
+            return;
         }
 
-        if (!isValid) return;
-
         setIsSubmitting(true);
+        setErrors({});
 
         try {
-            if (isEditMode) {
-                await updateLead(leadId, formData);
+            let clientId;
+
+            // Criar ou obter cliente
+            if (clientMode === 'new') {
+                const newClient = await createClient({
+                    ...clientData,
+                    isProspect: true
+                });
+                clientId = newClient.id;
             } else {
-                await createLead(formData);
+                clientId = selectedClient.id;
+            }
+
+            // Preparar dados da lead
+            const leadToSave = {
+                clientId,
+                type: leadData.type,
+                source: leadData.source,
+                qualification: leadData.qualification
+            };
+
+            // Criar ou atualizar lead
+            if (isEditMode) {
+                await updateLead(leadId, leadToSave);
+            } else {
+                await createLead(leadToSave);
             }
 
             setShowSuccess(true);
 
-            // Redirecionar após 2 segundos
+            // Redirecionar após sucesso
             setTimeout(() => {
-                navigate('/leads', {
-                    state: {
-                        fromForm: true,
-                        action: isEditMode ? 'updated' : 'created'
-                    }
-                });
-            }, 2000);
+                navigate('/leads');
+            }, 1500);
         } catch (error) {
-            console.error('Erro ao guardar lead:', error);
-            setValidationErrors({
-                global: `Erro ao ${isEditMode ? 'atualizar' : 'criar'} lead: ${error.message}`
-            });
+            console.error('Erro ao salvar lead:', error);
+            setErrors({ submit: error.message });
+        } finally {
             setIsSubmitting(false);
         }
     };
 
-    // Cancelar
-    const handleCancel = () => {
-        navigate('/leads');
-    };
+    // Filtrar clientes para pesquisa
+    const filteredClients = clients.filter(client => {
+        const search = searchTerm.toLowerCase();
+        return (
+            client.name?.toLowerCase().includes(search) ||
+            client.email?.toLowerCase().includes(search) ||
+            client.phone?.includes(search)
+        );
+    });
 
-    // Componente de indicador de passos
-    const StepIndicator = () => (
-        <div className="mb-8">
-            <div className="flex items-center justify-between">
-                {[1, 2, 3].map((step) => (
-                    <div key={step} className="flex items-center">
-                        <div
-                            className={`
-                                flex items-center justify-center w-10 h-10 rounded-full
-                                ${currentStep >= step
-                                    ? 'bg-indigo-600 text-white'
-                                    : 'bg-gray-200 text-gray-500'}
-                            `}
-                        >
-                            {currentStep > step ? (
-                                <CheckCircleIcon className="w-6 h-6" />
-                            ) : (
-                                step
+    // Renderizar campos de qualificação por tipo
+    const renderQualificationFields = () => {
+        const { type, qualification } = leadData;
+
+        switch (type) {
+            case LEAD_TYPES.COMPRADOR:
+            case LEAD_TYPES.INQUILINO:
+                return (
+                    <>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                <CurrencyEuroIcon className="w-4 h-4 inline mr-1" />
+                                Orçamento *
+                            </label>
+                            <input
+                                type="number"
+                                value={qualification.budget}
+                                onChange={(e) => setLeadData({
+                                    ...leadData,
+                                    qualification: {
+                                        ...qualification,
+                                        budget: e.target.value
+                                    }
+                                })}
+                                className={`w-full px-3 py-2 border rounded-md ${errors.budget ? 'border-red-500' : 'border-gray-300'
+                                    }`}
+                                placeholder="Ex: 250000"
+                            />
+                            {errors.budget && (
+                                <p className="mt-1 text-sm text-red-600">{errors.budget}</p>
                             )}
                         </div>
-                        {step < 3 && (
-                            <div
-                                className={`w-full h-1 mx-2 ${currentStep > step ? 'bg-indigo-600' : 'bg-gray-200'
-                                    }`}
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                <HomeIcon className="w-4 h-4 inline mr-1" />
+                                Referência do Imóvel
+                            </label>
+                            <input
+                                type="text"
+                                value={qualification.propertyReference}
+                                onChange={(e) => setLeadData({
+                                    ...leadData,
+                                    qualification: {
+                                        ...qualification,
+                                        propertyReference: e.target.value
+                                    }
+                                })}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                                placeholder="Ex: REF123456"
                             />
-                        )}
-                    </div>
-                ))}
-            </div>
-            <div className="flex justify-between mt-2">
-                <span className="text-xs text-gray-600">Dados Básicos</span>
-                <span className="text-xs text-gray-600">Qualificação</span>
-                <span className="text-xs text-gray-600">Informações</span>
-            </div>
-        </div>
-    );
+                        </div>
+                    </>
+                );
+
+            case LEAD_TYPES.VENDEDOR:
+            case LEAD_TYPES.SENHORIO:
+                return (
+                    <>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                <MapPinIcon className="w-4 h-4 inline mr-1" />
+                                Localização do Imóvel *
+                            </label>
+                            <input
+                                type="text"
+                                value={qualification.propertyLocation}
+                                onChange={(e) => setLeadData({
+                                    ...leadData,
+                                    qualification: {
+                                        ...qualification,
+                                        propertyLocation: e.target.value
+                                    }
+                                })}
+                                className={`w-full px-3 py-2 border rounded-md ${errors.propertyLocation ? 'border-red-500' : 'border-gray-300'
+                                    }`}
+                                placeholder="Ex: Porto, Cedofeita"
+                            />
+                            {errors.propertyLocation && (
+                                <p className="mt-1 text-sm text-red-600">{errors.propertyLocation}</p>
+                            )}
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                <CurrencyEuroIcon className="w-4 h-4 inline mr-1" />
+                                Valor Pretendido *
+                            </label>
+                            <input
+                                type="number"
+                                value={qualification.askingPrice}
+                                onChange={(e) => setLeadData({
+                                    ...leadData,
+                                    qualification: {
+                                        ...qualification,
+                                        askingPrice: e.target.value
+                                    }
+                                })}
+                                className={`w-full px-3 py-2 border rounded-md ${errors.askingPrice ? 'border-red-500' : 'border-gray-300'
+                                    }`}
+                                placeholder="Ex: 350000"
+                            />
+                            {errors.askingPrice && (
+                                <p className="mt-1 text-sm text-red-600">{errors.askingPrice}</p>
+                            )}
+                        </div>
+                    </>
+                );
+
+            case LEAD_TYPES.INVESTIDOR:
+                return (
+                    <>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                <BanknotesIcon className="w-4 h-4 inline mr-1" />
+                                Orçamento de Investimento *
+                            </label>
+                            <input
+                                type="number"
+                                value={qualification.investmentBudget}
+                                onChange={(e) => setLeadData({
+                                    ...leadData,
+                                    qualification: {
+                                        ...qualification,
+                                        investmentBudget: e.target.value
+                                    }
+                                })}
+                                className={`w-full px-3 py-2 border rounded-md ${errors.investmentBudget ? 'border-red-500' : 'border-gray-300'
+                                    }`}
+                                placeholder="Ex: 500000"
+                            />
+                            {errors.investmentBudget && (
+                                <p className="mt-1 text-sm text-red-600">{errors.investmentBudget}</p>
+                            )}
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                <MapPinIcon className="w-4 h-4 inline mr-1" />
+                                Local de Investimento *
+                            </label>
+                            <input
+                                type="text"
+                                value={qualification.investmentLocation}
+                                onChange={(e) => setLeadData({
+                                    ...leadData,
+                                    qualification: {
+                                        ...qualification,
+                                        investmentLocation: e.target.value
+                                    }
+                                })}
+                                className={`w-full px-3 py-2 border rounded-md ${errors.investmentLocation ? 'border-red-500' : 'border-gray-300'
+                                    }`}
+                                placeholder="Ex: Lisboa, Porto"
+                            />
+                            {errors.investmentLocation && (
+                                <p className="mt-1 text-sm text-red-600">{errors.investmentLocation}</p>
+                            )}
+                        </div>
+                    </>
+                );
+
+            default:
+                return null;
+        }
+    };
 
     return (
         <Layout>
-            <div className="max-w-3xl mx-auto">
+            <div className="max-w-4xl mx-auto">
                 {/* Header */}
                 <div className="mb-6">
                     <button
-                        onClick={handleCancel}
-                        className="inline-flex items-center text-sm text-gray-500 hover:text-gray-700 mb-4"
+                        onClick={() => navigate('/leads')}
+                        className="flex items-center text-gray-600 hover:text-gray-900 mb-4"
                     >
-                        <ArrowLeftIcon className="h-4 w-4 mr-1" />
-                        Voltar às Leads
+                        <ArrowLeftIcon className="w-5 h-5 mr-2" />
+                        Voltar para Leads
                     </button>
+
                     <h1 className="text-2xl font-bold text-gray-900">
                         {isEditMode ? 'Editar Lead' : 'Nova Lead'}
                     </h1>
                     <p className="mt-1 text-sm text-gray-600">
-                        {isEditMode
-                            ? 'Atualize as informações da lead'
-                            : 'Adicione uma nova lead ao sistema'}
+                        Passo {step} de 2: {step === 1 ? 'Dados do Cliente' : 'Qualificação da Lead'}
                     </p>
                 </div>
 
-                {/* Mensagem de Sucesso */}
+                {/* Progress Bar */}
+                <div className="mb-8">
+                    <div className="flex items-center">
+                        <div className={`flex-1 h-2 rounded-l ${step >= 1 ? 'bg-blue-600' : 'bg-gray-200'}`} />
+                        <div className={`flex-1 h-2 rounded-r ${step >= 2 ? 'bg-blue-600' : 'bg-gray-200'}`} />
+                    </div>
+                </div>
+
+                {/* Success Message */}
                 {showSuccess && (
-                    <div className="mb-4 bg-green-50 border-l-4 border-green-400 p-4">
-                        <div className="flex">
-                            <CheckCircleIcon className="h-5 w-5 text-green-400" />
-                            <div className="ml-3">
-                                <p className="text-sm text-green-700">
-                                    Lead {isEditMode ? 'atualizada' : 'criada'} com sucesso!
-                                </p>
-                            </div>
+                    <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg flex items-start">
+                        <CheckCircleIcon className="w-5 h-5 text-green-600 mt-0.5 mr-3" />
+                        <div>
+                            <p className="text-green-800 font-medium">
+                                Lead {isEditMode ? 'atualizada' : 'criada'} com sucesso!
+                            </p>
+                            <p className="text-green-600 text-sm mt-1">
+                                Redirecionando...
+                            </p>
                         </div>
                     </div>
                 )}
 
-                {/* Erro Global */}
-                {validationErrors.global && (
-                    <div className="mb-4 bg-red-50 border-l-4 border-red-400 p-4">
-                        <div className="flex">
-                            <ExclamationTriangleIcon className="h-5 w-5 text-red-400" />
-                            <div className="ml-3">
-                                <p className="text-sm text-red-700">
-                                    {validationErrors.global}
-                                </p>
-                            </div>
+                {/* Error Message */}
+                {errors.submit && (
+                    <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start">
+                        <ExclamationTriangleIcon className="w-5 h-5 text-red-600 mt-0.5 mr-3" />
+                        <div>
+                            <p className="text-red-800 font-medium">Erro ao salvar</p>
+                            <p className="text-red-600 text-sm mt-1">{errors.submit}</p>
                         </div>
                     </div>
                 )}
 
-                {/* Indicador de Passos */}
-                <StepIndicator />
+                <form onSubmit={handleSubmit} className="space-y-6">
+                    {/* Step 1: Cliente */}
+                    {step === 1 && (
+                        <div className="bg-white rounded-lg shadow p-6">
+                            <h2 className="text-lg font-semibold text-gray-900 mb-6">
+                                Dados do Cliente
+                            </h2>
 
-                {/* Formulário */}
-                <form onSubmit={handleSubmit} className="bg-white shadow rounded-lg">
-                    <div className="px-6 py-4">
-                        {/* Passo 1: Dados Básicos */}
-                        {currentStep === 1 && (
-                            <div className="space-y-6">
-                                <h3 className="text-lg font-medium text-gray-900">
-                                    Dados Básicos
-                                </h3>
+                            {/* Seletor de modo */}
+                            {!clientIdFromRoute && (
+                                <div className="mb-6">
+                                    <div className="flex space-x-4">
+                                        <button
+                                            type="button"
+                                            onClick={() => setClientMode('new')}
+                                            className={`flex-1 py-2 px-4 rounded-md border ${clientMode === 'new'
+                                                    ? 'bg-blue-600 text-white border-blue-600'
+                                                    : 'bg-white text-gray-700 border-gray-300'
+                                                }`}
+                                        >
+                                            <UserPlusIcon className="w-5 h-5 inline mr-2" />
+                                            Novo Cliente
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setClientMode('existing')}
+                                            className={`flex-1 py-2 px-4 rounded-md border ${clientMode === 'existing'
+                                                    ? 'bg-blue-600 text-white border-blue-600'
+                                                    : 'bg-white text-gray-700 border-gray-300'
+                                                }`}
+                                        >
+                                            <MagnifyingGlassIcon className="w-5 h-5 inline mr-2" />
+                                            Cliente Existente
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
 
-                                {/* Nome */}
-                                <div>
-                                    <label htmlFor="name" className="block text-sm font-medium text-gray-700">
-                                        Nome Completo *
-                                    </label>
-                                    <div className="mt-1 relative rounded-md shadow-sm">
-                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                            <UserIcon className="h-5 w-5 text-gray-400" />
-                                        </div>
+                            {/* Formulário de novo cliente */}
+                            {clientMode === 'new' && (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="md:col-span-2">
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                            <UserIcon className="w-4 h-4 inline mr-1" />
+                                            Nome Completo *
+                                        </label>
                                         <input
                                             type="text"
-                                            name="name"
-                                            id="name"
-                                            value={formData.name}
-                                            onChange={handleChange}
-                                            className={`
-                                                block w-full pl-10 pr-3 py-2 border rounded-md
-                                                focus:outline-none focus:ring-1
-                                                ${validationErrors.name
-                                                    ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
-                                                    : 'border-gray-300 focus:ring-indigo-500 focus:border-indigo-500'}
-                                            `}
-                                            placeholder="João Silva"
+                                            value={clientData.name}
+                                            onChange={(e) => setClientData({
+                                                ...clientData,
+                                                name: e.target.value
+                                            })}
+                                            className={`w-full px-3 py-2 border rounded-md ${errors.name ? 'border-red-500' : 'border-gray-300'
+                                                }`}
+                                            placeholder="Ex: João Silva"
                                         />
+                                        {errors.name && (
+                                            <p className="mt-1 text-sm text-red-600">{errors.name}</p>
+                                        )}
                                     </div>
-                                    {validationErrors.name && (
-                                        <p className="mt-1 text-sm text-red-600">
-                                            {validationErrors.name}
-                                        </p>
-                                    )}
-                                </div>
 
-                                {/* Telefone */}
-                                <div>
-                                    <label htmlFor="phone" className="block text-sm font-medium text-gray-700">
-                                        Telefone *
-                                    </label>
-                                    <div className="mt-1 relative rounded-md shadow-sm">
-                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                            <PhoneIcon className="h-5 w-5 text-gray-400" />
-                                        </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                            <PhoneIcon className="w-4 h-4 inline mr-1" />
+                                            Telefone
+                                        </label>
                                         <input
-                                            type="text"
-                                            name="phone"
-                                            id="phone"
-                                            value={formData.phone}
-                                            onChange={handleChange}
-                                            className={`
-                                                block w-full pl-10 pr-3 py-2 border rounded-md
-                                                focus:outline-none focus:ring-1
-                                                ${validationErrors.phone
-                                                    ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
-                                                    : 'border-gray-300 focus:ring-indigo-500 focus:border-indigo-500'}
-                                            `}
-                                            placeholder="912 345 678"
+                                            type="tel"
+                                            value={clientData.phone}
+                                            onChange={(e) => setClientData({
+                                                ...clientData,
+                                                phone: e.target.value
+                                            })}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                                            placeholder="Ex: 912345678"
                                         />
                                     </div>
-                                    {validationErrors.phone && (
-                                        <p className="mt-1 text-sm text-red-600">
-                                            {validationErrors.phone}
-                                        </p>
-                                    )}
-                                </div>
 
-                                {/* Email */}
-                                <div>
-                                    <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                                        Email
-                                    </label>
-                                    <div className="mt-1 relative rounded-md shadow-sm">
-                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                            <EnvelopeIcon className="h-5 w-5 text-gray-400" />
-                                        </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                            <EnvelopeIcon className="w-4 h-4 inline mr-1" />
+                                            Email
+                                        </label>
                                         <input
                                             type="email"
-                                            name="email"
-                                            id="email"
-                                            value={formData.email}
-                                            onChange={handleChange}
-                                            className={`
-                                                block w-full pl-10 pr-3 py-2 border rounded-md
-                                                focus:outline-none focus:ring-1
-                                                ${validationErrors.email
-                                                    ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
-                                                    : 'border-gray-300 focus:ring-indigo-500 focus:border-indigo-500'}
-                                            `}
-                                            placeholder="joao.silva@email.com"
+                                            value={clientData.email}
+                                            onChange={(e) => setClientData({
+                                                ...clientData,
+                                                email: e.target.value
+                                            })}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                                            placeholder="Ex: joao@email.com"
                                         />
                                     </div>
-                                    {validationErrors.email && (
-                                        <p className="mt-1 text-sm text-red-600">
-                                            {validationErrors.email}
-                                        </p>
+
+                                    {errors.contact && (
+                                        <div className="md:col-span-2">
+                                            <p className="text-sm text-red-600">{errors.contact}</p>
+                                        </div>
                                     )}
+                                </div>
+                            )}
+
+                            {/* Pesquisa de cliente existente */}
+                            {clientMode === 'existing' && (
+                                <div>
+                                    {selectedClient ? (
+                                        <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                                            <div className="flex items-start justify-between">
+                                                <div>
+                                                    <p className="font-medium text-gray-900">
+                                                        {selectedClient.name}
+                                                    </p>
+                                                    <p className="text-sm text-gray-600 mt-1">
+                                                        {selectedClient.email} • {selectedClient.phone}
+                                                    </p>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setSelectedClient(null)}
+                                                    className="text-blue-600 hover:text-blue-800"
+                                                >
+                                                    Alterar
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div>
+                                            <div className="relative">
+                                                <input
+                                                    type="text"
+                                                    value={searchTerm}
+                                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                                    onFocus={() => setShowClientSearch(true)}
+                                                    className="w-full px-3 py-2 pl-10 border border-gray-300 rounded-md"
+                                                    placeholder="Pesquisar cliente por nome, email ou telefone..."
+                                                />
+                                                <MagnifyingGlassIcon className="w-5 h-5 text-gray-400 absolute left-3 top-2.5" />
+                                            </div>
+
+                                            {showClientSearch && filteredClients.length > 0 && (
+                                                <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-auto">
+                                                    {filteredClients.map(client => (
+                                                        <button
+                                                            key={client.id}
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setSelectedClient(client);
+                                                                setShowClientSearch(false);
+                                                                setSearchTerm('');
+                                                            }}
+                                                            className="w-full px-4 py-2 text-left hover:bg-gray-50 border-b last:border-b-0"
+                                                        >
+                                                            <p className="font-medium text-gray-900">
+                                                                {client.name}
+                                                            </p>
+                                                            <p className="text-sm text-gray-600">
+                                                                {client.email} • {client.phone}
+                                                            </p>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            )}
+
+                                            {errors.client && (
+                                                <p className="mt-1 text-sm text-red-600">{errors.client}</p>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Step 2: Qualificação */}
+                    {step === 2 && (
+                        <div className="bg-white rounded-lg shadow p-6">
+                            <h2 className="text-lg font-semibold text-gray-900 mb-6">
+                                Qualificação da Lead
+                            </h2>
+
+                            <div className="space-y-4">
+                                {/* Tipo de Lead */}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Tipo de Lead *
+                                    </label>
+                                    <select
+                                        value={leadData.type}
+                                        onChange={(e) => setLeadData({
+                                            ...leadData,
+                                            type: e.target.value
+                                        })}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                                    >
+                                        {Object.entries(LEAD_TYPE_LABELS).map(([value, label]) => (
+                                            <option key={value} value={value}>
+                                                {label}
+                                            </option>
+                                        ))}
+                                    </select>
                                 </div>
 
                                 {/* Fonte da Lead */}
                                 <div>
-                                    <label htmlFor="leadSource" className="block text-sm font-medium text-gray-700">
-                                        Fonte da Lead
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        <TagIcon className="w-4 h-4 inline mr-1" />
+                                        Fonte da Lead *
                                     </label>
                                     <select
-                                        id="leadSource"
-                                        name="leadSource"
-                                        value={formData.leadSource}
-                                        onChange={handleChange}
-                                        className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 rounded-md"
+                                        value={leadData.source}
+                                        onChange={(e) => setLeadData({
+                                            ...leadData,
+                                            source: e.target.value
+                                        })}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
                                     >
                                         {Object.entries(LEAD_SOURCE_LABELS).map(([value, label]) => (
                                             <option key={value} value={value}>
@@ -496,384 +724,70 @@ const LeadFormPage = () => {
                                     </select>
                                 </div>
 
-                                {/* Interesse */}
+                                {/* Campos específicos por tipo */}
+                                {renderQualificationFields()}
+
+                                {/* Notas de Qualificação */}
                                 <div>
-                                    <label htmlFor="interesse" className="block text-sm font-medium text-gray-700">
-                                        Interesse
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        <DocumentTextIcon className="w-4 h-4 inline mr-1" />
+                                        Notas de Qualificação
                                     </label>
-                                    <select
-                                        id="interesse"
-                                        name="interesse"
-                                        value={formData.interesse}
-                                        onChange={handleChange}
-                                        className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 rounded-md"
-                                    >
-                                        {Object.entries(LEAD_INTEREST_LABELS).map(([value, label]) => (
-                                            <option key={value} value={value}>
-                                                {label}
-                                            </option>
-                                        ))}
-                                    </select>
+                                    <textarea
+                                        value={leadData.qualification.qualificationNotes}
+                                        onChange={(e) => setLeadData({
+                                            ...leadData,
+                                            qualification: {
+                                                ...leadData.qualification,
+                                                qualificationNotes: e.target.value
+                                            }
+                                        })}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                                        rows="4"
+                                        placeholder="Detalhes sobre a qualificação do cliente..."
+                                    />
                                 </div>
                             </div>
-                        )}
+                        </div>
+                    )}
 
-                        {/* Passo 2: Qualificação */}
-                        {currentStep === 2 && (
-                            <div className="space-y-6">
-                                <h3 className="text-lg font-medium text-gray-900">
-                                    Qualificação da Lead
-                                </h3>
-
-                                {/* Urgência */}
-                                <div>
-                                    <label htmlFor="urgencia" className="block text-sm font-medium text-gray-700">
-                                        Urgência
-                                    </label>
-                                    <select
-                                        id="urgencia"
-                                        name="urgencia"
-                                        value={formData.urgencia}
-                                        onChange={handleChange}
-                                        className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 rounded-md"
-                                    >
-                                        <option value="baixa">Baixa</option>
-                                        <option value="media">Média</option>
-                                        <option value="alta">Alta</option>
-                                    </select>
-                                </div>
-
-                                {/* Orçamento Estimado */}
-                                <div>
-                                    <label htmlFor="orcamentoEstimado" className="block text-sm font-medium text-gray-700">
-                                        Orçamento Estimado (€)
-                                    </label>
-                                    <div className="mt-1 relative rounded-md shadow-sm">
-                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                            <CurrencyEuroIcon className="h-5 w-5 text-gray-400" />
-                                        </div>
-                                        <input
-                                            type="number"
-                                            name="orcamentoEstimado"
-                                            id="orcamentoEstimado"
-                                            value={formData.orcamentoEstimado}
-                                            onChange={handleChange}
-                                            className={`
-                                                block w-full pl-10 pr-3 py-2 border rounded-md
-                                                focus:outline-none focus:ring-1
-                                                ${validationErrors.orcamentoEstimado
-                                                    ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
-                                                    : 'border-gray-300 focus:ring-indigo-500 focus:border-indigo-500'}
-                                            `}
-                                            placeholder="250000"
-                                            min="0"
-                                        />
-                                    </div>
-                                    {validationErrors.orcamentoEstimado && (
-                                        <p className="mt-1 text-sm text-red-600">
-                                            {validationErrors.orcamentoEstimado}
-                                        </p>
-                                    )}
-                                </div>
-
-                                {/* Zona de Interesse */}
-                                <div>
-                                    <label htmlFor="zonaInteresse" className="block text-sm font-medium text-gray-700">
-                                        Zona de Interesse
-                                    </label>
-                                    <div className="mt-1 relative rounded-md shadow-sm">
-                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                            <HomeIcon className="h-5 w-5 text-gray-400" />
-                                        </div>
-                                        <input
-                                            type="text"
-                                            name="zonaInteresse"
-                                            id="zonaInteresse"
-                                            value={formData.zonaInteresse}
-                                            onChange={handleChange}
-                                            className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                                            placeholder="Porto, Vila Nova de Gaia"
-                                        />
-                                    </div>
-                                </div>
-
-                                {/* Tipologia de Interesse */}
-                                <div>
-                                    <label htmlFor="tipologiaInteresse" className="block text-sm font-medium text-gray-700">
-                                        Tipologia de Interesse
-                                    </label>
-                                    <select
-                                        id="tipologiaInteresse"
-                                        name="tipologiaInteresse"
-                                        value={formData.tipologiaInteresse}
-                                        onChange={handleChange}
-                                        className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 rounded-md"
-                                    >
-                                        <option value="">Selecionar...</option>
-                                        <option value="T0">T0</option>
-                                        <option value="T1">T1</option>
-                                        <option value="T2">T2</option>
-                                        <option value="T3">T3</option>
-                                        <option value="T4">T4</option>
-                                        <option value="T5+">T5+</option>
-                                        <option value="moradia">Moradia</option>
-                                        <option value="terreno">Terreno</option>
-                                        <option value="comercial">Comercial</option>
-                                    </select>
-                                </div>
-
-                                {/* Melhor Horário */}
-                                <div>
-                                    <label htmlFor="melhorHorario" className="block text-sm font-medium text-gray-700">
-                                        Melhor Horário para Contacto
-                                    </label>
-                                    <div className="mt-1 relative rounded-md shadow-sm">
-                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                            <ClockIcon className="h-5 w-5 text-gray-400" />
-                                        </div>
-                                        <input
-                                            type="text"
-                                            name="melhorHorario"
-                                            id="melhorHorario"
-                                            value={formData.melhorHorario}
-                                            onChange={handleChange}
-                                            className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                                            placeholder="Manhã, Tarde, Fim de tarde"
-                                        />
-                                    </div>
-                                </div>
-
-                                {/* Preferência de Contacto */}
-                                <div>
-                                    <label htmlFor="contactPreference" className="block text-sm font-medium text-gray-700">
-                                        Preferência de Contacto
-                                    </label>
-                                    <select
-                                        id="contactPreference"
-                                        name="contactPreference"
-                                        value={formData.contactPreference}
-                                        onChange={handleChange}
-                                        className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 rounded-md"
-                                    >
-                                        <option value="phone">Telefone</option>
-                                        <option value="email">Email</option>
-                                        <option value="whatsapp">WhatsApp</option>
-                                        <option value="any">Qualquer</option>
-                                    </select>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Passo 3: Informações Adicionais */}
-                        {currentStep === 3 && (
-                            <div className="space-y-6">
-                                <h3 className="text-lg font-medium text-gray-900">
-                                    Informações Adicionais
-                                </h3>
-
-                                {/* Descrição */}
-                                <div>
-                                    <label htmlFor="descricao" className="block text-sm font-medium text-gray-700">
-                                        Descrição / Necessidades
-                                    </label>
-                                    <div className="mt-1">
-                                        <textarea
-                                            id="descricao"
-                                            name="descricao"
-                                            rows={4}
-                                            value={formData.descricao}
-                                            onChange={handleChange}
-                                            className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md"
-                                            placeholder="Descreva as necessidades e expectativas do cliente..."
-                                        />
-                                    </div>
-                                </div>
-
-                                {/* Observações do Consultor */}
-                                <div>
-                                    <label htmlFor="consultorObservations" className="block text-sm font-medium text-gray-700">
-                                        Observações do Consultor
-                                    </label>
-                                    <div className="mt-1">
-                                        <textarea
-                                            id="consultorObservations"
-                                            name="consultorObservations"
-                                            rows={3}
-                                            value={formData.consultorObservations}
-                                            onChange={handleChange}
-                                            className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md"
-                                            placeholder="Notas internas sobre a lead..."
-                                        />
-                                    </div>
-                                </div>
-
-                                {/* Próximo Contacto */}
-                                <div>
-                                    <label htmlFor="proximoContacto" className="block text-sm font-medium text-gray-700">
-                                        Agendar Próximo Contacto
-                                    </label>
-                                    <div className="mt-1 relative rounded-md shadow-sm">
-                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                            <CalendarIcon className="h-5 w-5 text-gray-400" />
-                                        </div>
-                                        <input
-                                            type="datetime-local"
-                                            name="proximoContacto"
-                                            id="proximoContacto"
-                                            value={formData.proximoContacto}
-                                            onChange={handleChange}
-                                            className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                                        />
-                                    </div>
-                                </div>
-
-                                {/* Tags */}
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        Tags
-                                    </label>
-                                    <div className="flex flex-wrap gap-2 mb-2">
-                                        {formData.tags.map((tag, index) => (
-                                            <span
-                                                key={index}
-                                                className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-indigo-100 text-indigo-800"
-                                            >
-                                                <TagIcon className="h-4 w-4 mr-1" />
-                                                {tag}
-                                                <button
-                                                    type="button"
-                                                    onClick={() => handleRemoveTag(tag)}
-                                                    className="ml-2 text-indigo-600 hover:text-indigo-800"
-                                                >
-                                                    ×
-                                                </button>
-                                            </span>
-                                        ))}
-                                    </div>
-                                    <div className="flex gap-2">
-                                        <input
-                                            type="text"
-                                            placeholder="Adicionar tag..."
-                                            className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                                            onKeyPress={(e) => {
-                                                if (e.key === 'Enter') {
-                                                    e.preventDefault();
-                                                    const input = e.target;
-                                                    if (input.value) {
-                                                        handleAddTag(input.value);
-                                                        input.value = '';
-                                                    }
-                                                }
-                                            }}
-                                        />
-                                    </div>
-                                </div>
-
-                                {/* Consentimentos */}
-                                <div className="space-y-4">
-                                    <div className="flex items-start">
-                                        <div className="flex items-center h-5">
-                                            <input
-                                                id="gdprConsent"
-                                                name="gdprConsent"
-                                                type="checkbox"
-                                                checked={formData.gdprConsent}
-                                                onChange={handleChange}
-                                                className="focus:ring-indigo-500 h-4 w-4 text-indigo-600 border-gray-300 rounded"
-                                            />
-                                        </div>
-                                        <div className="ml-3 text-sm">
-                                            <label htmlFor="gdprConsent" className="font-medium text-gray-700">
-                                                Consentimento GDPR *
-                                            </label>
-                                            <p className="text-gray-500">
-                                                O cliente consentiu o tratamento dos seus dados pessoais
-                                            </p>
-                                            {validationErrors.gdprConsent && (
-                                                <p className="mt-1 text-sm text-red-600">
-                                                    {validationErrors.gdprConsent}
-                                                </p>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    <div className="flex items-start">
-                                        <div className="flex items-center h-5">
-                                            <input
-                                                id="marketingConsent"
-                                                name="marketingConsent"
-                                                type="checkbox"
-                                                checked={formData.marketingConsent}
-                                                onChange={handleChange}
-                                                className="focus:ring-indigo-500 h-4 w-4 text-indigo-600 border-gray-300 rounded"
-                                            />
-                                        </div>
-                                        <div className="ml-3 text-sm">
-                                            <label htmlFor="marketingConsent" className="font-medium text-gray-700">
-                                                Consentimento Marketing
-                                            </label>
-                                            <p className="text-gray-500">
-                                                O cliente aceita receber comunicações de marketing
-                                            </p>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Footer com botões */}
-                    <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-between">
-                        <div>
-                            {currentStep > 1 && (
+                    {/* Botões de ação */}
+                    <div className="flex justify-between">
+                        {step === 1 ? (
+                            <>
                                 <button
                                     type="button"
-                                    onClick={handlePrevStep}
-                                    className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                                    onClick={() => navigate('/leads')}
+                                    className="px-6 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
                                 >
-                                    <ArrowLeftIcon className="h-4 w-4 mr-2" />
-                                    Anterior
+                                    Cancelar
                                 </button>
-                            )}
-                        </div>
-
-                        <div className="flex gap-3">
-                            <button
-                                type="button"
-                                onClick={handleCancel}
-                                className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                            >
-                                Cancelar
-                            </button>
-
-                            {currentStep < totalSteps ? (
                                 <button
                                     type="button"
                                     onClick={handleNextStep}
-                                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                                    className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
                                 >
                                     Próximo
                                 </button>
-                            ) : (
+                            </>
+                        ) : (
+                            <>
+                                <button
+                                    type="button"
+                                    onClick={handlePreviousStep}
+                                    className="px-6 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                                >
+                                    Voltar
+                                </button>
                                 <button
                                     type="submit"
                                     disabled={isSubmitting}
-                                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
-                                    {isSubmitting ? (
-                                        <>
-                                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                                            A guardar...
-                                        </>
-                                    ) : (
-                                        <>
-                                            <CheckCircleIcon className="h-4 w-4 mr-2" />
-                                            {isEditMode ? 'Atualizar Lead' : 'Criar Lead'}
-                                        </>
-                                    )}
+                                    {isSubmitting ? 'Salvando...' : isEditMode ? 'Atualizar' : 'Criar Lead'}
                                 </button>
-                            )}
-                        </div>
+                            </>
+                        )}
                     </div>
                 </form>
             </div>
