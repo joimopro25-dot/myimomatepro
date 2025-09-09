@@ -1,7 +1,7 @@
 /**
  * LEAD DETAIL PAGE - MyImoMatePro
- * Página de detalhes completos da lead
- * Inclui timeline, tarefas, contactos e ações
+ * Página de detalhes completos da lead simplificada
+ * Mostra cliente PROSPECT com toda a qualificação
  * 
  * Caminho: src/pages/LeadDetail.jsx
  */
@@ -10,292 +10,157 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useLeads } from '../contexts/LeadContext';
 import {
-    LEAD_STATUS_LABELS,
+    LEAD_TYPE_LABELS,
     LEAD_SOURCE_LABELS,
-    LEAD_INTEREST_LABELS,
-    LEAD_TEMPERATURE_LABELS,
-    TASK_TYPES,
-    TASK_TYPE_LABELS,
-    TASK_STATUS_LABELS,
-    calculateLeadTemperature,
-    getNextRecommendedAction,
+    LEAD_FUNNEL_LABELS,
+    LEAD_FUNNEL_COLORS,
+    formatCurrency,
+    getFunnelProgress,
     getRelativeTime,
-    formatPhone
+    getNextAction
 } from '../models/leadModel';
 import Layout from '../components/Layout';
 import {
     ArrowLeftIcon,
     PencilIcon,
-    UserPlusIcon,
+    TrashIcon,
+    CheckCircleIcon,
     PhoneIcon,
     EnvelopeIcon,
-    ChatBubbleLeftIcon,
+    MapPinIcon,
+    CurrencyEuroIcon,
+    HomeIcon,
+    TagIcon,
     CalendarIcon,
     ClockIcon,
-    CheckCircleIcon,
-    ExclamationTriangleIcon,
-    FireIcon,
-    PlusIcon,
-    EyeIcon,
+    UserIcon,
     DocumentTextIcon,
-    TagIcon,
-    BanknotesIcon,
-    HomeIcon,
-    IdentificationIcon,
-    XMarkIcon,
-    TrashIcon,
+    FunnelIcon,
     ArrowRightIcon,
-    ChevronDownIcon,
-    ChevronUpIcon
+    ExclamationTriangleIcon,
+    ChartBarIcon,
+    SparklesIcon
 } from '@heroicons/react/24/outline';
-import { Snowflake } from 'lucide-react';
 
 const LeadDetailPage = () => {
     const { leadId } = useParams();
     const navigate = useNavigate();
-
     const {
         currentLead,
-        leadTasks,
-        leadContacts,
         loading,
         errors,
         fetchLead,
-        fetchLeadTasks,
-        fetchLeadContacts,
-        createTask,
-        addContact,
-        completeTask,
-        convertLead,
-        markAsLost,
         updateLead,
         deleteLead,
-        clearCurrentLead,
-        clearError
+        convertLead,
+        clearCurrentLead
     } = useLeads();
 
     // Estados locais
-    const [activeTab, setActiveTab] = useState('info');
-    const [showTaskModal, setShowTaskModal] = useState(false);
-    const [showContactModal, setShowContactModal] = useState(false);
-    const [showConvertModal, setShowConvertModal] = useState(false);
-    const [showLostModal, setShowLostModal] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-    const [expandedSections, setExpandedSections] = useState({
-        tasks: true,
-        contacts: true,
-        timeline: true
-    });
+    const [showConvertConfirm, setShowConvertConfirm] = useState(false);
+    const [isProcessing, setIsProcessing] = useState(false);
+    const [successMessage, setSuccessMessage] = useState('');
+    const [errorMessage, setErrorMessage] = useState('');
 
-    // Estados dos formulários
-    const [taskForm, setTaskForm] = useState({
-        tipo: 'call',
-        titulo: '',
-        descricao: '',
-        agendadaPara: ''
-    });
-
-    const [contactForm, setContactForm] = useState({
-        tipo: 'call',
-        resumo: '',
-        notas: '',
-        resultado: 'positivo',
-        agendarProximo: false,
-        proximoContactoData: '',
-        proximoContactoTipo: 'call'
-    });
-
-    const [convertForm, setConvertForm] = useState({
-        tipoNegocio: '',
-        valorNegocio: '',
-        comissao: '',
-        observacoes: ''
-    });
-
-    const [lostReason, setLostReason] = useState('');
-
-    // Carregar dados ao montar
+    // Carregar lead ao montar
     useEffect(() => {
-        const loadData = async () => {
-            if (leadId) {
-                await fetchLead(leadId);
-                await fetchLeadTasks(leadId);
-                await fetchLeadContacts(leadId);
-            }
-        };
-        loadData();
+        if (leadId) {
+            loadLead();
+        }
 
-        // Limpar ao desmontar
         return () => {
             clearCurrentLead();
-            clearError('fetch');
         };
     }, [leadId]);
 
-    // Navegação
-    const handleBack = () => {
-        navigate('/leads');
+    const loadLead = async () => {
+        try {
+            await fetchLead(leadId);
+        } catch (error) {
+            console.error('Erro ao carregar lead:', error);
+            setErrorMessage('Erro ao carregar lead');
+        }
     };
 
+    // Handlers de ações
     const handleEdit = () => {
         navigate(`/leads/${leadId}/edit`);
     };
 
-    // Criar tarefa
-    const handleCreateTask = async (e) => {
-        e.preventDefault();
-
-        try {
-            await createTask(leadId, taskForm);
-            setShowTaskModal(false);
-            setTaskForm({
-                tipo: 'call',
-                titulo: '',
-                descricao: '',
-                agendadaPara: ''
-            });
-
-            // Recarregar tarefas
-            await fetchLeadTasks(leadId);
-        } catch (error) {
-            console.error('Erro ao criar tarefa:', error);
-        }
-    };
-
-    // Completar tarefa
-    const handleCompleteTask = async (taskId) => {
-        try {
-            await completeTask(leadId, taskId, {
-                resultado: 'Tarefa completada',
-                notas: ''
-            });
-
-            // Recarregar dados
-            await fetchLeadTasks(leadId);
-            await fetchLead(leadId);
-        } catch (error) {
-            console.error('Erro ao completar tarefa:', error);
-        }
-    };
-
-    // Adicionar contacto
-    const handleAddContact = async (e) => {
-        e.preventDefault();
-
-        try {
-            await addContact(leadId, contactForm);
-            setShowContactModal(false);
-            setContactForm({
-                tipo: 'call',
-                resumo: '',
-                notas: '',
-                resultado: 'positivo',
-                agendarProximo: false,
-                proximoContactoData: '',
-                proximoContactoTipo: 'call'
-            });
-
-            // Recarregar contactos
-            await fetchLeadContacts(leadId);
-            await fetchLead(leadId);
-        } catch (error) {
-            console.error('Erro ao adicionar contacto:', error);
-        }
-    };
-
-    // Converter lead
-    const handleConvertLead = async (e) => {
-        e.preventDefault();
-
-        try {
-            await convertLead(leadId, convertForm);
-            setShowConvertModal(false);
-
-            // Redirecionar para clientes
-            navigate('/clients', {
-                state: {
-                    message: 'Lead convertida em cliente com sucesso!'
-                }
-            });
-        } catch (error) {
-            console.error('Erro ao converter lead:', error);
-        }
-    };
-
-    // Marcar como perdida
-    const handleMarkAsLost = async () => {
-        try {
-            await markAsLost(leadId, lostReason);
-            setShowLostModal(false);
-
-            // Recarregar lead
-            await fetchLead(leadId);
-        } catch (error) {
-            console.error('Erro ao marcar como perdida:', error);
-        }
-    };
-
-    // Eliminar lead
-    const handleDelete = async () => {
+    const handleDeleteConfirm = async () => {
+        setIsProcessing(true);
         try {
             await deleteLead(leadId);
-            navigate('/leads', {
-                state: {
-                    message: 'Lead eliminada com sucesso!'
-                }
-            });
+            setSuccessMessage('Lead excluída com sucesso');
+            setTimeout(() => {
+                navigate('/leads');
+            }, 1500);
         } catch (error) {
-            console.error('Erro ao eliminar lead:', error);
+            console.error('Erro ao deletar lead:', error);
+            setErrorMessage('Erro ao excluir lead');
+        } finally {
+            setIsProcessing(false);
+            setShowDeleteConfirm(false);
         }
     };
 
-    // Toggle seções expandidas
-    const toggleSection = (section) => {
-        setExpandedSections(prev => ({
-            ...prev,
-            [section]: !prev[section]
-        }));
-    };
-
-    // Componente de temperatura
-    const TemperatureIcon = ({ temperatura }) => {
-        switch (temperatura) {
-            case 'quente':
-                return <FireIcon className="h-5 w-5 text-red-500" />;
-            case 'morno':
-                return <ClockIcon className="h-5 w-5 text-yellow-500" />;
-            case 'frio':
-                return <Snowflake className="h-5 w-5 text-blue-500" />;
-            default:
-                return null;
+    const handleConvertConfirm = async () => {
+        setIsProcessing(true);
+        try {
+            await convertLead(leadId);
+            setSuccessMessage('Lead convertida com sucesso!');
+            setTimeout(() => {
+                loadLead(); // Recarregar para mostrar estado atualizado
+            }, 1500);
+        } catch (error) {
+            console.error('Erro ao converter lead:', error);
+            setErrorMessage('Erro ao converter lead');
+        } finally {
+            setIsProcessing(false);
+            setShowConvertConfirm(false);
         }
     };
 
-    // Componente de status badge
-    const StatusBadge = ({ status }) => {
-        const colors = {
-            novo: 'bg-blue-100 text-blue-800',
-            contactado: 'bg-yellow-100 text-yellow-800',
-            qualificado: 'bg-green-100 text-green-800',
-            proposta: 'bg-purple-100 text-purple-800',
-            negociacao: 'bg-orange-100 text-orange-800',
-            ganho: 'bg-green-500 text-white',
-            perdido: 'bg-red-100 text-red-800',
-            standby: 'bg-gray-100 text-gray-800'
-        };
+    const handleAdvanceFunnel = async () => {
+        if (!currentLead) return;
 
-        return (
-            <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${colors[status] || 'bg-gray-100 text-gray-800'}`}>
-                {LEAD_STATUS_LABELS[status] || status}
-            </span>
-        );
+        const nextState = currentLead.funnelState === 'entrada'
+            ? 'qualificando'
+            : currentLead.funnelState === 'qualificando'
+                ? 'convertido'
+                : null;
+
+        if (!nextState) return;
+
+        setIsProcessing(true);
+        try {
+            if (nextState === 'convertido') {
+                await convertLead(leadId);
+                setSuccessMessage('Lead convertida com sucesso!');
+            } else {
+                await updateLead(leadId, { funnelState: nextState });
+                setSuccessMessage('Estado do funil atualizado');
+            }
+            setTimeout(() => {
+                loadLead();
+            }, 1000);
+        } catch (error) {
+            console.error('Erro ao avançar funil:', error);
+            setErrorMessage('Erro ao atualizar estado');
+        } finally {
+            setIsProcessing(false);
+        }
     };
 
     if (loading.fetch) {
         return (
             <Layout>
-                <div className="flex justify-center items-center h-64">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+                <div className="flex items-center justify-center h-96">
+                    <div className="text-center">
+                        <ClockIcon className="w-12 h-12 text-gray-400 animate-spin mx-auto mb-4" />
+                        <p className="text-gray-600">Carregando lead...</p>
+                    </div>
                 </div>
             </Layout>
         );
@@ -304,15 +169,15 @@ const LeadDetailPage = () => {
     if (!currentLead) {
         return (
             <Layout>
-                <div className="text-center py-12">
-                    <ExclamationTriangleIcon className="mx-auto h-12 w-12 text-gray-400" />
-                    <h3 className="mt-2 text-sm font-medium text-gray-900">Lead não encontrada</h3>
-                    <div className="mt-6">
+                <div className="flex items-center justify-center h-96">
+                    <div className="text-center">
+                        <ExclamationTriangleIcon className="w-12 h-12 text-red-400 mx-auto mb-4" />
+                        <p className="text-gray-600">Lead não encontrada</p>
                         <button
-                            onClick={handleBack}
-                            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-indigo-600 bg-indigo-100 hover:bg-indigo-200"
+                            onClick={() => navigate('/leads')}
+                            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
                         >
-                            Voltar às Leads
+                            Voltar para Leads
                         </button>
                     </div>
                 </div>
@@ -322,951 +187,457 @@ const LeadDetailPage = () => {
 
     return (
         <Layout>
-            <div className="space-y-6">
+            <div className="max-w-6xl mx-auto">
                 {/* Header */}
-                <div className="bg-white shadow rounded-lg">
-                    <div className="px-6 py-4">
-                        <div className="flex items-center justify-between mb-4">
-                            <button
-                                onClick={handleBack}
-                                className="inline-flex items-center text-sm text-gray-500 hover:text-gray-700"
-                            >
-                                <ArrowLeftIcon className="h-4 w-4 mr-1" />
-                                Voltar às Leads
-                            </button>
-                            <div className="flex space-x-2">
-                                <button
-                                    onClick={handleEdit}
-                                    className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
-                                >
-                                    <PencilIcon className="h-4 w-4 mr-2" />
-                                    Editar
-                                </button>
-                                <button
-                                    onClick={() => setShowDeleteConfirm(true)}
-                                    className="inline-flex items-center px-3 py-2 border border-red-300 shadow-sm text-sm leading-4 font-medium rounded-md text-red-700 bg-white hover:bg-red-50"
-                                >
-                                    <TrashIcon className="h-4 w-4 mr-2" />
-                                    Eliminar
-                                </button>
+                <div className="mb-6">
+                    <button
+                        onClick={() => navigate('/leads')}
+                        className="flex items-center text-gray-600 hover:text-gray-900 mb-4"
+                    >
+                        <ArrowLeftIcon className="w-5 h-5 mr-2" />
+                        Voltar para Leads
+                    </button>
+
+                    <div className="flex items-start justify-between">
+                        <div>
+                            <div className="flex items-center gap-3 mb-2">
+                                <h1 className="text-2xl font-bold text-gray-900">
+                                    {currentLead.client?.name || 'Cliente não encontrado'}
+                                </h1>
+                                <span className="px-3 py-1 text-sm font-medium bg-orange-100 text-orange-800 rounded-full">
+                                    PROSPECT
+                                </span>
+                                <span className={`px-3 py-1 text-sm font-medium rounded-full ${LEAD_FUNNEL_COLORS[currentLead.funnelState]
+                                    }`}>
+                                    {LEAD_FUNNEL_LABELS[currentLead.funnelState]}
+                                </span>
                             </div>
+                            <p className="text-gray-600">
+                                {LEAD_TYPE_LABELS[currentLead.type]} • {LEAD_SOURCE_LABELS[currentLead.source]}
+                            </p>
                         </div>
 
-                        <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                                <h1 className="text-2xl font-bold text-gray-900">
-                                    {currentLead.name}
-                                </h1>
-                                <div className="mt-2 flex items-center space-x-4">
-                                    <StatusBadge status={currentLead.status} />
-                                    <div className="flex items-center">
-                                        <TemperatureIcon temperatura={currentLead.temperatura} />
-                                        <span className="ml-1 text-sm text-gray-500">
-                                            {LEAD_TEMPERATURE_LABELS[currentLead.temperatura]}
-                                        </span>
-                                    </div>
-                                    {currentLead.score && (
-                                        <div className="flex items-center">
-                                            <span className="text-sm text-gray-500">Score:</span>
-                                            <span className="ml-1 text-sm font-medium text-gray-900">
-                                                {currentLead.score}/100
-                                            </span>
-                                        </div>
-                                    )}
+                        {/* Ações */}
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={handleEdit}
+                                className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
+                            >
+                                <PencilIcon className="w-4 h-4 mr-2" />
+                                Editar
+                            </button>
+
+                            {currentLead.funnelState !== 'convertido' && (
+                                <button
+                                    onClick={() => setShowConvertConfirm(true)}
+                                    className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
+                                >
+                                    <CheckCircleIcon className="w-4 h-4 mr-2" />
+                                    Converter
+                                </button>
+                            )}
+
+                            <button
+                                onClick={() => setShowDeleteConfirm(true)}
+                                className="inline-flex items-center px-4 py-2 border border-red-300 text-red-600 rounded-md hover:bg-red-50"
+                            >
+                                <TrashIcon className="w-4 h-4 mr-2" />
+                                Excluir
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Mensagens de feedback */}
+                {successMessage && (
+                    <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg flex items-center">
+                        <CheckCircleIcon className="w-5 h-5 text-green-600 mr-2" />
+                        <p className="text-green-800">{successMessage}</p>
+                    </div>
+                )}
+
+                {errorMessage && (
+                    <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center">
+                        <ExclamationTriangleIcon className="w-5 h-5 text-red-600 mr-2" />
+                        <p className="text-red-800">{errorMessage}</p>
+                    </div>
+                )}
+
+                {/* Grid de informações */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    {/* Coluna principal */}
+                    <div className="lg:col-span-2 space-y-6">
+                        {/* Progresso do Funil */}
+                        <div className="bg-white rounded-lg shadow p-6">
+                            <div className="flex items-center justify-between mb-4">
+                                <h2 className="text-lg font-semibold text-gray-900 flex items-center">
+                                    <FunnelIcon className="w-5 h-5 mr-2" />
+                                    Estado do Funil
+                                </h2>
+                                {currentLead.funnelState !== 'convertido' && (
+                                    <button
+                                        onClick={handleAdvanceFunnel}
+                                        disabled={isProcessing}
+                                        className="text-sm text-blue-600 hover:text-blue-800 flex items-center"
+                                    >
+                                        Avançar
+                                        <ArrowRightIcon className="w-4 h-4 ml-1" />
+                                    </button>
+                                )}
+                            </div>
+
+                            {/* Barra de progresso */}
+                            <div className="mb-4">
+                                <div className="flex items-center justify-between mb-2">
+                                    <span className="text-sm font-medium text-gray-700">
+                                        Progresso: {getFunnelProgress(currentLead.funnelState)}%
+                                    </span>
+                                    <span className={`px-2 py-1 text-xs font-medium rounded ${LEAD_FUNNEL_COLORS[currentLead.funnelState]
+                                        }`}>
+                                        {LEAD_FUNNEL_LABELS[currentLead.funnelState]}
+                                    </span>
+                                </div>
+                                <div className="w-full bg-gray-200 rounded-full h-3">
+                                    <div
+                                        className="bg-gradient-to-r from-blue-500 to-blue-600 h-3 rounded-full transition-all duration-500"
+                                        style={{ width: `${getFunnelProgress(currentLead.funnelState)}%` }}
+                                    />
                                 </div>
                             </div>
 
-                            {/* Ações Rápidas */}
-                            <div className="flex space-x-2">
-                                {currentLead.status !== 'ganho' && currentLead.status !== 'perdido' && (
+                            {/* Estados do funil */}
+                            <div className="grid grid-cols-3 gap-4">
+                                <div className={`text-center p-3 rounded-lg ${currentLead.funnelState === 'entrada'
+                                        ? 'bg-blue-50 border-2 border-blue-500'
+                                        : getFunnelProgress(currentLead.funnelState) > 33
+                                            ? 'bg-green-50'
+                                            : 'bg-gray-50'
+                                    }`}>
+                                    <div className={`w-8 h-8 mx-auto mb-2 rounded-full flex items-center justify-center ${getFunnelProgress(currentLead.funnelState) >= 33
+                                            ? 'bg-green-500 text-white'
+                                            : 'bg-gray-300 text-gray-600'
+                                        }`}>
+                                        1
+                                    </div>
+                                    <p className="text-sm font-medium">Entrada</p>
+                                </div>
+
+                                <div className={`text-center p-3 rounded-lg ${currentLead.funnelState === 'qualificando'
+                                        ? 'bg-blue-50 border-2 border-blue-500'
+                                        : getFunnelProgress(currentLead.funnelState) > 66
+                                            ? 'bg-green-50'
+                                            : 'bg-gray-50'
+                                    }`}>
+                                    <div className={`w-8 h-8 mx-auto mb-2 rounded-full flex items-center justify-center ${getFunnelProgress(currentLead.funnelState) >= 66
+                                            ? 'bg-green-500 text-white'
+                                            : 'bg-gray-300 text-gray-600'
+                                        }`}>
+                                        2
+                                    </div>
+                                    <p className="text-sm font-medium">Qualificando</p>
+                                </div>
+
+                                <div className={`text-center p-3 rounded-lg ${currentLead.funnelState === 'convertido'
+                                        ? 'bg-green-50 border-2 border-green-500'
+                                        : 'bg-gray-50'
+                                    }`}>
+                                    <div className={`w-8 h-8 mx-auto mb-2 rounded-full flex items-center justify-center ${getFunnelProgress(currentLead.funnelState) >= 100
+                                            ? 'bg-green-500 text-white'
+                                            : 'bg-gray-300 text-gray-600'
+                                        }`}>
+                                        3
+                                    </div>
+                                    <p className="text-sm font-medium">Convertido</p>
+                                </div>
+                            </div>
+
+                            {/* Próxima ação recomendada */}
+                            {currentLead.funnelState !== 'convertido' && (
+                                <div className="mt-4 p-3 bg-blue-50 rounded-lg">
+                                    <p className="text-sm text-blue-800">
+                                        <SparklesIcon className="w-4 h-4 inline mr-1" />
+                                        <strong>Próxima ação:</strong> {getNextAction(currentLead)}
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Informações de Qualificação */}
+                        <div className="bg-white rounded-lg shadow p-6">
+                            <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                                <DocumentTextIcon className="w-5 h-5 mr-2" />
+                                Qualificação
+                            </h2>
+
+                            <div className="space-y-4">
+                                {/* Campos específicos por tipo */}
+                                {(currentLead.type === 'comprador' || currentLead.type === 'inquilino') && (
                                     <>
-                                        <button
-                                            onClick={() => setShowConvertModal(true)}
-                                            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700"
-                                        >
-                                            <UserPlusIcon className="h-4 w-4 mr-2" />
-                                            Converter
-                                        </button>
-                                        <button
-                                            onClick={() => setShowLostModal(true)}
-                                            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-red-600 hover:bg-red-700"
-                                        >
-                                            <XMarkIcon className="h-4 w-4 mr-2" />
-                                            Marcar Perdida
-                                        </button>
+                                        {currentLead.qualification?.budget && (
+                                            <div className="flex items-start">
+                                                <CurrencyEuroIcon className="w-5 h-5 text-gray-400 mr-3 mt-0.5" />
+                                                <div>
+                                                    <p className="text-sm font-medium text-gray-700">Orçamento</p>
+                                                    <p className="text-gray-900">
+                                                        {formatCurrency(currentLead.qualification.budget)}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {currentLead.qualification?.propertyReference && (
+                                            <div className="flex items-start">
+                                                <HomeIcon className="w-5 h-5 text-gray-400 mr-3 mt-0.5" />
+                                                <div>
+                                                    <p className="text-sm font-medium text-gray-700">Referência do Imóvel</p>
+                                                    <p className="text-gray-900">
+                                                        {currentLead.qualification.propertyReference}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        )}
                                     </>
+                                )}
+
+                                {(currentLead.type === 'vendedor' || currentLead.type === 'senhorio') && (
+                                    <>
+                                        {currentLead.qualification?.propertyLocation && (
+                                            <div className="flex items-start">
+                                                <MapPinIcon className="w-5 h-5 text-gray-400 mr-3 mt-0.5" />
+                                                <div>
+                                                    <p className="text-sm font-medium text-gray-700">Localização do Imóvel</p>
+                                                    <p className="text-gray-900">
+                                                        {currentLead.qualification.propertyLocation}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {currentLead.qualification?.askingPrice && (
+                                            <div className="flex items-start">
+                                                <CurrencyEuroIcon className="w-5 h-5 text-gray-400 mr-3 mt-0.5" />
+                                                <div>
+                                                    <p className="text-sm font-medium text-gray-700">Valor Pretendido</p>
+                                                    <p className="text-gray-900">
+                                                        {formatCurrency(currentLead.qualification.askingPrice)}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+
+                                {currentLead.type === 'investidor' && (
+                                    <>
+                                        {currentLead.qualification?.investmentLocation && (
+                                            <div className="flex items-start">
+                                                <MapPinIcon className="w-5 h-5 text-gray-400 mr-3 mt-0.5" />
+                                                <div>
+                                                    <p className="text-sm font-medium text-gray-700">Local de Investimento</p>
+                                                    <p className="text-gray-900">
+                                                        {currentLead.qualification.investmentLocation}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {currentLead.qualification?.investmentBudget && (
+                                            <div className="flex items-start">
+                                                <CurrencyEuroIcon className="w-5 h-5 text-gray-400 mr-3 mt-0.5" />
+                                                <div>
+                                                    <p className="text-sm font-medium text-gray-700">Orçamento de Investimento</p>
+                                                    <p className="text-gray-900">
+                                                        {formatCurrency(currentLead.qualification.investmentBudget)}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+
+                                {/* Notas de qualificação */}
+                                {currentLead.qualification?.qualificationNotes && (
+                                    <div className="flex items-start">
+                                        <DocumentTextIcon className="w-5 h-5 text-gray-400 mr-3 mt-0.5" />
+                                        <div className="flex-1">
+                                            <p className="text-sm font-medium text-gray-700 mb-1">Notas de Qualificação</p>
+                                            <p className="text-gray-900 whitespace-pre-wrap">
+                                                {currentLead.qualification.qualificationNotes}
+                                            </p>
+                                        </div>
+                                    </div>
                                 )}
                             </div>
                         </div>
-
-                        {/* Alertas */}
-                        {currentLead.alerts?.length > 0 && (
-                            <div className="mt-4 bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
-                                <div className="flex">
-                                    <ExclamationTriangleIcon className="h-5 w-5 text-yellow-400" />
-                                    <div className="ml-3">
-                                        <p className="text-sm font-medium text-yellow-800">
-                                            Alertas Ativos
-                                        </p>
-                                        <div className="mt-2 text-sm text-yellow-700">
-                                            <ul className="list-disc list-inside space-y-1">
-                                                {currentLead.alerts.map((alert, index) => (
-                                                    <li key={index}>{alert.message}</li>
-                                                ))}
-                                            </ul>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
                     </div>
 
-                    {/* Tabs */}
-                    <div className="border-t border-gray-200">
-                        <nav className="-mb-px flex space-x-8 px-6" aria-label="Tabs">
-                            {['info', 'timeline', 'tarefas', 'contactos'].map((tab) => (
-                                <button
-                                    key={tab}
-                                    onClick={() => setActiveTab(tab)}
-                                    className={`
-                                        whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm capitalize
-                                        ${activeTab === tab
-                                            ? 'border-indigo-500 text-indigo-600'
-                                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
-                                    `}
-                                >
-                                    {tab}
-                                </button>
-                            ))}
-                        </nav>
+                    {/* Coluna lateral */}
+                    <div className="space-y-6">
+                        {/* Informações do Cliente */}
+                        <div className="bg-white rounded-lg shadow p-6">
+                            <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                                <UserIcon className="w-5 h-5 mr-2" />
+                                Dados do Cliente
+                            </h2>
+
+                            <div className="space-y-3">
+                                {currentLead.client?.email && (
+                                    <div className="flex items-center">
+                                        <EnvelopeIcon className="w-4 h-4 text-gray-400 mr-2" />
+                                        <a
+                                            href={`mailto:${currentLead.client.email}`}
+                                            className="text-blue-600 hover:text-blue-800 text-sm"
+                                        >
+                                            {currentLead.client.email}
+                                        </a>
+                                    </div>
+                                )}
+
+                                {currentLead.client?.phone && (
+                                    <div className="flex items-center">
+                                        <PhoneIcon className="w-4 h-4 text-gray-400 mr-2" />
+                                        <a
+                                            href={`tel:${currentLead.client.phone}`}
+                                            className="text-blue-600 hover:text-blue-800 text-sm"
+                                        >
+                                            {currentLead.client.phone}
+                                        </a>
+                                    </div>
+                                )}
+
+                                {currentLead.client?.address && (
+                                    <div className="flex items-start">
+                                        <MapPinIcon className="w-4 h-4 text-gray-400 mr-2 mt-0.5" />
+                                        <p className="text-sm text-gray-600">
+                                            {currentLead.client.address}
+                                            {currentLead.client.city && `, ${currentLead.client.city}`}
+                                            {currentLead.client.postalCode && ` ${currentLead.client.postalCode}`}
+                                        </p>
+                                    </div>
+                                )}
+
+                                <div className="pt-3 mt-3 border-t">
+                                    <button
+                                        onClick={() => navigate(`/clients/${currentLead.clientId}`)}
+                                        className="w-full text-center text-sm text-blue-600 hover:text-blue-800"
+                                    >
+                                        Ver perfil completo do cliente →
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Informações da Lead */}
+                        <div className="bg-white rounded-lg shadow p-6">
+                            <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                                <ChartBarIcon className="w-5 h-5 mr-2" />
+                                Informações da Lead
+                            </h2>
+
+                            <div className="space-y-3">
+                                <div>
+                                    <p className="text-sm font-medium text-gray-700">Tipo</p>
+                                    <p className="text-gray-900">{LEAD_TYPE_LABELS[currentLead.type]}</p>
+                                </div>
+
+                                <div>
+                                    <p className="text-sm font-medium text-gray-700">Fonte</p>
+                                    <p className="text-gray-900">{LEAD_SOURCE_LABELS[currentLead.source]}</p>
+                                </div>
+
+                                <div>
+                                    <p className="text-sm font-medium text-gray-700">Estado</p>
+                                    <span className={`inline-block px-2 py-1 text-xs font-medium rounded ${LEAD_FUNNEL_COLORS[currentLead.funnelState]
+                                        }`}>
+                                        {LEAD_FUNNEL_LABELS[currentLead.funnelState]}
+                                    </span>
+                                </div>
+
+                                <div className="pt-3 border-t">
+                                    <div className="flex items-center text-sm text-gray-500">
+                                        <CalendarIcon className="w-4 h-4 mr-1" />
+                                        Criada {getRelativeTime(currentLead.createdAt)}
+                                    </div>
+                                    {currentLead.updatedAt && currentLead.updatedAt !== currentLead.createdAt && (
+                                        <div className="flex items-center text-sm text-gray-500 mt-1">
+                                            <ClockIcon className="w-4 h-4 mr-1" />
+                                            Atualizada {getRelativeTime(currentLead.updatedAt)}
+                                        </div>
+                                    )}
+                                    {currentLead.convertedAt && (
+                                        <div className="flex items-center text-sm text-green-600 mt-1">
+                                            <CheckCircleIcon className="w-4 h-4 mr-1" />
+                                            Convertida {getRelativeTime(currentLead.convertedAt)}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                {/* Conteúdo das Tabs */}
-                <div className="bg-white shadow rounded-lg p-6">
-                    {/* Tab: Informações */}
-                    {activeTab === 'info' && (
-                        <div className="space-y-6">
-                            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-                                {/* Dados de Contacto */}
-                                <div>
-                                    <h3 className="text-lg font-medium text-gray-900 mb-4">
-                                        Dados de Contacto
-                                    </h3>
-                                    <dl className="space-y-3">
-                                        <div className="flex items-center">
-                                            <dt className="flex items-center text-sm font-medium text-gray-500 w-24">
-                                                <PhoneIcon className="h-4 w-4 mr-2" />
-                                                Telefone
-                                            </dt>
-                                            <dd className="text-sm text-gray-900">
-                                                {formatPhone(currentLead.phone)}
-                                            </dd>
-                                        </div>
-                                        {currentLead.email && (
-                                            <div className="flex items-center">
-                                                <dt className="flex items-center text-sm font-medium text-gray-500 w-24">
-                                                    <EnvelopeIcon className="h-4 w-4 mr-2" />
-                                                    Email
-                                                </dt>
-                                                <dd className="text-sm text-gray-900">
-                                                    {currentLead.email}
-                                                </dd>
-                                            </div>
-                                        )}
-                                        <div className="flex items-center">
-                                            <dt className="flex items-center text-sm font-medium text-gray-500 w-24">
-                                                <ChatBubbleLeftIcon className="h-4 w-4 mr-2" />
-                                                Preferência
-                                            </dt>
-                                            <dd className="text-sm text-gray-900">
-                                                {currentLead.contactPreference === 'phone' ? 'Telefone' :
-                                                    currentLead.contactPreference === 'email' ? 'Email' :
-                                                        currentLead.contactPreference === 'whatsapp' ? 'WhatsApp' : 'Qualquer'}
-                                            </dd>
-                                        </div>
-                                        {currentLead.melhorHorario && (
-                                            <div className="flex items-center">
-                                                <dt className="flex items-center text-sm font-medium text-gray-500 w-24">
-                                                    <ClockIcon className="h-4 w-4 mr-2" />
-                                                    Horário
-                                                </dt>
-                                                <dd className="text-sm text-gray-900">
-                                                    {currentLead.melhorHorario}
-                                                </dd>
-                                            </div>
-                                        )}
-                                    </dl>
-                                </div>
-
-                                {/* Qualificação */}
-                                <div>
-                                    <h3 className="text-lg font-medium text-gray-900 mb-4">
-                                        Qualificação
-                                    </h3>
-                                    <dl className="space-y-3">
-                                        <div>
-                                            <dt className="text-sm font-medium text-gray-500">Fonte</dt>
-                                            <dd className="text-sm text-gray-900">
-                                                {LEAD_SOURCE_LABELS[currentLead.leadSource]}
-                                            </dd>
-                                        </div>
-                                        <div>
-                                            <dt className="text-sm font-medium text-gray-500">Interesse</dt>
-                                            <dd className="text-sm text-gray-900">
-                                                {LEAD_INTEREST_LABELS[currentLead.interesse]}
-                                            </dd>
-                                        </div>
-                                        <div>
-                                            <dt className="text-sm font-medium text-gray-500">Urgência</dt>
-                                            <dd className="text-sm text-gray-900">
-                                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                                                    ${currentLead.urgencia === 'alta' ? 'bg-red-100 text-red-800' :
-                                                        currentLead.urgencia === 'media' ? 'bg-yellow-100 text-yellow-800' :
-                                                            'bg-green-100 text-green-800'}`}>
-                                                    {currentLead.urgencia ?
-                                                        currentLead.urgencia.charAt(0).toUpperCase() + currentLead.urgencia.slice(1) :
-                                                        'Não definida'}
-                                                </span>
-                                            </dd>
-                                        </div>
-                                        {currentLead.orcamentoEstimado && (
-                                            <div>
-                                                <dt className="text-sm font-medium text-gray-500">Orçamento</dt>
-                                                <dd className="text-sm text-gray-900">
-                                                    €{currentLead.orcamentoEstimado.toLocaleString()}
-                                                </dd>
-                                            </div>
-                                        )}
-                                    </dl>
-                                </div>
-                            </div>
-
-                            {/* Detalhes Adicionais */}
-                            <div className="border-t pt-6">
-                                <h3 className="text-lg font-medium text-gray-900 mb-4">
-                                    Detalhes Adicionais
-                                </h3>
-                                <dl className="space-y-4">
-                                    {currentLead.zonaInteresse && (
-                                        <div>
-                                            <dt className="text-sm font-medium text-gray-500">Zona de Interesse</dt>
-                                            <dd className="mt-1 text-sm text-gray-900">
-                                                {currentLead.zonaInteresse}
-                                            </dd>
-                                        </div>
-                                    )}
-                                    {currentLead.tipologiaInteresse && (
-                                        <div>
-                                            <dt className="text-sm font-medium text-gray-500">Tipologia</dt>
-                                            <dd className="mt-1 text-sm text-gray-900">
-                                                {currentLead.tipologiaInteresse}
-                                            </dd>
-                                        </div>
-                                    )}
-                                    {currentLead.descricao && (
-                                        <div>
-                                            <dt className="text-sm font-medium text-gray-500">Descrição</dt>
-                                            <dd className="mt-1 text-sm text-gray-900 whitespace-pre-wrap">
-                                                {currentLead.descricao}
-                                            </dd>
-                                        </div>
-                                    )}
-                                    {currentLead.consultorObservations && (
-                                        <div>
-                                            <dt className="text-sm font-medium text-gray-500">Observações do Consultor</dt>
-                                            <dd className="mt-1 text-sm text-gray-900 whitespace-pre-wrap">
-                                                {currentLead.consultorObservations}
-                                            </dd>
-                                        </div>
-                                    )}
-                                </dl>
-                            </div>
-
-                            {/* Tags */}
-                            {currentLead.tags?.length > 0 && (
-                                <div className="border-t pt-6">
-                                    <h3 className="text-lg font-medium text-gray-900 mb-4">Tags</h3>
-                                    <div className="flex flex-wrap gap-2">
-                                        {currentLead.tags.map((tag, index) => (
-                                            <span
-                                                key={index}
-                                                className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-800"
-                                            >
-                                                <TagIcon className="h-4 w-4 mr-1" />
-                                                {tag}
-                                            </span>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Estatísticas */}
-                            <div className="border-t pt-6">
-                                <h3 className="text-lg font-medium text-gray-900 mb-4">Estatísticas</h3>
-                                <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-                                    <div className="text-center">
-                                        <p className="text-2xl font-semibold text-gray-900">
-                                            {currentLead.totalContactos || 0}
-                                        </p>
-                                        <p className="text-sm text-gray-500">Contactos</p>
-                                    </div>
-                                    <div className="text-center">
-                                        <p className="text-2xl font-semibold text-gray-900">
-                                            {currentLead.totalTasks || 0}
-                                        </p>
-                                        <p className="text-sm text-gray-500">Tarefas</p>
-                                    </div>
-                                    <div className="text-center">
-                                        <p className="text-2xl font-semibold text-gray-900">
-                                            {currentLead.tasksCompletas || 0}
-                                        </p>
-                                        <p className="text-sm text-gray-500">Concluídas</p>
-                                    </div>
-                                    <div className="text-center">
-                                        <p className="text-2xl font-semibold text-gray-900">
-                                            {currentLead.ultimoContacto ?
-                                                getRelativeTime(currentLead.ultimoContacto) :
-                                                'Nunca'}
-                                        </p>
-                                        <p className="text-sm text-gray-500">Último Contacto</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Tab: Timeline */}
-                    {activeTab === 'timeline' && (
-                        <div className="space-y-4">
-                            <div className="flex justify-between items-center mb-4">
-                                <h3 className="text-lg font-medium text-gray-900">
-                                    Histórico de Atividades
-                                </h3>
-                            </div>
-
-                            {/* Timeline combinado de tarefas e contactos */}
-                            <div className="flow-root">
-                                <ul className="-mb-8">
-                                    {[...leadTasks, ...leadContacts]
-                                        .sort((a, b) => {
-                                            const dateA = a.agendadaPara || a.dataContacto || a.criadaEm;
-                                            const dateB = b.agendadaPara || b.dataContacto || b.criadaEm;
-                                            return dateB?.toDate() - dateA?.toDate();
-                                        })
-                                        .map((item, index, array) => (
-                                            <li key={`${item.id}-${index}`}>
-                                                <div className="relative pb-8">
-                                                    {index !== array.length - 1 && (
-                                                        <span
-                                                            className="absolute top-4 left-4 -ml-px h-full w-0.5 bg-gray-200"
-                                                            aria-hidden="true"
-                                                        />
-                                                    )}
-                                                    <div className="relative flex space-x-3">
-                                                        <div>
-                                                            <span className={`
-                                                                h-8 w-8 rounded-full flex items-center justify-center ring-8 ring-white
-                                                                ${item.status === 'concluida' || item.resultado ?
-                                                                    'bg-green-500' :
-                                                                    'bg-gray-400'}
-                                                            `}>
-                                                                {item.tipo === 'call' ? (
-                                                                    <PhoneIcon className="h-4 w-4 text-white" />
-                                                                ) : item.tipo === 'email' ? (
-                                                                    <EnvelopeIcon className="h-4 w-4 text-white" />
-                                                                ) : item.tipo === 'meeting' ? (
-                                                                    <CalendarIcon className="h-4 w-4 text-white" />
-                                                                ) : (
-                                                                    <ChatBubbleLeftIcon className="h-4 w-4 text-white" />
-                                                                )}
-                                                            </span>
-                                                        </div>
-                                                        <div className="flex-1 min-w-0">
-                                                            <div>
-                                                                <p className="text-sm font-medium text-gray-900">
-                                                                    {item.titulo || item.resumo || TASK_TYPE_LABELS[item.tipo]}
-                                                                </p>
-                                                                <p className="text-sm text-gray-500">
-                                                                    {getRelativeTime(
-                                                                        item.agendadaPara || item.dataContacto || item.criadaEm
-                                                                    )}
-                                                                </p>
-                                                            </div>
-                                                            {(item.descricao || item.notas) && (
-                                                                <div className="mt-2 text-sm text-gray-700">
-                                                                    {item.descricao || item.notas}
-                                                                </div>
-                                                            )}
-                                                            {item.resultado && (
-                                                                <div className="mt-2">
-                                                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                                                        {item.resultado}
-                                                                    </span>
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </li>
-                                        ))}
-                                </ul>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Tab: Tarefas */}
-                    {activeTab === 'tarefas' && (
-                        <div className="space-y-4">
-                            <div className="flex justify-between items-center mb-4">
-                                <h3 className="text-lg font-medium text-gray-900">
-                                    Tarefas ({leadTasks.length})
-                                </h3>
+                {/* Modal de confirmação de exclusão */}
+                {showDeleteConfirm && (
+                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                        <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+                            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                                Confirmar Exclusão
+                            </h3>
+                            <p className="text-gray-600 mb-6">
+                                Tem certeza que deseja excluir a lead de <strong>{currentLead.client?.name}</strong>?
+                                Esta ação não pode ser desfeita.
+                            </p>
+                            <div className="flex justify-end gap-3">
                                 <button
-                                    onClick={() => setShowTaskModal(true)}
-                                    className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700"
+                                    onClick={() => setShowDeleteConfirm(false)}
+                                    disabled={isProcessing}
+                                    className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
                                 >
-                                    <PlusIcon className="h-4 w-4 mr-2" />
-                                    Nova Tarefa
+                                    Cancelar
+                                </button>
+                                <button
+                                    onClick={handleDeleteConfirm}
+                                    disabled={isProcessing}
+                                    className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50"
+                                >
+                                    {isProcessing ? 'Excluindo...' : 'Excluir'}
                                 </button>
                             </div>
-
-                            {leadTasks.length === 0 ? (
-                                <div className="text-center py-6 text-gray-500">
-                                    Sem tarefas agendadas
-                                </div>
-                            ) : (
-                                <div className="space-y-3">
-                                    {leadTasks.map((task) => (
-                                        <div
-                                            key={task.id}
-                                            className="bg-gray-50 rounded-lg p-4 hover:bg-gray-100 transition-colors"
-                                        >
-                                            <div className="flex items-start justify-between">
-                                                <div className="flex-1">
-                                                    <div className="flex items-center">
-                                                        <h4 className="text-sm font-medium text-gray-900">
-                                                            {task.titulo}
-                                                        </h4>
-                                                        <span className={`ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                                                            ${task.status === 'concluida' ? 'bg-green-100 text-green-800' :
-                                                                task.status === 'pendente' ? 'bg-yellow-100 text-yellow-800' :
-                                                                    'bg-gray-100 text-gray-800'}`}>
-                                                            {TASK_STATUS_LABELS[task.status]}
-                                                        </span>
-                                                    </div>
-                                                    <p className="mt-1 text-sm text-gray-600">
-                                                        {task.descricao}
-                                                    </p>
-                                                    <div className="mt-2 flex items-center text-sm text-gray-500">
-                                                        <CalendarIcon className="h-4 w-4 mr-1" />
-                                                        {task.agendadaPara ?
-                                                            new Date(task.agendadaPara.toDate()).toLocaleString() :
-                                                            'Sem data definida'}
-                                                    </div>
-                                                </div>
-                                                {task.status === 'pendente' && (
-                                                    <button
-                                                        onClick={() => handleCompleteTask(task.id)}
-                                                        className="ml-4 inline-flex items-center px-3 py-1 border border-transparent text-sm leading-4 font-medium rounded-md text-green-700 bg-green-100 hover:bg-green-200"
-                                                    >
-                                                        <CheckCircleIcon className="h-4 w-4 mr-1" />
-                                                        Concluir
-                                                    </button>
-                                                )}
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
                         </div>
-                    )}
+                    </div>
+                )}
 
-                    {/* Tab: Contactos */}
-                    {activeTab === 'contactos' && (
-                        <div className="space-y-4">
-                            <div className="flex justify-between items-center mb-4">
-                                <h3 className="text-lg font-medium text-gray-900">
-                                    Histórico de Contactos ({leadContacts.length})
-                                </h3>
+                {/* Modal de confirmação de conversão */}
+                {showConvertConfirm && (
+                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                        <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+                            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                                Converter Lead
+                            </h3>
+                            <p className="text-gray-600 mb-6">
+                                Converter a lead de <strong>{currentLead.client?.name}</strong> em cliente ativo?
+                                O badge PROSPECT será removido e a lead será marcada como convertida.
+                            </p>
+                            <div className="flex justify-end gap-3">
                                 <button
-                                    onClick={() => setShowContactModal(true)}
-                                    className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700"
+                                    onClick={() => setShowConvertConfirm(false)}
+                                    disabled={isProcessing}
+                                    className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
                                 >
-                                    <PlusIcon className="h-4 w-4 mr-2" />
-                                    Registar Contacto
+                                    Cancelar
                                 </button>
-                            </div>
-
-                            {leadContacts.length === 0 ? (
-                                <div className="text-center py-6 text-gray-500">
-                                    Sem contactos registados
-                                </div>
-                            ) : (
-                                <div className="space-y-3">
-                                    {leadContacts.map((contact) => (
-                                        <div
-                                            key={contact.id}
-                                            className="bg-gray-50 rounded-lg p-4"
-                                        >
-                                            <div className="flex items-start justify-between">
-                                                <div className="flex-1">
-                                                    <div className="flex items-center">
-                                                        <h4 className="text-sm font-medium text-gray-900">
-                                                            {TASK_TYPE_LABELS[contact.tipo]}
-                                                        </h4>
-                                                        {contact.resultado && (
-                                                            <span className={`ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                                                                ${contact.resultado === 'positivo' ? 'bg-green-100 text-green-800' :
-                                                                    contact.resultado === 'negativo' ? 'bg-red-100 text-red-800' :
-                                                                        'bg-gray-100 text-gray-800'}`}>
-                                                                {contact.resultado}
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                    <p className="mt-1 text-sm text-gray-600">
-                                                        {contact.resumo}
-                                                    </p>
-                                                    {contact.notas && (
-                                                        <p className="mt-2 text-sm text-gray-500">
-                                                            {contact.notas}
-                                                        </p>
-                                                    )}
-                                                    <div className="mt-2 flex items-center text-sm text-gray-500">
-                                                        <CalendarIcon className="h-4 w-4 mr-1" />
-                                                        {getRelativeTime(contact.dataContacto)}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    )}
-                </div>
-
-                {/* Próxima Ação Recomendada */}
-                {currentLead.nextAction && currentLead.status !== 'ganho' && currentLead.status !== 'perdido' && (
-                    <div className="bg-indigo-50 border-l-4 border-indigo-400 p-4 rounded-lg">
-                        <div className="flex">
-                            <InformationCircleIcon className="h-5 w-5 text-indigo-400" />
-                            <div className="ml-3">
-                                <p className="text-sm font-medium text-indigo-800">
-                                    Próxima Ação Recomendada
-                                </p>
-                                <p className="mt-1 text-sm text-indigo-700">
-                                    {currentLead.nextAction.label}: {currentLead.nextAction.description}
-                                </p>
                                 <button
-                                    onClick={() => {
-                                        setTaskForm({
-                                            tipo: currentLead.nextAction.type,
-                                            titulo: currentLead.nextAction.label,
-                                            descricao: currentLead.nextAction.description,
-                                            agendadaPara: ''
-                                        });
-                                        setShowTaskModal(true);
-                                    }}
-                                    className="mt-2 text-sm font-medium text-indigo-600 hover:text-indigo-500"
+                                    onClick={handleConvertConfirm}
+                                    disabled={isProcessing}
+                                    className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
                                 >
-                                    Criar tarefa →
+                                    {isProcessing ? 'Convertendo...' : 'Converter'}
                                 </button>
                             </div>
                         </div>
                     </div>
                 )}
             </div>
-
-            {/* Modal: Nova Tarefa */}
-            {showTaskModal && (
-                <div className="fixed z-10 inset-0 overflow-y-auto">
-                    <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-                        <div className="fixed inset-0 transition-opacity" aria-hidden="true">
-                            <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
-                        </div>
-
-                        <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-
-                        <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-                            <form onSubmit={handleCreateTask}>
-                                <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                                    <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
-                                        Nova Tarefa
-                                    </h3>
-
-                                    <div className="space-y-4">
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700">
-                                                Tipo
-                                            </label>
-                                            <select
-                                                value={taskForm.tipo}
-                                                onChange={(e) => setTaskForm({ ...taskForm, tipo: e.target.value })}
-                                                className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 rounded-md"
-                                            >
-                                                {Object.entries(TASK_TYPE_LABELS).map(([value, label]) => (
-                                                    <option key={value} value={value}>
-                                                        {label}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700">
-                                                Título
-                                            </label>
-                                            <input
-                                                type="text"
-                                                value={taskForm.titulo}
-                                                onChange={(e) => setTaskForm({ ...taskForm, titulo: e.target.value })}
-                                                required
-                                                className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
-                                            />
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700">
-                                                Descrição
-                                            </label>
-                                            <textarea
-                                                value={taskForm.descricao}
-                                                onChange={(e) => setTaskForm({ ...taskForm, descricao: e.target.value })}
-                                                rows={3}
-                                                className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
-                                            />
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700">
-                                                Agendar para
-                                            </label>
-                                            <input
-                                                type="datetime-local"
-                                                value={taskForm.agendadaPara}
-                                                onChange={(e) => setTaskForm({ ...taskForm, agendadaPara: e.target.value })}
-                                                className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                                    <button
-                                        type="submit"
-                                        className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:ml-3 sm:w-auto sm:text-sm"
-                                    >
-                                        Criar Tarefa
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowTaskModal(false)}
-                                        className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
-                                    >
-                                        Cancelar
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Modal: Registar Contacto */}
-            {showContactModal && (
-                <div className="fixed z-10 inset-0 overflow-y-auto">
-                    <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-                        <div className="fixed inset-0 transition-opacity" aria-hidden="true">
-                            <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
-                        </div>
-
-                        <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-
-                        <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-                            <form onSubmit={handleAddContact}>
-                                <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                                    <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
-                                        Registar Contacto
-                                    </h3>
-
-                                    <div className="space-y-4">
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700">
-                                                Tipo
-                                            </label>
-                                            <select
-                                                value={contactForm.tipo}
-                                                onChange={(e) => setContactForm({ ...contactForm, tipo: e.target.value })}
-                                                className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 rounded-md"
-                                            >
-                                                {Object.entries(TASK_TYPE_LABELS).map(([value, label]) => (
-                                                    <option key={value} value={value}>
-                                                        {label}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700">
-                                                Resumo
-                                            </label>
-                                            <input
-                                                type="text"
-                                                value={contactForm.resumo}
-                                                onChange={(e) => setContactForm({ ...contactForm, resumo: e.target.value })}
-                                                required
-                                                className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
-                                            />
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700">
-                                                Notas
-                                            </label>
-                                            <textarea
-                                                value={contactForm.notas}
-                                                onChange={(e) => setContactForm({ ...contactForm, notas: e.target.value })}
-                                                rows={3}
-                                                className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
-                                            />
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700">
-                                                Resultado
-                                            </label>
-                                            <select
-                                                value={contactForm.resultado}
-                                                onChange={(e) => setContactForm({ ...contactForm, resultado: e.target.value })}
-                                                className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 rounded-md"
-                                            >
-                                                <option value="positivo">Positivo</option>
-                                                <option value="neutro">Neutro</option>
-                                                <option value="negativo">Negativo</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                                    <button
-                                        type="submit"
-                                        className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:ml-3 sm:w-auto sm:text-sm"
-                                    >
-                                        Registar
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowContactModal(false)}
-                                        className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
-                                    >
-                                        Cancelar
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Modal: Converter Lead */}
-            {showConvertModal && (
-                <div className="fixed z-10 inset-0 overflow-y-auto">
-                    <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-                        <div className="fixed inset-0 transition-opacity" aria-hidden="true">
-                            <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
-                        </div>
-
-                        <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-
-                        <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-                            <form onSubmit={handleConvertLead}>
-                                <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                                    <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
-                                        Converter Lead em Cliente
-                                    </h3>
-
-                                    <div className="space-y-4">
-                                        <div className="bg-green-50 border-l-4 border-green-400 p-4">
-                                            <p className="text-sm text-green-700">
-                                                Está prestes a converter <strong>{currentLead.name}</strong> em cliente.
-                                            </p>
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700">
-                                                Tipo de Negócio
-                                            </label>
-                                            <input
-                                                type="text"
-                                                value={convertForm.tipoNegocio}
-                                                onChange={(e) => setConvertForm({ ...convertForm, tipoNegocio: e.target.value })}
-                                                placeholder="Ex: Venda de Apartamento T2"
-                                                className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
-                                            />
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700">
-                                                Valor do Negócio (€)
-                                            </label>
-                                            <input
-                                                type="number"
-                                                value={convertForm.valorNegocio}
-                                                onChange={(e) => setConvertForm({ ...convertForm, valorNegocio: e.target.value })}
-                                                className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
-                                            />
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700">
-                                                Comissão (€)
-                                            </label>
-                                            <input
-                                                type="number"
-                                                value={convertForm.comissao}
-                                                onChange={(e) => setConvertForm({ ...convertForm, comissao: e.target.value })}
-                                                className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
-                                            />
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700">
-                                                Observações
-                                            </label>
-                                            <textarea
-                                                value={convertForm.observacoes}
-                                                onChange={(e) => setConvertForm({ ...convertForm, observacoes: e.target.value })}
-                                                rows={3}
-                                                className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                                    <button
-                                        type="submit"
-                                        className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-base font-medium text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 sm:ml-3 sm:w-auto sm:text-sm"
-                                    >
-                                        Converter em Cliente
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowConvertModal(false)}
-                                        className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
-                                    >
-                                        Cancelar
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Modal: Marcar como Perdida */}
-            {showLostModal && (
-                <div className="fixed z-10 inset-0 overflow-y-auto">
-                    <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-                        <div className="fixed inset-0 transition-opacity" aria-hidden="true">
-                            <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
-                        </div>
-
-                        <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-
-                        <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-                            <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                                <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
-                                    Marcar Lead como Perdida
-                                </h3>
-
-                                <div className="space-y-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700">
-                                            Motivo da Perda
-                                        </label>
-                                        <textarea
-                                            value={lostReason}
-                                            onChange={(e) => setLostReason(e.target.value)}
-                                            rows={3}
-                                            required
-                                            placeholder="Descreva o motivo da perda..."
-                                            className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                                <button
-                                    onClick={handleMarkAsLost}
-                                    disabled={!lostReason}
-                                    className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50"
-                                >
-                                    Marcar como Perdida
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setShowLostModal(false);
-                                        setLostReason('');
-                                    }}
-                                    className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
-                                >
-                                    Cancelar
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Modal: Confirmar Exclusão */}
-            {showDeleteConfirm && (
-                <div className="fixed z-10 inset-0 overflow-y-auto">
-                    <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-                        <div className="fixed inset-0 transition-opacity" aria-hidden="true">
-                            <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
-                        </div>
-
-                        <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-
-                        <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-                            <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                                <div className="sm:flex sm:items-start">
-                                    <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
-                                        <ExclamationTriangleIcon className="h-6 w-6 text-red-600" />
-                                    </div>
-                                    <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
-                                        <h3 className="text-lg leading-6 font-medium text-gray-900">
-                                            Eliminar Lead
-                                        </h3>
-                                        <div className="mt-2">
-                                            <p className="text-sm text-gray-500">
-                                                Tem a certeza que deseja eliminar a lead <strong>{currentLead.name}</strong>?
-                                                Esta ação não pode ser revertida.
-                                            </p>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                                <button
-                                    onClick={handleDelete}
-                                    className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm"
-                                >
-                                    Eliminar
-                                </button>
-                                <button
-                                    onClick={() => setShowDeleteConfirm(false)}
-                                    className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
-                                >
-                                    Cancelar
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
         </Layout>
     );
 };

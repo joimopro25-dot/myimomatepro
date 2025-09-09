@@ -29,6 +29,7 @@ import ClientDetail from './pages/ClientDetail';
 // Sistema de Leads Simplificado
 import LeadList from './pages/LeadList';
 import LeadForm from './pages/LeadForm';
+import LeadDetail from './pages/LeadDetail';
 
 import './index.css';
 
