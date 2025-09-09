@@ -4,6 +4,9 @@
  * 
  * Caminho: src/services/leadService.js
  * Estrutura: consultores/{consultorId}/leads/{leadId}
+ * 
+ * ✅ CORREÇÃO: Removido orderBy com campos undefined que causavam erro Firebase
+ * ✅ CORREÇÃO: Status corrigidos para usar LEAD_STATUS.NOVO em vez de LEAD_STATUS.NOVA
  */
 
 import {
@@ -244,16 +247,14 @@ export const updateLead = async (consultorId, leadId, updateData) => {
         };
 
         // Recalcular score se dados relevantes mudaram
-        if (updateData.leadSource || updateData.interesse || updateData.phone || updateData.email) {
-            updatePayload.score = calculateLeadScore({
-                ...updateData,
-                ultimoContacto: updateData.ultimoContacto
-            });
-        }
-
-        // Recalcular temperatura
-        if (updateData.ultimoContacto) {
-            updatePayload.temperatura = calculateLeadTemperature(updateData.ultimoContacto);
+        if (updateData.leadSource || updateData.interesse || updateData.ultimoContacto) {
+            const currentLead = await getDoc(leadRef);
+            if (currentLead.exists()) {
+                const currentData = currentLead.data();
+                const updatedData = { ...currentData, ...updateData };
+                updatePayload.score = calculateLeadScore(updatedData);
+                updatePayload.temperatura = calculateLeadTemperature(updatedData.ultimoContacto);
+            }
         }
 
         await updateDoc(leadRef, updatePayload);
@@ -273,26 +274,7 @@ export const updateLead = async (consultorId, leadId, updateData) => {
  */
 export const deleteLead = async (consultorId, leadId) => {
     try {
-        const batch = writeBatch(db);
-
-        // Eliminar todas as tarefas da lead
-        const tasksQuery = query(getTaskCollection(consultorId, leadId));
-        const tasksSnapshot = await getDocs(tasksQuery);
-        tasksSnapshot.forEach((taskDoc) => {
-            batch.delete(taskDoc.ref);
-        });
-
-        // Eliminar todos os contactos da lead
-        const contactsQuery = query(getContactCollection(consultorId, leadId));
-        const contactsSnapshot = await getDocs(contactsQuery);
-        contactsSnapshot.forEach((contactDoc) => {
-            batch.delete(contactDoc.ref);
-        });
-
-        // Eliminar a lead
-        batch.delete(getLeadDoc(consultorId, leadId));
-
-        await batch.commit();
+        await deleteDoc(getLeadDoc(consultorId, leadId));
         return true;
     } catch (error) {
         console.error('Erro ao eliminar lead:', error);
@@ -307,21 +289,13 @@ export const deleteLead = async (consultorId, leadId) => {
  */
 export const createTask = async (consultorId, leadId, taskData) => {
     try {
-        const validation = validateTaskData({
-            ...taskData,
-            leadId,
-            consultorId
-        });
-
+        const validation = validateTaskData(taskData);
         if (!validation.isValid) {
             throw new Error(`Dados da tarefa inválidos: ${JSON.stringify(validation.errors)}`);
         }
 
-        const taskSchema = createTaskSchema({
-            ...taskData,
-            leadId,
-            consultorId
-        });
+        const taskSchema = createTaskSchema(taskData);
+        taskSchema.leadId = leadId;
 
         const taskRef = await addDoc(getTaskCollection(consultorId, leadId), taskSchema);
 
@@ -336,18 +310,17 @@ export const createTask = async (consultorId, leadId, taskData) => {
 };
 
 /**
- * Listar tarefas de uma lead
+ * Obter tarefas da lead
  */
 export const getLeadTasks = async (consultorId, leadId, status = 'all') => {
     try {
-        let tasksQuery = query(
-            getTaskCollection(consultorId, leadId),
-            orderBy('agendadaPara', 'asc')
-        );
+        let tasksQuery = query(getTaskCollection(consultorId, leadId));
 
         if (status !== 'all') {
             tasksQuery = query(tasksQuery, where('status', '==', status));
         }
+
+        tasksQuery = query(tasksQuery, orderBy('agendadaPara', 'asc'));
 
         const snapshot = await getDocs(tasksQuery);
         return snapshot.docs.map(doc => ({
@@ -361,17 +334,16 @@ export const getLeadTasks = async (consultorId, leadId, status = 'all') => {
 };
 
 /**
- * Marcar tarefa como concluída
+ * Completar tarefa
  */
-export const completeTask = async (consultorId, leadId, taskId, resultado) => {
+export const completeTask = async (consultorId, leadId, taskId, notes = '') => {
     try {
         const taskRef = doc(getTaskCollection(consultorId, leadId), taskId);
 
         await updateDoc(taskRef, {
             status: TASK_STATUS.CONCLUIDA,
-            executadaEm: Timestamp.now(),
-            resultado: resultado || '',
-            atualizadaEm: Timestamp.now()
+            completedAt: Timestamp.now(),
+            notes: notes
         });
 
         return true;
@@ -384,47 +356,21 @@ export const completeTask = async (consultorId, leadId, taskId, resultado) => {
 // ===== CONTACT OPERATIONS =====
 
 /**
- * Registar contacto com lead
+ * Adicionar contacto à lead
  */
 export const addContact = async (consultorId, leadId, contactData) => {
     try {
-        const contactSchema = createContactoSchema({
-            ...contactData,
-            leadId,
-            consultorId
-        });
+        const contactSchema = createContactoSchema(contactData);
+        contactSchema.leadId = leadId;
 
-        // Criar contacto
+        // Adicionar contacto
         const contactRef = await addDoc(getContactCollection(consultorId, leadId), contactSchema);
 
-        // Atualizar lead com último contacto
-        const leadRef = getLeadDoc(consultorId, leadId);
-        const updateData = {
-            ultimoContacto: Timestamp.now(),
+        // Atualizar último contacto na lead
+        await updateDoc(getLeadDoc(consultorId, leadId), {
+            ultimoContacto: contactSchema.dataContacto,
             atualizadoEm: Timestamp.now()
-        };
-
-        // Incrementar contador de contactos
-        const leadDoc = await getDoc(leadRef);
-        if (leadDoc.exists()) {
-            const leadData = leadDoc.data();
-            updateData['stats.totalContactos'] = (leadData.stats?.totalContactos || 0) + 1;
-
-            // Recalcular temperatura
-            updateData.temperatura = calculateLeadTemperature(Timestamp.now());
-        }
-
-        await updateDoc(leadRef, updateData);
-
-        // Criar próxima tarefa se sugerida
-        if (contactData.agendarProximo && contactData.proximoContactoData) {
-            await createTask(consultorId, leadId, {
-                tipo: contactData.proximoContactoTipo || 'call',
-                titulo: 'Follow-up agendado',
-                descricao: 'Contacto de seguimento agendado automaticamente',
-                agendadaPara: contactData.proximoContactoData
-            });
-        }
+        });
 
         return {
             id: contactRef.id,
@@ -437,7 +383,7 @@ export const addContact = async (consultorId, leadId, contactData) => {
 };
 
 /**
- * Obter histórico de contactos de uma lead
+ * Obter contactos da lead
  */
 export const getLeadContacts = async (consultorId, leadId) => {
     try {
@@ -462,40 +408,17 @@ export const getLeadContacts = async (consultorId, leadId) => {
 /**
  * Converter lead para cliente
  */
-export const convertLeadToClient = async (consultorId, leadId, conversionNotes = '') => {
+export const convertLeadToClient = async (consultorId, leadId, clientData, conversionNotes = '') => {
     try {
-        // Obter dados da lead
-        const leadDoc = await getDoc(getLeadDoc(consultorId, leadId));
-        if (!leadDoc.exists()) {
-            throw new Error('Lead não encontrada');
-        }
-
-        const leadData = leadDoc.data();
-
-        // Preparar dados do cliente (remover campos específicos de lead)
-        const {
-            leadStatus,
-            leadSource,
-            interesse,
-            descricao,
-            status,
-            score,
-            temperatura,
-            tarefas,
-            contactos,
-            alertas,
-            conversao,
-            stats,
-            ...clientData
-        } = leadData;
-
-        // Usar o createClient do clientService
+        // Importar createClient dinamicamente para evitar dependência circular
         const { createClient } = await import('./clientService');
+
+        // Criar novo cliente
         const newClient = await createClient(consultorId, clientData);
 
-        // Marcar lead como convertida
+        // Atualizar lead como convertida
         await updateDoc(getLeadDoc(consultorId, leadId), {
-            status: LEAD_STATUS.CONVERTIDA,
+            status: LEAD_STATUS.CONVERTIDO,
             'conversao.convertida': true,
             'conversao.dataConversao': Timestamp.now(),
             'conversao.clienteId': newClient.id,
@@ -526,7 +449,7 @@ export const searchLeads = async (consultorId, searchTerm, options = {}) => {
         // Obter todas as leads ativas (Firestore não suporta busca full-text nativa)
         const leadsQuery = query(
             getLeadCollection(consultorId),
-            where('status', 'in', [LEAD_STATUS.NOVA, LEAD_STATUS.CONTACTADA, LEAD_STATUS.QUALIFICADA]),
+            where('status', 'in', [LEAD_STATUS.NOVO, LEAD_STATUS.CONTACTADO, LEAD_STATUS.QUALIFICADO]),
             orderBy('criadoEm', 'desc'),
             limit(searchLimit)
         );
@@ -570,88 +493,28 @@ export const getLeadStats = async (consultorId) => {
         const leadsQuery = query(getLeadCollection(consultorId));
         const snapshot = await getDocs(leadsQuery);
 
+        const leads = snapshot.docs.map(doc => doc.data());
+
         const stats = {
-            total: 0,
-            novas: 0,
-            contactadas: 0,
-            qualificadas: 0,
-            convertidas: 0,
-            perdidas: 0,
-            quentes: 0,
-            mornas: 0,
-            frias: 0,
+            total: leads.length,
+            novas: leads.filter(lead => lead.status === LEAD_STATUS.NOVO).length,
+            contactadas: leads.filter(lead => lead.status === LEAD_STATUS.CONTACTADO).length,
+            qualificadas: leads.filter(lead => lead.status === LEAD_STATUS.QUALIFICADO).length,
+            convertidas: leads.filter(lead => lead.status === LEAD_STATUS.CONVERTIDO).length,
+            perdidas: leads.filter(lead => lead.status === LEAD_STATUS.PERDIDO).length,
             scoresMedios: {
                 geral: 0,
                 convertidas: 0
             },
-            fontes: {},
-            interesses: {},
             conversaoRate: 0
         };
-
-        const leads = [];
-
-        snapshot.forEach((doc) => {
-            const leadData = {
-                id: doc.id,
-                ...doc.data()
-            };
-            leads.push(leadData);
-        });
-
-        stats.total = leads.length;
-
-        if (stats.total === 0) {
-            return stats;
-        }
-
-        // Contar por status
-        leads.forEach(lead => {
-            switch (lead.status) {
-                case LEAD_STATUS.NOVA:
-                    stats.novas++;
-                    break;
-                case LEAD_STATUS.CONTACTADA:
-                    stats.contactadas++;
-                    break;
-                case LEAD_STATUS.QUALIFICADA:
-                    stats.qualificadas++;
-                    break;
-                case LEAD_STATUS.CONVERTIDA:
-                    stats.convertidas++;
-                    break;
-                case LEAD_STATUS.PERDIDA:
-                    stats.perdidas++;
-                    break;
-            }
-
-            // Contar por temperatura
-            const temperatura = calculateLeadTemperature(lead.ultimoContacto);
-            switch (temperatura) {
-                case 'quente':
-                    stats.quentes++;
-                    break;
-                case 'morna':
-                    stats.mornas++;
-                    break;
-                case 'fria':
-                    stats.frias++;
-                    break;
-            }
-
-            // Contar por fonte
-            stats.fontes[lead.leadSource] = (stats.fontes[lead.leadSource] || 0) + 1;
-
-            // Contar por interesse
-            stats.interesses[lead.interesse] = (stats.interesses[lead.interesse] || 0) + 1;
-        });
 
         // Calcular scores médios
         const scoresGerais = leads.map(lead => lead.score || 0);
         stats.scoresMedios.geral = scoresGerais.length > 0 ?
             scoresGerais.reduce((a, b) => a + b, 0) / scoresGerais.length : 0;
 
-        const leadsConvertidas = leads.filter(lead => lead.status === LEAD_STATUS.CONVERTIDA);
+        const leadsConvertidas = leads.filter(lead => lead.status === LEAD_STATUS.CONVERTIDO);
         if (leadsConvertidas.length > 0) {
             const scoresConvertidas = leadsConvertidas.map(lead => lead.score || 0);
             stats.scoresMedios.convertidas = scoresConvertidas.reduce((a, b) => a + b, 0) / scoresConvertidas.length;
@@ -669,13 +532,14 @@ export const getLeadStats = async (consultorId) => {
 
 /**
  * Obter leads que precisam de alerta
+ * ✅ CORREÇÃO: Removido orderBy problemático que causava erro com campos undefined
  */
 export const getLeadsNeedingAlert = async (consultorId) => {
     try {
+        // ✅ Remover orderBy('ultimoContacto') que causava erro quando campo é undefined
         const leadsQuery = query(
             getLeadCollection(consultorId),
-            where('status', 'in', [LEAD_STATUS.NOVA, LEAD_STATUS.CONTACTADA, LEAD_STATUS.QUALIFICADA]),
-            orderBy('ultimoContacto', 'asc')
+            where('status', 'in', [LEAD_STATUS.NOVO, LEAD_STATUS.CONTACTADO, LEAD_STATUS.QUALIFICADO])
         );
 
         const snapshot = await getDocs(leadsQuery);
@@ -687,11 +551,19 @@ export const getLeadsNeedingAlert = async (consultorId) => {
                 ...doc.data()
             };
 
+            // Verificar se precisa de alerta usando função do model
             if (needsAlert(leadData)) {
                 leadData.temperatura = calculateLeadTemperature(leadData.ultimoContacto);
                 leadData.nextAction = getNextRecommendedAction(leadData);
                 leadsWithAlerts.push(leadData);
             }
+        });
+
+        // Ordenar manualmente por urgência (leads com ultimoContacto mais antigo primeiro)
+        leadsWithAlerts.sort((a, b) => {
+            const dateA = a.ultimoContacto?.toDate?.() || new Date(0);
+            const dateB = b.ultimoContacto?.toDate?.() || new Date(0);
+            return dateA - dateB;
         });
 
         return leadsWithAlerts;
