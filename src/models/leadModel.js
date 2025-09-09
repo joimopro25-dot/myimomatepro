@@ -348,18 +348,37 @@ export const validateTaskData = (taskData) => {
 // ===== FUNÇÕES DE CÁLCULO =====
 
 /**
- * Calcula temperatura da lead baseado no último contacto
+ * Calcula temperatura da lead baseada no último contacto
+ * CORRIGIDO: Usa função auxiliar para converter timestamps
  */
 export const calculateLeadTemperature = (ultimoContacto) => {
-    if (!ultimoContacto) return LEAD_TEMPERATURES.FRIO;
+    if (!ultimoContacto) {
+        return LEAD_TEMPERATURES.FRIO;
+    }
 
-    const diasSemContacto = Math.floor(
-        (Date.now() - ultimoContacto.toDate().getTime()) / (1000 * 60 * 60 * 24)
-    );
+    try {
+        // Converter para Date usando a função auxiliar
+        const lastContactDate = convertFirestoreTimestamp(ultimoContacto);
 
-    if (diasSemContacto <= 3) return LEAD_TEMPERATURES.QUENTE;
-    if (diasSemContacto <= 7) return LEAD_TEMPERATURES.MORNO;
-    return LEAD_TEMPERATURES.FRIO;
+        if (!lastContactDate) {
+            return LEAD_TEMPERATURES.FRIO;
+        }
+
+        const now = new Date();
+        const diffTime = Math.abs(now - lastContactDate);
+        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+        if (diffDays <= 3) {
+            return LEAD_TEMPERATURES.QUENTE;
+        } else if (diffDays <= 7) {
+            return LEAD_TEMPERATURES.MORNO;
+        } else {
+            return LEAD_TEMPERATURES.FRIO;
+        }
+    } catch (error) {
+        console.warn('Erro ao calcular temperatura da lead:', error);
+        return LEAD_TEMPERATURES.FRIO;
+    }
 };
 
 /**
@@ -471,30 +490,72 @@ export const needsAlert = (leadData) => {
 
     // Alerta de tempo sem contacto
     if (leadData.ultimoContacto) {
-        const diasSemContacto = Math.floor(
-            (Date.now() - leadData.ultimoContacto.toDate().getTime()) / (1000 * 60 * 60 * 24)
-        );
+        try {
+            // Verificar tipo e converter para timestamp
+            let ultimoContactoTime;
 
-        if (diasSemContacto > 7) {
-            alerts.push({
-                type: 'no_contact',
-                message: `${diasSemContacto} dias sem contacto`,
-                severity: 'medium'
-            });
+            if (leadData.ultimoContacto.toDate && typeof leadData.ultimoContacto.toDate === 'function') {
+                // É um Timestamp do Firebase
+                ultimoContactoTime = leadData.ultimoContacto.toDate().getTime();
+            } else if (leadData.ultimoContacto instanceof Date) {
+                // É um objeto Date
+                ultimoContactoTime = leadData.ultimoContacto.getTime();
+            } else if (typeof leadData.ultimoContacto === 'string' || typeof leadData.ultimoContacto === 'number') {
+                // É uma string ou número - tentar converter
+                ultimoContactoTime = new Date(leadData.ultimoContacto).getTime();
+            } else {
+                // Tipo desconhecido - pular verificação
+                ultimoContactoTime = null;
+            }
+
+            if (ultimoContactoTime) {
+                const diasSemContacto = Math.floor(
+                    (Date.now() - ultimoContactoTime) / (1000 * 60 * 60 * 24)
+                );
+
+                if (diasSemContacto > 7) {
+                    alerts.push({
+                        type: 'no_contact',
+                        message: `${diasSemContacto} dias sem contacto`,
+                        severity: 'medium'
+                    });
+                }
+            }
+        } catch (error) {
+            console.warn('Erro ao processar ultimoContacto:', error);
         }
     }
 
     // Alerta de próximo contacto vencido
     if (leadData.proximoContacto) {
-        const now = Date.now();
-        const proximoContacto = leadData.proximoContacto.toDate().getTime();
+        try {
+            const now = Date.now();
+            let proximoContactoTime;
 
-        if (proximoContacto < now) {
-            alerts.push({
-                type: 'overdue',
-                message: 'Contacto agendado está em atraso',
-                severity: 'high'
-            });
+            // Verificar tipo e converter para timestamp
+            if (leadData.proximoContacto.toDate && typeof leadData.proximoContacto.toDate === 'function') {
+                // É um Timestamp do Firebase
+                proximoContactoTime = leadData.proximoContacto.toDate().getTime();
+            } else if (leadData.proximoContacto instanceof Date) {
+                // É um objeto Date
+                proximoContactoTime = leadData.proximoContacto.getTime();
+            } else if (typeof leadData.proximoContacto === 'string' || typeof leadData.proximoContacto === 'number') {
+                // É uma string ou número - tentar converter
+                proximoContactoTime = new Date(leadData.proximoContacto).getTime();
+            } else {
+                // Tipo desconhecido - pular verificação
+                proximoContactoTime = null;
+            }
+
+            if (proximoContactoTime && proximoContactoTime < now) {
+                alerts.push({
+                    type: 'overdue',
+                    message: 'Contacto agendado está em atraso',
+                    severity: 'high'
+                });
+            }
+        } catch (error) {
+            console.warn('Erro ao processar proximoContacto:', error);
         }
     }
 
@@ -511,6 +572,85 @@ export const needsAlert = (leadData) => {
 };
 
 // ===== HELPERS =====
+
+/**
+ * Converte diferentes tipos de timestamps para objeto Date
+ * NOVO: Função auxiliar para tratar timestamps do Firestore
+ */
+export const convertFirestoreTimestamp = (timestamp) => {
+    if (!timestamp) return null;
+
+    try {
+        // Se for um Timestamp do Firebase
+        if (timestamp.toDate && typeof timestamp.toDate === 'function') {
+            return timestamp.toDate();
+        }
+
+        // Se já for um objeto Date
+        if (timestamp instanceof Date) {
+            return timestamp;
+        }
+
+        // Se for string ou número
+        if (typeof timestamp === 'string' || typeof timestamp === 'number') {
+            const date = new Date(timestamp);
+            // Verificar se a data é válida
+            if (!isNaN(date.getTime())) {
+                return date;
+            }
+        }
+
+        // Se for um objeto com seconds (Firestore timestamp serializado)
+        if (timestamp.seconds) {
+            return new Date(timestamp.seconds * 1000);
+        }
+
+        console.warn('Tipo de timestamp desconhecido:', timestamp);
+        return null;
+    } catch (error) {
+        console.warn('Erro ao converter timestamp:', error);
+        return null;
+    }
+};
+
+/**
+ * Verifica se um valor é um timestamp válido do Firestore
+ */
+export const isFirestoreTimestamp = (value) => {
+    return value && value.toDate && typeof value.toDate === 'function';
+};
+
+/**
+ * Converte Date para Timestamp do Firestore
+ */
+export const toFirestoreTimestamp = (date) => {
+    if (!date) return null;
+
+    try {
+        // Se já for um Timestamp, retornar como está
+        if (isFirestoreTimestamp(date)) {
+            return date;
+        }
+
+        // Se for Date, converter para Timestamp
+        if (date instanceof Date) {
+            return Timestamp.fromDate(date);
+        }
+
+        // Se for string ou número, converter primeiro para Date
+        if (typeof date === 'string' || typeof date === 'number') {
+            const dateObj = new Date(date);
+            if (!isNaN(dateObj.getTime())) {
+                return Timestamp.fromDate(dateObj);
+            }
+        }
+
+        return null;
+    } catch (error) {
+        console.warn('Erro ao converter para Firestore Timestamp:', error);
+        return null;
+    }
+};
 
 /**
  * Formata número de telefone
@@ -535,22 +675,52 @@ export const formatPhone = (phone) => {
 export const getDaysSince = (date) => {
     if (!date) return null;
 
-    const dateObj = date.toDate ? date.toDate() : new Date(date);
-    const now = new Date();
-    const diffTime = Math.abs(now - dateObj);
-    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    try {
+        let dateObj;
 
-    return diffDays;
+        // Verificar tipo e converter para Date
+        if (date.toDate && typeof date.toDate === 'function') {
+            // É um Timestamp do Firebase
+            dateObj = date.toDate();
+        } else if (date instanceof Date) {
+            // Já é um objeto Date
+            dateObj = date;
+        } else if (typeof date === 'string' || typeof date === 'number') {
+            // É uma string ou número - converter
+            dateObj = new Date(date);
+        } else {
+            // Tipo desconhecido
+            console.warn('Tipo de data desconhecido:', typeof date);
+            return null;
+        }
+
+        // Verificar se a data é válida
+        if (isNaN(dateObj.getTime())) {
+            console.warn('Data inválida:', date);
+            return null;
+        }
+
+        const now = new Date();
+        const diffTime = Math.abs(now - dateObj);
+        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+        return diffDays;
+    } catch (error) {
+        console.warn('Erro ao calcular dias desde a data:', error);
+        return null;
+    }
 };
 
 /**
  * Formata data relativa
+ * CORRIGIDO: Usa a função getDaysSince corrigida
  */
 export const getRelativeTime = (date) => {
     if (!date) return '';
 
     const days = getDaysSince(date);
 
+    if (days === null) return '';
     if (days === 0) return 'Hoje';
     if (days === 1) return 'Ontem';
     if (days < 7) return `${days} dias atrás`;

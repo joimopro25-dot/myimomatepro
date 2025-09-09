@@ -37,6 +37,7 @@ import {
     calculateLeadScore,
     getNextRecommendedAction,
     needsAlert,
+    convertFirestoreTimestamp,
     LEAD_STATUS,
     TASK_STATUS
 } from '../models/leadModel';
@@ -283,6 +284,7 @@ export const getLeads = async (consultorId, options = {}) => {
 
 /**
  * Obter estatísticas das leads
+ * CORRIGIDO: Tratamento robusto de erros na função needsAlert
  */
 export const getLeadsStats = async (consultorId) => {
     try {
@@ -291,16 +293,14 @@ export const getLeadsStats = async (consultorId) => {
         const stats = {
             total: 0,
             porStatus: {},
+            porTemperatura: {},
             porFonte: {},
-            porInteresse: {},
-            porTemperatura: {
-                frio: 0,
-                morno: 0,
-                quente: 0
-            },
-            alertas: 0,
-            taxaConversao: 0
+            comAlertas: 0,
+            taxaConversao: 0,
+            tempoMedioConversao: 0
         };
+
+        const temposConversao = [];
 
         snapshot.forEach(doc => {
             const lead = doc.data();
@@ -309,30 +309,52 @@ export const getLeadsStats = async (consultorId) => {
             // Por status
             stats.porStatus[lead.status] = (stats.porStatus[lead.status] || 0) + 1;
 
+            // Por temperatura
+            const temperatura = calculateLeadTemperature(lead.ultimoContacto);
+            stats.porTemperatura[temperatura] = (stats.porTemperatura[temperatura] || 0) + 1;
+
             // Por fonte
             stats.porFonte[lead.leadSource] = (stats.porFonte[lead.leadSource] || 0) + 1;
 
-            // Por interesse
-            stats.porInteresse[lead.interesse] = (stats.porInteresse[lead.interesse] || 0) + 1;
+            // Com alertas - tratamento de erro
+            try {
+                const alerts = needsAlert(lead);
+                if (alerts && alerts.length > 0) {
+                    stats.comAlertas++;
+                }
+            } catch (error) {
+                console.warn('Erro ao verificar alertas para lead:', doc.id, error);
+            }
 
-            // Por temperatura
-            const temp = calculateLeadTemperature(lead.ultimoContacto);
-            stats.porTemperatura[temp]++;
+            // Tempo de conversão
+            if (lead.convertidaEm && lead.criadaEm) {
+                try {
+                    const criada = convertFirestoreTimestamp(lead.criadaEm);
+                    const convertida = convertFirestoreTimestamp(lead.convertidaEm);
 
-            // Alertas
-            const alerts = needsAlert(lead);
-            if (alerts.length > 0) {
-                stats.alertas++;
+                    if (criada && convertida) {
+                        const dias = Math.floor((convertida - criada) / (1000 * 60 * 60 * 24));
+                        temposConversao.push(dias);
+                    }
+                } catch (error) {
+                    console.warn('Erro ao calcular tempo de conversão:', error);
+                }
             }
         });
 
-        // Taxa de conversão
-        const ganhas = stats.porStatus[LEAD_STATUS.GANHO] || 0;
+        // Calcular taxa de conversão
+        const convertidas = stats.porStatus[LEAD_STATUS.CONVERTIDO] || 0;
         const perdidas = stats.porStatus[LEAD_STATUS.PERDIDO] || 0;
-        const total = ganhas + perdidas;
+        const finalizadas = convertidas + perdidas;
 
-        if (total > 0) {
-            stats.taxaConversao = Math.round((ganhas / total) * 100);
+        if (finalizadas > 0) {
+            stats.taxaConversao = Math.round((convertidas / finalizadas) * 100);
+        }
+
+        // Calcular tempo médio de conversão
+        if (temposConversao.length > 0) {
+            const soma = temposConversao.reduce((a, b) => a + b, 0);
+            stats.tempoMedioConversao = Math.round(soma / temposConversao.length);
         }
 
         return stats;
