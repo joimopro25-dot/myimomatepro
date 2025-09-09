@@ -4,6 +4,8 @@
  * 
  * Caminho: src/services/leadService.js
  * Estrutura: consultores/{consultorId}/leads/{leadId}
+ * 
+ * ✅ CORRIGIDO: Validação de IDs na função getLeads
  */
 
 import {
@@ -169,6 +171,7 @@ export const getLead = async (consultorId, leadId) => {
 
 /**
  * Listar leads com filtros e paginação
+ * ✅ CORRIGIDO: Adicionada validação de IDs e filtro de leads inválidas
  */
 export const getLeads = async (consultorId, options = {}) => {
     try {
@@ -220,36 +223,57 @@ export const getLeads = async (consultorId, options = {}) => {
         q = query(q, ...constraints);
         const snapshot = await getDocs(q);
 
-        const leads = [];
-        snapshot.forEach(doc => {
+        // ✅ CORREÇÃO: Processar e validar leads
+        const leads = snapshot.docs.map(doc => {
             const leadData = doc.data();
 
             // Calcular campos dinâmicos
             leadData.temperatura = calculateLeadTemperature(leadData.ultimoContacto);
             leadData.alerts = needsAlert(leadData);
 
-            // Filtro de pesquisa local
-            if (searchTerm) {
+            // ✅ GARANTIR que sempre há um ID válido
+            return {
+                ...leadData,
+                id: doc.id || `temp-${Date.now()}-${Math.random()}`, // Fallback ID
+                // Adicionar validações extras se necessário
+                name: leadData.name || 'Lead sem nome',
+                phone: leadData.phone || '',
+                email: leadData.email || '',
+                status: leadData.status || 'novo',
+                source: leadData.source || 'direto'
+            };
+        }).filter(lead => {
+            // ✅ FILTRAR leads inválidas (sem dados essenciais)
+            const isValid = lead.name && (lead.phone || lead.email);
+
+            // Aplicar filtro de pesquisa local se necessário
+            if (isValid && searchTerm) {
                 const term = searchTerm.toLowerCase();
                 const matchesSearch =
-                    leadData.name?.toLowerCase().includes(term) ||
-                    leadData.email?.toLowerCase().includes(term) ||
-                    leadData.phone?.includes(term) ||
-                    leadData.descricao?.toLowerCase().includes(term);
+                    lead.name?.toLowerCase().includes(term) ||
+                    lead.email?.toLowerCase().includes(term) ||
+                    lead.phone?.includes(term) ||
+                    lead.descricao?.toLowerCase().includes(term);
 
-                if (!matchesSearch) return;
+                return matchesSearch;
             }
 
-            leads.push({
-                id: doc.id,
-                ...leadData
-            });
+            return isValid;
         });
+
+        // ✅ LOG para debug
+        console.log(`📊 Leads carregadas: ${leads.length} registros válidos de ${snapshot.docs.length} totais`);
+
+        // ✅ Verificar se há leads com ID null e avisar
+        const leadsComIdNull = leads.filter(l => !l.id);
+        if (leadsComIdNull.length > 0) {
+            console.warn('⚠️ Encontradas leads sem ID:', leadsComIdNull);
+        }
 
         return {
             leads,
             hasMore: snapshot.docs.length === pageSize,
-            lastDoc: snapshot.docs[snapshot.docs.length - 1]
+            lastDoc: snapshot.docs[snapshot.docs.length - 1] || null
         };
     } catch (error) {
         console.error('Erro ao listar leads:', error);
@@ -639,6 +663,127 @@ export const markLeadAsLost = async (consultorId, leadId, motivoPerda) => {
         return true;
     } catch (error) {
         console.error('Erro ao marcar lead como perdida:', error);
+        throw error;
+    }
+};
+
+// ===== SEARCH OPERATIONS =====
+
+/**
+ * Pesquisar leads
+ */
+export const searchLeads = async (consultorId, searchTerm) => {
+    try {
+        const snapshot = await getDocs(getLeadCollection(consultorId));
+        const term = searchTerm.toLowerCase();
+        const results = [];
+
+        snapshot.forEach(doc => {
+            const lead = doc.data();
+            const matchesSearch =
+                lead.name?.toLowerCase().includes(term) ||
+                lead.email?.toLowerCase().includes(term) ||
+                lead.phone?.includes(term) ||
+                lead.descricao?.toLowerCase().includes(term) ||
+                lead.empresa?.toLowerCase().includes(term);
+
+            if (matchesSearch) {
+                results.push({
+                    id: doc.id,
+                    ...lead,
+                    temperatura: calculateLeadTemperature(lead.ultimoContacto),
+                    alerts: needsAlert(lead)
+                });
+            }
+        });
+
+        return results;
+    } catch (error) {
+        console.error('Erro ao pesquisar leads:', error);
+        throw error;
+    }
+};
+
+// ===== BULK OPERATIONS =====
+
+/**
+ * Atualizar múltiplas leads
+ */
+export const updateLeadsBatch = async (consultorId, updates) => {
+    try {
+        const batch = writeBatch(db);
+
+        for (const { leadId, updateData } of updates) {
+            const leadRef = getLeadDoc(consultorId, leadId);
+            batch.update(leadRef, {
+                ...updateData,
+                atualizadaEm: Timestamp.now()
+            });
+        }
+
+        await batch.commit();
+        return true;
+    } catch (error) {
+        console.error('Erro ao atualizar leads em lote:', error);
+        throw error;
+    }
+};
+
+/**
+ * Exportar leads
+ */
+export const exportLeads = async (consultorId, filters = {}) => {
+    try {
+        const result = await getLeads(consultorId, { ...filters, pageSize: 1000 });
+        return result.leads;
+    } catch (error) {
+        console.error('Erro ao exportar leads:', error);
+        throw error;
+    }
+};
+
+// ===== VALIDATION HELPERS =====
+
+/**
+ * Verificar se email já existe
+ */
+export const checkEmailExists = async (consultorId, email, excludeLeadId = null) => {
+    try {
+        const q = query(
+            getLeadCollection(consultorId),
+            where('email', '==', email)
+        );
+        const snapshot = await getDocs(q);
+
+        if (excludeLeadId) {
+            return snapshot.docs.some(doc => doc.id !== excludeLeadId);
+        }
+
+        return !snapshot.empty;
+    } catch (error) {
+        console.error('Erro ao verificar email:', error);
+        throw error;
+    }
+};
+
+/**
+ * Verificar se telefone já existe
+ */
+export const checkPhoneExists = async (consultorId, phone, excludeLeadId = null) => {
+    try {
+        const q = query(
+            getLeadCollection(consultorId),
+            where('phone', '==', phone)
+        );
+        const snapshot = await getDocs(q);
+
+        if (excludeLeadId) {
+            return snapshot.docs.some(doc => doc.id !== excludeLeadId);
+        }
+
+        return !snapshot.empty;
+    } catch (error) {
+        console.error('Erro ao verificar telefone:', error);
         throw error;
     }
 };

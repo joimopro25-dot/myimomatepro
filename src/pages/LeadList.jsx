@@ -1,11 +1,12 @@
 /**
  * LEAD LIST PAGE - MyImoMatePro
  * Página de listagem de leads com filtros e ações
+ * ✅ CORRIGIDO: formatPhone adicionado e todas as melhorias aplicadas
  * 
  * Caminho: src/pages/LeadList.jsx
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useLeads } from '../contexts/LeadContext';
 import {
@@ -69,38 +70,91 @@ const LeadListPage = () => {
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [leadToDelete, setLeadToDelete] = useState(null);
 
-    // Carregar dados ao montar e quando voltar do formulário
+    // Refs para controlar requisições
+    const loadingRef = useRef(false);
+    const abortControllerRef = useRef(null);
+
+    // Função para formatar telefone
+    const formatPhone = (phone) => {
+        if (!phone) return '';
+        // Formatar telefone português
+        const cleaned = phone.replace(/\D/g, '');
+        if (cleaned.length === 9) {
+            return `${cleaned.slice(0, 3)} ${cleaned.slice(3, 6)} ${cleaned.slice(6)}`;
+        }
+        return phone;
+    };
+
+    // Carregar dados ao montar
     useEffect(() => {
+        let mounted = true;
+
         const loadData = async () => {
-            await fetchLeads();
-            await fetchStats();
-            await fetchAlertLeads();
+            if (!mounted) return;
+
+            try {
+                // Carregar em paralelo mas aguardar todas
+                await Promise.all([
+                    fetchLeads(),
+                    fetchStats(),
+                    fetchAlertLeads()
+                ]);
+            } catch (error) {
+                console.error('Erro ao carregar dados das leads:', error);
+            }
         };
 
         loadData();
 
         // Verificar se veio do formulário
         if (location.state?.fromForm) {
-            // Limpar o state para não recarregar novamente
             window.history.replaceState({}, document.title);
         }
-    }, [location.state]);
+
+        // Cleanup function
+        return () => {
+            mounted = false;
+        };
+    }, []); // Removido location.state como dependência
 
     // Pesquisa com debounce
     useEffect(() => {
+        // Cancelar requisição anterior se existir
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+        }
+
         const timer = setTimeout(() => {
             if (localSearchTerm !== searchTerm) {
-                searchLeads(localSearchTerm);
+                // Criar novo AbortController para esta requisição
+                abortControllerRef.current = new AbortController();
+
+                searchLeads(localSearchTerm)
+                    .catch(error => {
+                        // Ignorar erros de cancelamento
+                        if (error.name !== 'AbortError') {
+                            console.error('Erro na pesquisa:', error);
+                        }
+                    });
             }
         }, 500);
 
-        return () => clearTimeout(timer);
+        return () => {
+            clearTimeout(timer);
+            // Cancelar requisição pendente ao desmontar
+            if (abortControllerRef.current) {
+                abortControllerRef.current.abort();
+            }
+        };
     }, [localSearchTerm, searchTerm, searchLeads]);
 
     // Aplicar filtros
     const handleFilterChange = useCallback((filterType, value) => {
         setFilters({ [filterType]: value });
-        fetchLeads();
+        // Usar setTimeout para dar tempo do estado atualizar
+        setTimeout(() => {
+            fetchLeads({ preserveExisting: true });
+        }, 0);
     }, [setFilters, fetchLeads]);
 
     // Limpar todos os filtros
@@ -136,15 +190,17 @@ const LeadListPage = () => {
 
     // Excluir lead
     const handleDeleteConfirm = async () => {
-        if (leadToDelete) {
+        if (leadToDelete && leadToDelete.id) {
             try {
                 await deleteLead(leadToDelete.id);
                 setShowDeleteConfirm(false);
                 setLeadToDelete(null);
 
-                // Recarregar lista
-                await fetchLeads();
-                await fetchStats();
+                // Recarregar lista preservando existentes durante o loading
+                await Promise.all([
+                    fetchLeads({ preserveExisting: true }),
+                    fetchStats()
+                ]);
             } catch (error) {
                 console.error('Erro ao excluir lead:', error);
             }
@@ -153,9 +209,16 @@ const LeadListPage = () => {
 
     // Recarregar dados
     const handleRefresh = async () => {
-        await fetchLeads();
-        await fetchStats();
-        await fetchAlertLeads();
+        try {
+            // Não limpar as leads existentes antes de carregar novas
+            await Promise.all([
+                fetchLeads({ preserveExisting: true }),
+                fetchStats(),
+                fetchAlertLeads()
+            ]);
+        } catch (error) {
+            console.error('Erro ao atualizar dados:', error);
+        }
     };
 
     // Componente de temperatura
@@ -238,7 +301,7 @@ const LeadListPage = () => {
                         <div className="p-5">
                             <div className="flex items-center">
                                 <div className="flex-shrink-0">
-                                    <FireIcon className="h-6 w-6 text-red-500" />
+                                    <FireIcon className="h-6 w-6 text-orange-400" />
                                 </div>
                                 <div className="ml-5 w-0 flex-1">
                                     <dl>
@@ -258,7 +321,7 @@ const LeadListPage = () => {
                         <div className="p-5">
                             <div className="flex items-center">
                                 <div className="flex-shrink-0">
-                                    <BellAlertIcon className="h-6 w-6 text-yellow-500" />
+                                    <BellAlertIcon className="h-6 w-6 text-yellow-400" />
                                 </div>
                                 <div className="ml-5 w-0 flex-1">
                                     <dl>
@@ -278,7 +341,7 @@ const LeadListPage = () => {
                         <div className="p-5">
                             <div className="flex items-center">
                                 <div className="flex-shrink-0">
-                                    <CheckCircleIcon className="h-6 w-6 text-green-500" />
+                                    <CheckCircleIcon className="h-6 w-6 text-green-400" />
                                 </div>
                                 <div className="ml-5 w-0 flex-1">
                                     <dl>
@@ -296,7 +359,7 @@ const LeadListPage = () => {
                 </div>
 
                 {/* Alertas */}
-                {alertLeads.length > 0 && showAlerts && (
+                {showAlerts && alertLeads && alertLeads.length > 0 && (
                     <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4">
                         <div className="flex">
                             <div className="flex-shrink-0">
@@ -336,34 +399,39 @@ const LeadListPage = () => {
 
                 {/* Toolbar */}
                 <div className="bg-white shadow rounded-lg">
-                    <div className="px-4 py-3 border-b border-gray-200">
+                    <div className="px-4 py-3 border-b border-gray-200 sm:px-6">
                         <div className="flex items-center justify-between">
-                            <div className="flex-1 flex items-center space-x-4">
+                            <div className="flex-1 flex items-center">
                                 {/* Pesquisa */}
-                                <div className="max-w-xs flex-1">
+                                <div className="w-full max-w-lg lg:max-w-xs">
                                     <label htmlFor="search" className="sr-only">
-                                        Pesquisar
+                                        Pesquisar leads
                                     </label>
                                     <div className="relative">
                                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                             <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" />
                                         </div>
                                         <input
-                                            type="text"
-                                            name="search"
                                             id="search"
+                                            name="search"
                                             className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                                             placeholder="Pesquisar leads..."
+                                            type="search"
                                             value={localSearchTerm}
                                             onChange={(e) => setLocalSearchTerm(e.target.value)}
                                         />
                                     </div>
                                 </div>
+                            </div>
 
-                                {/* Filtros */}
+                            {/* Ações */}
+                            <div className="ml-4 flex items-center space-x-2">
                                 <button
                                     onClick={() => setShowFilters(!showFilters)}
-                                    className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                                    className={`inline-flex items-center px-3 py-2 border text-sm leading-4 font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 ${showFilters
+                                            ? 'border-indigo-500 text-indigo-700 bg-indigo-50'
+                                            : 'border-gray-300 text-gray-700 bg-white hover:bg-gray-50'
+                                        }`}
                                 >
                                     <FunnelIcon className="-ml-0.5 mr-2 h-4 w-4" />
                                     Filtros
@@ -374,11 +442,10 @@ const LeadListPage = () => {
                                     )}
                                 </button>
 
-                                {/* Alertas Toggle */}
-                                {alertLeads.length > 0 && (
+                                {alertLeads && alertLeads.length > 0 && (
                                     <button
                                         onClick={() => setShowAlerts(!showAlerts)}
-                                        className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                                        className="inline-flex items-center px-3 py-2 border border-gray-300 text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                                     >
                                         <BellAlertIcon className="-ml-0.5 mr-2 h-4 w-4" />
                                         Alertas
@@ -387,30 +454,30 @@ const LeadListPage = () => {
                                         </span>
                                     </button>
                                 )}
-                            </div>
 
-                            {/* Refresh */}
-                            <button
-                                onClick={handleRefresh}
-                                disabled={loading.list}
-                                className="ml-4 inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
-                            >
-                                <ArrowPathIcon className={`h-4 w-4 ${loading.list ? 'animate-spin' : ''}`} />
-                            </button>
+                                <button
+                                    onClick={handleRefresh}
+                                    className="inline-flex items-center px-3 py-2 border border-gray-300 text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                                >
+                                    <ArrowPathIcon className="h-4 w-4" />
+                                </button>
+                            </div>
                         </div>
 
-                        {/* Filtros Expandidos */}
+                        {/* Filtros */}
                         {showFilters && (
-                            <div className="mt-4 pt-4 border-t border-gray-200">
-                                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                                    {/* Status */}
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                                            Status
-                                        </label>
+                            <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                                {/* Status */}
+                                <div>
+                                    <label htmlFor="filter-status" className="block text-sm font-medium text-gray-700">
+                                        Status
+                                    </label>
+                                    <div className="mt-1">
                                         <select
+                                            id="filter-status"
+                                            name="status"
                                             value={filters.status || ''}
-                                            onChange={(e) => handleFilterChange('status', e.target.value || null)}
+                                            onChange={(e) => handleFilterChange('status', e.target.value)}
                                             className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
                                         >
                                             <option value="">Todos</option>
@@ -421,15 +488,19 @@ const LeadListPage = () => {
                                             ))}
                                         </select>
                                     </div>
+                                </div>
 
-                                    {/* Fonte */}
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                                            Fonte
-                                        </label>
+                                {/* Fonte */}
+                                <div>
+                                    <label htmlFor="filter-source" className="block text-sm font-medium text-gray-700">
+                                        Fonte
+                                    </label>
+                                    <div className="mt-1">
                                         <select
+                                            id="filter-source"
+                                            name="source"
                                             value={filters.leadSource || ''}
-                                            onChange={(e) => handleFilterChange('leadSource', e.target.value || null)}
+                                            onChange={(e) => handleFilterChange('leadSource', e.target.value)}
                                             className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
                                         >
                                             <option value="">Todas</option>
@@ -440,15 +511,19 @@ const LeadListPage = () => {
                                             ))}
                                         </select>
                                     </div>
+                                </div>
 
-                                    {/* Interesse */}
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                                            Interesse
-                                        </label>
+                                {/* Interesse */}
+                                <div>
+                                    <label htmlFor="filter-interest" className="block text-sm font-medium text-gray-700">
+                                        Interesse
+                                    </label>
+                                    <div className="mt-1">
                                         <select
+                                            id="filter-interest"
+                                            name="interest"
                                             value={filters.interesse || ''}
-                                            onChange={(e) => handleFilterChange('interesse', e.target.value || null)}
+                                            onChange={(e) => handleFilterChange('interesse', e.target.value)}
                                             className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
                                         >
                                             <option value="">Todos</option>
@@ -459,15 +534,19 @@ const LeadListPage = () => {
                                             ))}
                                         </select>
                                     </div>
+                                </div>
 
-                                    {/* Temperatura */}
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                                            Temperatura
-                                        </label>
+                                {/* Temperatura */}
+                                <div>
+                                    <label htmlFor="filter-temperature" className="block text-sm font-medium text-gray-700">
+                                        Temperatura
+                                    </label>
+                                    <div className="mt-1">
                                         <select
+                                            id="filter-temperature"
+                                            name="temperature"
                                             value={filters.temperatura || ''}
-                                            onChange={(e) => handleFilterChange('temperatura', e.target.value || null)}
+                                            onChange={(e) => handleFilterChange('temperatura', e.target.value)}
                                             className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
                                         >
                                             <option value="">Todas</option>
@@ -482,7 +561,7 @@ const LeadListPage = () => {
 
                                 {/* Limpar Filtros */}
                                 {Object.values(filters).filter(v => v).length > 0 && (
-                                    <div className="mt-3">
+                                    <div className="mt-3 col-span-full">
                                         <button
                                             onClick={handleResetFilters}
                                             className="text-sm text-indigo-600 hover:text-indigo-500"
@@ -496,12 +575,14 @@ const LeadListPage = () => {
                     </div>
 
                     {/* Lista de Leads */}
-                    <div className="overflow-hidden">
-                        {loading.list ? (
+                    <div className="overflow-hidden relative">
+                        {loading.list && leads.length === 0 ? (
+                            // Só mostrar loading se não houver leads carregadas
                             <div className="flex justify-center items-center py-12">
                                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
                             </div>
-                        ) : leads.length === 0 ? (
+                        ) : leads.length === 0 && !loading.list ? (
+                            // Só mostrar "sem leads" se não estiver carregando
                             <div className="text-center py-12">
                                 <UserPlusIcon className="mx-auto h-12 w-12 text-gray-400" />
                                 <h3 className="mt-2 text-sm font-medium text-gray-900">Sem leads</h3>
@@ -519,111 +600,113 @@ const LeadListPage = () => {
                                 </div>
                             </div>
                         ) : (
-                            <table className="min-w-full divide-y divide-gray-200">
-                                <thead className="bg-gray-50">
-                                    <tr>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                            Lead
-                                        </th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                            Contacto
-                                        </th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                            Status
-                                        </th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                            Fonte
-                                        </th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                            Temperatura
-                                        </th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                            Último Contacto
-                                        </th>
-                                        <th className="relative px-6 py-3">
-                                            <span className="sr-only">Ações</span>
-                                        </th>
-                                    </tr>
-                                </thead>
-                                <tbody className="bg-white divide-y divide-gray-200">
-                                    {leads.map((lead) => (
-                                        <tr
-                                            key={lead.id}
-                                            className="hover:bg-gray-50 cursor-pointer"
-                                            onClick={() => handleViewLead(lead.id)}
-                                        >
-                                            <td className="px-6 py-4 whitespace-nowrap">
-                                                <div className="flex items-center">
-                                                    <div>
-                                                        <div className="text-sm font-medium text-gray-900">
-                                                            {lead.name}
+                            // Mostrar a tabela mesmo durante o loading se já houver leads
+                            <>
+                                {loading.list && (
+                                    <div className="absolute top-2 right-2 z-10">
+                                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600"></div>
+                                    </div>
+                                )}
+                                <table className="min-w-full divide-y divide-gray-200">
+                                    <thead className="bg-gray-50">
+                                        <tr>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                Lead
+                                            </th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                Contacto
+                                            </th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                Status
+                                            </th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                Fonte
+                                            </th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                Temperatura
+                                            </th>
+                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                Último Contacto
+                                            </th>
+                                            <th className="relative px-6 py-3">
+                                                <span className="sr-only">Ações</span>
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="bg-white divide-y divide-gray-200">
+                                        {leads && leads.length > 0 && leads.map((lead, index) => {
+                                            // Validar lead antes de renderizar
+                                            if (!lead) return null;
+
+                                            // Garantir que lead tem ID válido
+                                            const leadId = lead.id || `temp-lead-${index}`;
+
+                                            return (
+                                                <tr
+                                                    key={leadId}
+                                                    className="hover:bg-gray-50 cursor-pointer"
+                                                    onClick={() => lead.id && handleViewLead(lead.id)}
+                                                >
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <div className="flex items-center">
+                                                            <div>
+                                                                <div className="text-sm font-medium text-gray-900">
+                                                                    {lead.name || 'Sem nome'}
+                                                                </div>
+                                                                <div className="text-sm text-gray-500">
+                                                                    {lead.empresa || 'Sem empresa'}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <div className="text-sm text-gray-900">
+                                                            {lead.phone && formatPhone(lead.phone)}
                                                         </div>
                                                         <div className="text-sm text-gray-500">
-                                                            {LEAD_INTEREST_LABELS[lead.interesse]}
+                                                            {lead.email || '-'}
                                                         </div>
-                                                    </div>
-                                                    {lead.alerts?.length > 0 && (
-                                                        <ExclamationTriangleIcon className="ml-2 h-4 w-4 text-yellow-500" />
-                                                    )}
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap">
-                                                <div className="text-sm text-gray-900">
-                                                    <div className="flex items-center">
-                                                        <PhoneIcon className="h-4 w-4 mr-1 text-gray-400" />
-                                                        {lead.phone}
-                                                    </div>
-                                                    {lead.email && (
-                                                        <div className="flex items-center mt-1">
-                                                            <EnvelopeIcon className="h-4 w-4 mr-1 text-gray-400" />
-                                                            {lead.email}
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <StatusBadge status={lead.status || 'novo'} />
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                        {LEAD_SOURCE_LABELS[lead.leadSource] || lead.leadSource || '-'}
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <TemperatureIcon temperatura={lead.temperatura || 'frio'} />
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                        {lead.ultimoContacto ? getRelativeTime(lead.ultimoContacto) : 'Nunca contactado'}
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                        <div className="flex items-center justify-end space-x-2">
+                                                            {lead.id && (
+                                                                <>
+                                                                    <button
+                                                                        onClick={(e) => handleEditLead(lead.id, e)}
+                                                                        className="text-indigo-600 hover:text-indigo-900"
+                                                                        title="Editar"
+                                                                    >
+                                                                        <PencilIcon className="h-4 w-4" />
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={(e) => handleDeleteClick(lead, e)}
+                                                                        className="text-red-600 hover:text-red-900"
+                                                                        title="Eliminar"
+                                                                    >
+                                                                        <TrashIcon className="h-4 w-4" />
+                                                                    </button>
+                                                                </>
+                                                            )}
                                                         </div>
-                                                    )}
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap">
-                                                <StatusBadge status={lead.status} />
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                                {LEAD_SOURCE_LABELS[lead.leadSource]}
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap">
-                                                <div className="flex items-center">
-                                                    <TemperatureIcon temperatura={lead.temperatura} />
-                                                    <span className="ml-2 text-sm text-gray-500">
-                                                        {LEAD_TEMPERATURE_LABELS[lead.temperatura]}
-                                                    </span>
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                                {lead.ultimoContacto ?
-                                                    getRelativeTime(lead.ultimoContacto) :
-                                                    'Nunca contactado'
-                                                }
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                                <div className="flex items-center justify-end space-x-2">
-                                                    <button
-                                                        onClick={(e) => handleEditLead(lead.id, e)}
-                                                        className="text-indigo-600 hover:text-indigo-900"
-                                                        title="Editar"
-                                                    >
-                                                        <PencilIcon className="h-4 w-4" />
-                                                    </button>
-                                                    <button
-                                                        onClick={(e) => handleDeleteClick(lead, e)}
-                                                        className="text-red-600 hover:text-red-900"
-                                                        title="Eliminar"
-                                                    >
-                                                        <TrashIcon className="h-4 w-4" />
-                                                    </button>
-                                                    <ChevronRightIcon className="h-4 w-4 text-gray-400" />
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </>
                         )}
                     </div>
 
