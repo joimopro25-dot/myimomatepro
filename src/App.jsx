@@ -1,7 +1,7 @@
 /**
  * APP.JSX - MyImoMatePro
  * Router principal com todas as rotas do sistema
- * ✅ ADICIONADO: Sistema de Leads completo
+ * ✅ CORRIGIDO: Rotas dos leads conectadas ao LeadForm e LeadDetail
  */
 
 import React from 'react';
@@ -9,7 +9,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { SubscriptionProvider } from './contexts/SubscriptionContext';
 import { ClientProvider } from './contexts/ClientContext';
-import { LeadProvider } from './contexts/LeadContext'; // ✅ NOVO: Import do LeadProvider
+import { LeadProvider } from './contexts/LeadContext';
 
 // Páginas públicas
 import LandingPage from './pages/LandingPage';
@@ -24,7 +24,7 @@ import ClientList from './pages/ClientList';
 import ClientForm from './pages/ClientForm';
 import ClientDetail from './pages/ClientDetail';
 
-// ✅ NOVO: Sistema de Leads
+// Sistema de Leads
 import LeadList from './pages/LeadList';
 import LeadForm from './pages/LeadForm';
 import LeadDetail from './pages/LeadDetail';
@@ -105,31 +105,24 @@ function AppRoutes() {
           </ProtectedRoute>
         } />
 
+        {/* ✅ CORRIGIDO: Rota para criar nova lead */}
         <Route path="/leads/new" element={
           <ProtectedRoute>
-            {/* Temporariamente redireciona para lista até criarmos LeadForm */}
-            <Navigate to="/leads" replace />
+            <LeadForm />
           </ProtectedRoute>
         } />
 
+        {/* ✅ CORRIGIDO: Rota para visualizar detalhes da lead */}
         <Route path="/leads/:leadId" element={
           <ProtectedRoute>
-            {/* Temporariamente redireciona para lista até criarmos LeadDetail */}
-            <Navigate to="/leads" replace />
+            <LeadDetail />
           </ProtectedRoute>
         } />
 
+        {/* ✅ CORRIGIDO: Rota para editar lead */}
         <Route path="/leads/:leadId/edit" element={
           <ProtectedRoute>
-            {/* Temporariamente redireciona para lista até criarmos LeadForm */}
-            <Navigate to="/leads" replace />
-          </ProtectedRoute>
-        } />
-
-        <Route path="/leads/:leadId/convert" element={
-          <ProtectedRoute>
-            {/* Temporariamente redireciona para lista até criarmos conversão */}
-            <Navigate to="/leads" replace />
+            <LeadForm />
           </ProtectedRoute>
         } />
 
@@ -170,7 +163,6 @@ function App() {
     <AuthProvider>
       <SubscriptionProvider>
         <ClientProvider>
-          {/* ✅ NOVO: LeadProvider adicionado à árvore de contextos */}
           <LeadProvider>
             <AppRoutes />
           </LeadProvider>
