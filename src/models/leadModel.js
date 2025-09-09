@@ -1,86 +1,73 @@
 /**
  * LEAD MODEL - MyImoMatePro
- * Modelo de dados, validações e lógica de negócio para leads
+ * Modelo de dados para Leads (Qualificações de Clientes PROSPECT)
+ * As Leads são qualificações associadas a Clientes com badge PROSPECT
  * 
  * Caminho: src/models/leadModel.js
  */
 
-import { Timestamp } from 'firebase/firestore';
-
-// ===== CONSTANTES E ENUMS =====
-
-// Status da Lead
-export const LEAD_STATUS = {
-    NOVO: 'novo',
-    CONTACTADO: 'contactado',
-    QUALIFICADO: 'qualificado',
-    PROPOSTA: 'proposta',
-    NEGOCIACAO: 'negociacao',
-    GANHO: 'ganho',
-    PERDIDO: 'perdido',
-    STANDBY: 'standby'
+// ===== TIPOS DE LEAD (INTERESSE DO CLIENTE) =====
+export const LEAD_TYPES = {
+    COMPRADOR: 'comprador',
+    VENDEDOR: 'vendedor',
+    INQUILINO: 'inquilino',
+    SENHORIO: 'senhorio',
+    INVESTIDOR: 'investidor'
 };
 
-export const LEAD_STATUS_LABELS = {
-    [LEAD_STATUS.NOVO]: 'Nova',
-    [LEAD_STATUS.CONTACTADO]: 'Contactado',
-    [LEAD_STATUS.QUALIFICADO]: 'Qualificado',
-    [LEAD_STATUS.PROPOSTA]: 'Proposta Enviada',
-    [LEAD_STATUS.NEGOCIACAO]: 'Em Negociação',
-    [LEAD_STATUS.GANHO]: 'Ganho',
-    [LEAD_STATUS.PERDIDO]: 'Perdido',
-    [LEAD_STATUS.STANDBY]: 'Stand-by'
+export const LEAD_TYPE_LABELS = {
+    [LEAD_TYPES.COMPRADOR]: 'Cliente Comprador',
+    [LEAD_TYPES.VENDEDOR]: 'Cliente Vendedor',
+    [LEAD_TYPES.INQUILINO]: 'Inquilino',
+    [LEAD_TYPES.SENHORIO]: 'Senhorio',
+    [LEAD_TYPES.INVESTIDOR]: 'Investidor'
 };
 
-// Fontes de Lead
+// ===== FONTES DA LEAD =====
 export const LEAD_SOURCES = {
     WEBSITE: 'website',
-    REFERENCIA: 'referencia',
     REDES_SOCIAIS: 'redes_sociais',
-    EMAIL_MARKETING: 'email_marketing',
+    REFERENCIA: 'referencia',
+    IMOBILIARIA_VIRTUAL: 'imobiliaria_virtual',
     TELEFONE: 'telefone',
-    EVENTO: 'evento',
-    PUBLICIDADE: 'publicidade',
+    WALK_IN: 'walk_in',
     PARCEIRO: 'parceiro',
-    DIRETO: 'direto',
+    PUBLICIDADE: 'publicidade',
+    EVENTO: 'evento',
     OUTRO: 'outro'
 };
 
 export const LEAD_SOURCE_LABELS = {
     [LEAD_SOURCES.WEBSITE]: 'Website',
-    [LEAD_SOURCES.REFERENCIA]: 'Referência',
     [LEAD_SOURCES.REDES_SOCIAIS]: 'Redes Sociais',
-    [LEAD_SOURCES.EMAIL_MARKETING]: 'Email Marketing',
+    [LEAD_SOURCES.REFERENCIA]: 'Referência',
+    [LEAD_SOURCES.IMOBILIARIA_VIRTUAL]: 'Imobiliária Virtual',
     [LEAD_SOURCES.TELEFONE]: 'Telefone',
-    [LEAD_SOURCES.EVENTO]: 'Evento',
-    [LEAD_SOURCES.PUBLICIDADE]: 'Publicidade',
+    [LEAD_SOURCES.WALK_IN]: 'Walk-in (Loja)',
     [LEAD_SOURCES.PARCEIRO]: 'Parceiro',
-    [LEAD_SOURCES.DIRETO]: 'Direto',
+    [LEAD_SOURCES.PUBLICIDADE]: 'Publicidade',
+    [LEAD_SOURCES.EVENTO]: 'Evento',
     [LEAD_SOURCES.OUTRO]: 'Outro'
 };
 
-// Interesses da Lead
-export const LEAD_INTERESTS = {
-    COMPRAR: 'comprar',
-    VENDER: 'vender',
-    ARRENDAR: 'arrendar',
-    ALUGAR: 'alugar',
-    INVESTIR: 'investir',
-    AVALIAR: 'avaliar',
-    OUTRO: 'outro'
+// ===== ESTADOS DO FUNIL =====
+export const LEAD_FUNNEL_STATES = {
+    ENTRADA: 'entrada',
+    QUALIFICANDO: 'qualificando',
+    QUALIFICADO: 'qualificado',
+    CONVERTIDO: 'convertido',
+    PERDIDO: 'perdido'
 };
 
-export const LEAD_INTEREST_LABELS = {
-    [LEAD_INTERESTS.COMPRAR]: 'Comprar',
-    [LEAD_INTERESTS.VENDER]: 'Vender',
-    [LEAD_INTERESTS.ARRENDAR]: 'Arrendar',
-    [LEAD_INTERESTS.ALUGAR]: 'Alugar',
-    [LEAD_INTERESTS.INVESTIR]: 'Investir',
-    [LEAD_INTERESTS.AVALIAR]: 'Avaliar',
-    [LEAD_INTERESTS.OUTRO]: 'Outro'
+export const LEAD_FUNNEL_LABELS = {
+    [LEAD_FUNNEL_STATES.ENTRADA]: 'Entrada',
+    [LEAD_FUNNEL_STATES.QUALIFICANDO]: 'Em Qualificação',
+    [LEAD_FUNNEL_STATES.QUALIFICADO]: 'Qualificado',
+    [LEAD_FUNNEL_STATES.CONVERTIDO]: 'Convertido',
+    [LEAD_FUNNEL_STATES.PERDIDO]: 'Perdido'
 };
 
-// Temperatura da Lead
+// ===== TEMPERATURA DA LEAD =====
 export const LEAD_TEMPERATURES = {
     FRIO: 'frio',
     MORNO: 'morno',
@@ -88,644 +75,365 @@ export const LEAD_TEMPERATURES = {
 };
 
 export const LEAD_TEMPERATURE_LABELS = {
-    [LEAD_TEMPERATURES.FRIO]: 'Frio',
-    [LEAD_TEMPERATURES.MORNO]: 'Morno',
-    [LEAD_TEMPERATURES.QUENTE]: 'Quente'
+    [LEAD_TEMPERATURES.FRIO]: '❄️ Frio',
+    [LEAD_TEMPERATURES.MORNO]: '🌡️ Morno',
+    [LEAD_TEMPERATURES.QUENTE]: '🔥 Quente'
 };
 
-// Tipos de Tarefas
-export const TASK_TYPES = {
-    CALL: 'call',
-    EMAIL: 'email',
-    WHATSAPP: 'whatsapp',
-    MEETING: 'meeting',
-    VISIT: 'visit',
-    FOLLOW_UP: 'follow_up',
-    CONFIRMATION: 'confirmation',
-    PRESENTATION: 'presentation',
-    DOCUMENTATION: 'documentation',
-    NEGOTIATION: 'negotiation'
-};
+// ===== ESTRUTURA DA LEAD =====
+export class Lead {
+    constructor(data = {}) {
+        // ID e referência ao cliente
+        this.id = data.id || null;
+        this.clientId = data.clientId || null; // Referência ao Cliente PROSPECT
 
-export const TASK_TYPE_LABELS = {
-    [TASK_TYPES.CALL]: 'Chamada Telefónica',
-    [TASK_TYPES.EMAIL]: 'Email',
-    [TASK_TYPES.WHATSAPP]: 'WhatsApp',
-    [TASK_TYPES.MEETING]: 'Reunião',
-    [TASK_TYPES.VISIT]: 'Visita',
-    [TASK_TYPES.FOLLOW_UP]: 'Follow-up',
-    [TASK_TYPES.CONFIRMATION]: 'Confirmar Interesse',
-    [TASK_TYPES.PRESENTATION]: 'Apresentação',
-    [TASK_TYPES.DOCUMENTATION]: 'Documentação',
-    [TASK_TYPES.NEGOTIATION]: 'Negociação'
-};
+        // Informações básicas
+        this.type = data.type || LEAD_TYPES.COMPRADOR;
+        this.source = data.source || LEAD_SOURCES.WEBSITE;
+        this.funnelState = data.funnelState || LEAD_FUNNEL_STATES.ENTRADA;
+        this.temperature = data.temperature || LEAD_TEMPERATURES.MORNO;
 
-export const TASK_STATUS = {
-    PENDENTE: 'pendente',
-    EM_ANDAMENTO: 'em_andamento',
-    CONCLUIDA: 'concluida',
-    CANCELADA: 'cancelada',
-    REAGENDADA: 'reagendada'
-};
+        // Pontuação e qualificação
+        this.score = data.score || 0; // 0-100
+        this.qualificationDate = data.qualificationDate || null;
+        this.conversionDate = data.conversionDate || null;
 
-export const TASK_STATUS_LABELS = {
-    [TASK_STATUS.PENDENTE]: 'Pendente',
-    [TASK_STATUS.EM_ANDAMENTO]: 'Em Andamento',
-    [TASK_STATUS.CONCLUIDA]: 'Concluída',
-    [TASK_STATUS.CANCELADA]: 'Cancelada',
-    [TASK_STATUS.REAGENDADA]: 'Reagendada'
-};
+        // Campos específicos por tipo
+        this.specificFields = this.initSpecificFields(data.type, data.specificFields);
 
-// ===== SCHEMA PRINCIPAL DA LEAD =====
-export const createLeadSchema = (leadData) => {
-    const now = Timestamp.now();
+        // Tracking
+        this.nextContactDate = data.nextContactDate || null;
+        this.lastContactDate = data.lastContactDate || null;
+        this.contactAttempts = data.contactAttempts || 0;
 
-    return {
-        id: null,
-        consultorId: null,
+        // Notas e observações
+        this.internalNotes = data.internalNotes || '';
 
-        // ===== DADOS PESSOAIS BÁSICOS =====
-        name: leadData.name?.trim() || '',
-        phone: leadData.phone?.trim() || '',
-        email: leadData.email?.trim() || '',
-
-        // ===== CLASSIFICAÇÃO DA LEAD =====
-        leadSource: leadData.leadSource || LEAD_SOURCES.WEBSITE,
-        interesse: leadData.interesse || LEAD_INTERESTS.COMPRAR,
-
-        // ===== CAMPOS DE QUALIFICAÇÃO =====
-        urgencia: leadData.urgencia || 'media',
-        orcamentoEstimado: leadData.orcamentoEstimado ? parseFloat(leadData.orcamentoEstimado) : null,
-        zonaInteresse: leadData.zonaInteresse?.trim() || '',
-        tipologiaInteresse: leadData.tipologiaInteresse || '',
-        melhorHorario: leadData.melhorHorario || '',
-        contactPreference: leadData.contactPreference || 'phone',
-        statusQualificacao: leadData.statusQualificacao || 'por_qualificar',
-
-        // ===== DESCRIÇÃO DETALHADA =====
-        descricao: leadData.descricao?.trim() || '',
-        consultorObservations: leadData.consultorObservations?.trim() || '',
-
-        // ===== TIMESTAMPS COM HORA =====
-        criadaEm: now,
-        atualizadaEm: now,
-        proximoContacto: leadData.proximoContacto ?
-            Timestamp.fromDate(new Date(leadData.proximoContacto)) : null,
-
-        // ===== STATUS E QUALIFICAÇÃO =====
-        status: LEAD_STATUS.NOVO,
-        temperatura: LEAD_TEMPERATURES.MORNO,
-        score: 50,
-
-        // ===== HISTÓRICO DE ATIVIDADES =====
-        ultimoContacto: null,
-        totalContactos: 0,
-        totalTasks: 0,
-        tasksCompletas: 0,
-
-        // ===== CONSENTIMENTOS =====
-        gdprConsent: leadData.gdprConsent || false,
-        marketingConsent: leadData.marketingConsent || false,
-
-        // ===== CONVERSÃO =====
-        convertidaEm: null,
-        clienteId: null,
-        motivoPerda: '',
-
-        // ===== TAGS =====
-        tags: leadData.tags || [],
-        categoria: 'lead',
-
-        // ===== ESTATÍSTICAS =====
-        stats: {
-            diasSemContacto: 0,
-            tempoMedioResposta: 0,
-            taxaResposta: 0,
-            ultimaAcao: null
-        }
-    };
-};
-
-// ===== SCHEMA PARA TASK =====
-export const createTaskSchema = (taskData) => {
-    const now = Timestamp.now();
-
-    return {
-        id: null,
-        leadId: taskData.leadId,
-        consultorId: taskData.consultorId,
-
-        // Dados da task
-        tipo: taskData.tipo || TASK_TYPES.CALL,
-        titulo: taskData.titulo?.trim() || '',
-        descricao: taskData.descricao?.trim() || '',
-
-        // Agendamento
-        agendadaPara: taskData.agendadaPara ?
-            Timestamp.fromDate(new Date(taskData.agendadaPara)) : null,
-        duracaoEstimada: taskData.duracaoEstimada || null,
+        // Metadados
+        this.createdAt = data.createdAt || new Date().toISOString();
+        this.updatedAt = data.updatedAt || new Date().toISOString();
+        this.createdBy = data.createdBy || null;
+        this.assignedTo = data.assignedTo || null;
 
         // Status
-        status: TASK_STATUS.PENDENTE,
-        executadaEm: null,
-        duracaoReal: null,
-        resultado: '',
-        notas: '',
+        this.active = data.active !== undefined ? data.active : true;
+    }
 
-        // Timestamps
-        criadaEm: now,
-        atualizadaEm: now,
+    // Inicializar campos específicos baseado no tipo
+    initSpecificFields(type, fields = {}) {
+        const baseFields = {
+            qualificationText: fields.qualificationText || '' // Campo comum a todos
+        };
 
-        // Próxima ação
-        proximaAcao: {
-            sugerida: false,
-            tipo: null,
-            prazo: null,
-            descricao: ''
+        switch (type) {
+            case LEAD_TYPES.COMPRADOR:
+                return {
+                    ...baseFields,
+                    budget: fields.budget || null,
+                    propertyReference: fields.propertyReference || '',
+                    financingNeeded: fields.financingNeeded || false,
+                    urgency: fields.urgency || 'media' // baixa, media, alta
+                };
+
+            case LEAD_TYPES.VENDEDOR:
+                return {
+                    ...baseFields,
+                    propertyLocation: fields.propertyLocation || '',
+                    expectedValue: fields.expectedValue || null,
+                    reasonToSell: fields.reasonToSell || '',
+                    propertyType: fields.propertyType || '' // apartamento, moradia, terreno, etc
+                };
+
+            case LEAD_TYPES.INQUILINO:
+                return {
+                    ...baseFields,
+                    monthlyBudget: fields.monthlyBudget || null,
+                    propertyReference: fields.propertyReference || '',
+                    moveInDate: fields.moveInDate || null,
+                    guarantor: fields.guarantor || false
+                };
+
+            case LEAD_TYPES.SENHORIO:
+                return {
+                    ...baseFields,
+                    propertyLocation: fields.propertyLocation || '',
+                    expectedRent: fields.expectedRent || null,
+                    availableFrom: fields.availableFrom || null,
+                    furnished: fields.furnished || false
+                };
+
+            case LEAD_TYPES.INVESTIDOR:
+                return {
+                    ...baseFields,
+                    investmentBudget: fields.investmentBudget || null,
+                    investmentLocation: fields.investmentLocation || '',
+                    investmentType: fields.investmentType || '', // buy-to-let, flip, development
+                    expectedROI: fields.expectedROI || null
+                };
+
+            default:
+                return baseFields;
         }
-    };
-};
-
-// ===== SCHEMA PARA CONTACTO =====
-export const createContactoSchema = (contactoData) => {
-    const now = Timestamp.now();
-
-    return {
-        id: null,
-        leadId: contactoData.leadId,
-        consultorId: contactoData.consultorId,
-
-        // Dados do contacto
-        tipo: contactoData.tipo || TASK_TYPES.CALL,
-        dataContacto: now,
-        duracao: contactoData.duracao || null,
-
-        // Conteúdo
-        resumo: contactoData.resumo?.trim() || '',
-        notas: contactoData.notas?.trim() || '',
-        resultado: contactoData.resultado || '',
-
-        // Follow-up
-        agendarProximo: contactoData.agendarProximo || false,
-        proximoContactoData: contactoData.proximoContactoData || null,
-        proximoContactoTipo: contactoData.proximoContactoTipo || null,
-
-        // Qualificação
-        interesseConfirmado: contactoData.interesseConfirmado || false,
-        orcamentoDiscutido: contactoData.orcamentoDiscutido || false,
-        tempoDecisao: contactoData.tempoDecisao || '',
-
-        // Timestamps
-        criadoEm: now,
-        atualizadoEm: now
-    };
-};
-
-// ===== VALIDAÇÕES =====
-
-/**
- * Valida dados da lead
- */
-export const validateLeadData = (leadData) => {
-    const errors = {};
-
-    // Nome obrigatório
-    if (!leadData.name?.trim()) {
-        errors.name = 'Nome é obrigatório';
     }
-
-    // Telefone obrigatório e formato válido
-    if (!leadData.phone?.trim()) {
-        errors.phone = 'Telefone é obrigatório';
-    } else if (!/^[0-9+\-\s()]+$/.test(leadData.phone)) {
-        errors.phone = 'Formato de telefone inválido';
-    }
-
-    // Email opcional mas se fornecido deve ser válido
-    if (leadData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(leadData.email)) {
-        errors.email = 'Email inválido';
-    }
-
-    // Orçamento deve ser positivo se fornecido
-    if (leadData.orcamentoEstimado && leadData.orcamentoEstimado < 0) {
-        errors.orcamentoEstimado = 'Orçamento deve ser positivo';
-    }
-
-    return {
-        isValid: Object.keys(errors).length === 0,
-        errors
-    };
-};
-
-/**
- * Valida dados de task
- */
-export const validateTaskData = (taskData) => {
-    const errors = {};
-
-    if (!taskData.titulo?.trim()) {
-        errors.titulo = 'Título é obrigatório';
-    }
-
-    if (!taskData.tipo) {
-        errors.tipo = 'Tipo de tarefa é obrigatório';
-    }
-
-    if (!taskData.leadId) {
-        errors.leadId = 'Lead ID é obrigatório';
-    }
-
-    if (!taskData.consultorId) {
-        errors.consultorId = 'Consultor ID é obrigatório';
-    }
-
-    return {
-        isValid: Object.keys(errors).length === 0,
-        errors
-    };
-};
+}
 
 // ===== FUNÇÕES DE CÁLCULO =====
 
 /**
- * Calcula temperatura da lead baseada no último contacto
- * CORRIGIDO: Usa função auxiliar para converter timestamps
+ * Calcular score de qualificação baseado em múltiplos fatores
  */
-export const calculateLeadTemperature = (ultimoContacto) => {
-    if (!ultimoContacto) {
-        return LEAD_TEMPERATURES.FRIO;
-    }
-
-    try {
-        // Converter para Date usando a função auxiliar
-        const lastContactDate = convertFirestoreTimestamp(ultimoContacto);
-
-        if (!lastContactDate) {
-            return LEAD_TEMPERATURES.FRIO;
-        }
-
-        const now = new Date();
-        const diffTime = Math.abs(now - lastContactDate);
-        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-
-        if (diffDays <= 3) {
-            return LEAD_TEMPERATURES.QUENTE;
-        } else if (diffDays <= 7) {
-            return LEAD_TEMPERATURES.MORNO;
-        } else {
-            return LEAD_TEMPERATURES.FRIO;
-        }
-    } catch (error) {
-        console.warn('Erro ao calcular temperatura da lead:', error);
-        return LEAD_TEMPERATURES.FRIO;
-    }
-};
-
-/**
- * Calcula score da lead baseado em múltiplos fatores
- */
-export const calculateLeadScore = (leadData) => {
+export function calculateLeadScore(lead) {
     let score = 0;
 
-    // Fonte da lead (20 pontos)
-    const highValueSources = [LEAD_SOURCES.REFERENCIA, LEAD_SOURCES.DIRETO];
-    if (highValueSources.includes(leadData.leadSource)) {
-        score += 20;
-    } else {
+    // Pontuação base por estado do funil (30 pontos)
+    switch (lead.funnelState) {
+        case LEAD_FUNNEL_STATES.ENTRADA:
+            score += 10;
+            break;
+        case LEAD_FUNNEL_STATES.QUALIFICANDO:
+            score += 20;
+            break;
+        case LEAD_FUNNEL_STATES.QUALIFICADO:
+            score += 30;
+            break;
+    }
+
+    // Pontuação por temperatura (20 pontos)
+    switch (lead.temperature) {
+        case LEAD_TEMPERATURES.FRIO:
+            score += 5;
+            break;
+        case LEAD_TEMPERATURES.MORNO:
+            score += 10;
+            break;
+        case LEAD_TEMPERATURES.QUENTE:
+            score += 20;
+            break;
+    }
+
+    // Pontuação por fonte (15 pontos)
+    const highValueSources = [LEAD_SOURCES.REFERENCIA, LEAD_SOURCES.WALK_IN];
+    const mediumValueSources = [LEAD_SOURCES.WEBSITE, LEAD_SOURCES.TELEFONE];
+
+    if (highValueSources.includes(lead.source)) {
+        score += 15;
+    } else if (mediumValueSources.includes(lead.source)) {
         score += 10;
-    }
-
-    // Interesse (20 pontos)
-    const highValueInterests = [LEAD_INTERESTS.COMPRAR, LEAD_INTERESTS.INVESTIR];
-    if (highValueInterests.includes(leadData.interesse)) {
-        score += 20;
     } else {
-        score += 10;
+        score += 5;
     }
 
-    // Urgência (20 pontos)
-    if (leadData.urgencia === 'alta') score += 20;
-    else if (leadData.urgencia === 'media') score += 10;
-    else score += 5;
-
-    // Orçamento (20 pontos)
-    if (leadData.orcamentoEstimado) {
-        if (leadData.orcamentoEstimado >= 500000) score += 20;
-        else if (leadData.orcamentoEstimado >= 250000) score += 15;
-        else if (leadData.orcamentoEstimado >= 100000) score += 10;
-        else score += 5;
+    // Pontuação por completude de informações (20 pontos)
+    const fields = lead.specificFields || {};
+    const filledFields = Object.values(fields).filter(v => v !== null && v !== '' && v !== false).length;
+    const totalFields = Object.keys(fields).length;
+    if (totalFields > 0) {
+        score += Math.round((filledFields / totalFields) * 20);
     }
 
-    // Engajamento (20 pontos)
-    if (leadData.totalContactos > 5) score += 20;
-    else if (leadData.totalContactos > 2) score += 10;
-    else if (leadData.totalContactos > 0) score += 5;
+    // Pontuação por interação recente (15 pontos)
+    if (lead.lastContactDate) {
+        const daysSinceContact = Math.floor(
+            (new Date() - new Date(lead.lastContactDate)) / (1000 * 60 * 60 * 24)
+        );
+        if (daysSinceContact <= 1) score += 15;
+        else if (daysSinceContact <= 3) score += 10;
+        else if (daysSinceContact <= 7) score += 5;
+    }
 
-    return Math.min(100, score);
-};
+    return Math.min(100, Math.max(0, score));
+}
 
 /**
- * Determina próxima ação recomendada
+ * Calcular temperatura baseado em interações
  */
-export const getNextRecommendedAction = (leadData) => {
-    // Lead nova
-    if (leadData.status === LEAD_STATUS.NOVO) {
-        return {
-            type: TASK_TYPES.CALL,
-            label: 'Primeiro Contacto',
-            description: 'Fazer primeira chamada de apresentação'
-        };
+export function calculateTemperature(lead) {
+    const score = lead.score || calculateLeadScore(lead);
+
+    if (score >= 70) return LEAD_TEMPERATURES.QUENTE;
+    if (score >= 40) return LEAD_TEMPERATURES.MORNO;
+    return LEAD_TEMPERATURES.FRIO;
+}
+
+/**
+ * Verificar se lead precisa de follow-up
+ */
+export function needsFollowUp(lead) {
+    if (!lead.active) return false;
+    if (lead.funnelState === LEAD_FUNNEL_STATES.CONVERTIDO) return false;
+    if (lead.funnelState === LEAD_FUNNEL_STATES.PERDIDO) return false;
+
+    // Se tem data de próximo contacto
+    if (lead.nextContactDate) {
+        return new Date(lead.nextContactDate) <= new Date();
     }
 
-    // Lead contactada mas não qualificada
-    if (leadData.status === LEAD_STATUS.CONTACTADO &&
-        leadData.statusQualificacao === 'por_qualificar') {
-        return {
-            type: TASK_TYPES.MEETING,
-            label: 'Reunião de Qualificação',
-            description: 'Agendar reunião para qualificar necessidades'
-        };
+    // Se não teve contacto nos últimos 3 dias
+    if (lead.lastContactDate) {
+        const daysSinceContact = Math.floor(
+            (new Date() - new Date(lead.lastContactDate)) / (1000 * 60 * 60 * 24)
+        );
+        return daysSinceContact > 3;
     }
 
-    // Lead qualificada
-    if (leadData.status === LEAD_STATUS.QUALIFICADO) {
-        return {
-            type: TASK_TYPES.PRESENTATION,
-            label: 'Apresentação de Proposta',
-            description: 'Preparar e apresentar proposta comercial'
-        };
+    // Lead nova sem contacto
+    return true;
+}
+
+// ===== VALIDAÇÃO =====
+
+/**
+ * Validar dados da lead
+ */
+export function validateLeadData(lead) {
+    const errors = {};
+
+    // Validações básicas
+    if (!lead.clientId) {
+        errors.clientId = 'Cliente é obrigatório';
     }
 
-    // Lead em negociação
-    if (leadData.status === LEAD_STATUS.NEGOCIACAO) {
-        return {
-            type: TASK_TYPES.NEGOTIATION,
-            label: 'Negociação',
-            description: 'Finalizar termos e fechar negócio'
-        };
+    if (!lead.type) {
+        errors.type = 'Tipo de lead é obrigatório';
     }
 
-    // Default: follow-up
+    if (!lead.source) {
+        errors.source = 'Fonte da lead é obrigatória';
+    }
+
+    // Validações específicas por tipo
+    const fields = lead.specificFields || {};
+
+    switch (lead.type) {
+        case LEAD_TYPES.COMPRADOR:
+            if (!fields.budget || fields.budget <= 0) {
+                errors.budget = 'Orçamento é obrigatório para compradores';
+            }
+            break;
+
+        case LEAD_TYPES.VENDEDOR:
+            if (!fields.propertyLocation) {
+                errors.propertyLocation = 'Localização do imóvel é obrigatória';
+            }
+            if (!fields.expectedValue || fields.expectedValue <= 0) {
+                errors.expectedValue = 'Valor pretendido é obrigatório';
+            }
+            break;
+
+        case LEAD_TYPES.INQUILINO:
+            if (!fields.monthlyBudget || fields.monthlyBudget <= 0) {
+                errors.monthlyBudget = 'Orçamento mensal é obrigatório';
+            }
+            break;
+
+        case LEAD_TYPES.SENHORIO:
+            if (!fields.propertyLocation) {
+                errors.propertyLocation = 'Localização do imóvel é obrigatória';
+            }
+            if (!fields.expectedRent || fields.expectedRent <= 0) {
+                errors.expectedRent = 'Valor de renda é obrigatório';
+            }
+            break;
+
+        case LEAD_TYPES.INVESTIDOR:
+            if (!fields.investmentBudget || fields.investmentBudget <= 0) {
+                errors.investmentBudget = 'Orçamento de investimento é obrigatório';
+            }
+            if (!fields.investmentLocation) {
+                errors.investmentLocation = 'Localização pretendida é obrigatória';
+            }
+            break;
+    }
+
     return {
-        type: TASK_TYPES.FOLLOW_UP,
-        label: 'Follow-up',
-        description: 'Fazer acompanhamento da lead'
+        isValid: Object.keys(errors).length === 0,
+        errors
     };
-};
+}
+
+// ===== HELPERS DE FORMATAÇÃO =====
 
 /**
- * Verifica se lead precisa de alerta
+ * Obter label amigável do estado do funil
  */
-export const needsAlert = (leadData) => {
-    const alerts = [];
-
-    // Alerta de lead fria
-    if (leadData.temperatura === LEAD_TEMPERATURES.FRIO) {
-        alerts.push({
-            type: 'temperature',
-            message: 'Lead está fria - necessita contacto urgente',
-            severity: 'high'
-        });
-    }
-
-    // Alerta de tempo sem contacto
-    if (leadData.ultimoContacto) {
-        try {
-            // Verificar tipo e converter para timestamp
-            let ultimoContactoTime;
-
-            if (leadData.ultimoContacto.toDate && typeof leadData.ultimoContacto.toDate === 'function') {
-                // É um Timestamp do Firebase
-                ultimoContactoTime = leadData.ultimoContacto.toDate().getTime();
-            } else if (leadData.ultimoContacto instanceof Date) {
-                // É um objeto Date
-                ultimoContactoTime = leadData.ultimoContacto.getTime();
-            } else if (typeof leadData.ultimoContacto === 'string' || typeof leadData.ultimoContacto === 'number') {
-                // É uma string ou número - tentar converter
-                ultimoContactoTime = new Date(leadData.ultimoContacto).getTime();
-            } else {
-                // Tipo desconhecido - pular verificação
-                ultimoContactoTime = null;
-            }
-
-            if (ultimoContactoTime) {
-                const diasSemContacto = Math.floor(
-                    (Date.now() - ultimoContactoTime) / (1000 * 60 * 60 * 24)
-                );
-
-                if (diasSemContacto > 7) {
-                    alerts.push({
-                        type: 'no_contact',
-                        message: `${diasSemContacto} dias sem contacto`,
-                        severity: 'medium'
-                    });
-                }
-            }
-        } catch (error) {
-            console.warn('Erro ao processar ultimoContacto:', error);
-        }
-    }
-
-    // Alerta de próximo contacto vencido
-    if (leadData.proximoContacto) {
-        try {
-            const now = Date.now();
-            let proximoContactoTime;
-
-            // Verificar tipo e converter para timestamp
-            if (leadData.proximoContacto.toDate && typeof leadData.proximoContacto.toDate === 'function') {
-                // É um Timestamp do Firebase
-                proximoContactoTime = leadData.proximoContacto.toDate().getTime();
-            } else if (leadData.proximoContacto instanceof Date) {
-                // É um objeto Date
-                proximoContactoTime = leadData.proximoContacto.getTime();
-            } else if (typeof leadData.proximoContacto === 'string' || typeof leadData.proximoContacto === 'number') {
-                // É uma string ou número - tentar converter
-                proximoContactoTime = new Date(leadData.proximoContacto).getTime();
-            } else {
-                // Tipo desconhecido - pular verificação
-                proximoContactoTime = null;
-            }
-
-            if (proximoContactoTime && proximoContactoTime < now) {
-                alerts.push({
-                    type: 'overdue',
-                    message: 'Contacto agendado está em atraso',
-                    severity: 'high'
-                });
-            }
-        } catch (error) {
-            console.warn('Erro ao processar proximoContacto:', error);
-        }
-    }
-
-    // Alerta de alta prioridade
-    if (leadData.urgencia === 'alta' && leadData.status === LEAD_STATUS.NOVO) {
-        alerts.push({
-            type: 'priority',
-            message: 'Lead de alta prioridade aguarda primeiro contacto',
-            severity: 'high'
-        });
-    }
-
-    return alerts;
-};
-
-// ===== HELPERS =====
+export function getFunnelStateLabel(state) {
+    return LEAD_FUNNEL_LABELS[state] || state;
+}
 
 /**
- * Converte diferentes tipos de timestamps para objeto Date
- * NOVO: Função auxiliar para tratar timestamps do Firestore
+ * Obter cor para o estado do funil
  */
-export const convertFirestoreTimestamp = (timestamp) => {
-    if (!timestamp) return null;
-
-    try {
-        // Se for um Timestamp do Firebase
-        if (timestamp.toDate && typeof timestamp.toDate === 'function') {
-            return timestamp.toDate();
-        }
-
-        // Se já for um objeto Date
-        if (timestamp instanceof Date) {
-            return timestamp;
-        }
-
-        // Se for string ou número
-        if (typeof timestamp === 'string' || typeof timestamp === 'number') {
-            const date = new Date(timestamp);
-            // Verificar se a data é válida
-            if (!isNaN(date.getTime())) {
-                return date;
-            }
-        }
-
-        // Se for um objeto com seconds (Firestore timestamp serializado)
-        if (timestamp.seconds) {
-            return new Date(timestamp.seconds * 1000);
-        }
-
-        console.warn('Tipo de timestamp desconhecido:', timestamp);
-        return null;
-    } catch (error) {
-        console.warn('Erro ao converter timestamp:', error);
-        return null;
+export function getFunnelStateColor(state) {
+    switch (state) {
+        case LEAD_FUNNEL_STATES.ENTRADA:
+            return 'bg-gray-100 text-gray-800';
+        case LEAD_FUNNEL_STATES.QUALIFICANDO:
+            return 'bg-blue-100 text-blue-800';
+        case LEAD_FUNNEL_STATES.QUALIFICADO:
+            return 'bg-green-100 text-green-800';
+        case LEAD_FUNNEL_STATES.CONVERTIDO:
+            return 'bg-purple-100 text-purple-800';
+        case LEAD_FUNNEL_STATES.PERDIDO:
+            return 'bg-red-100 text-red-800';
+        default:
+            return 'bg-gray-100 text-gray-800';
     }
-};
+}
 
 /**
- * Verifica se um valor é um timestamp válido do Firestore
+ * Obter ícone para temperatura
  */
-export const isFirestoreTimestamp = (value) => {
-    return value && value.toDate && typeof value.toDate === 'function';
-};
-
-/**
- * Converte Date para Timestamp do Firestore
- */
-export const toFirestoreTimestamp = (date) => {
-    if (!date) return null;
-
-    try {
-        // Se já for um Timestamp, retornar como está
-        if (isFirestoreTimestamp(date)) {
-            return date;
-        }
-
-        // Se for Date, converter para Timestamp
-        if (date instanceof Date) {
-            return Timestamp.fromDate(date);
-        }
-
-        // Se for string ou número, converter primeiro para Date
-        if (typeof date === 'string' || typeof date === 'number') {
-            const dateObj = new Date(date);
-            if (!isNaN(dateObj.getTime())) {
-                return Timestamp.fromDate(dateObj);
-            }
-        }
-
-        return null;
-    } catch (error) {
-        console.warn('Erro ao converter para Firestore Timestamp:', error);
-        return null;
+export function getTemperatureIcon(temperature) {
+    switch (temperature) {
+        case LEAD_TEMPERATURES.FRIO:
+            return '❄️';
+        case LEAD_TEMPERATURES.MORNO:
+            return '🌡️';
+        case LEAD_TEMPERATURES.QUENTE:
+            return '🔥';
+        default:
+            return '🌡️';
     }
-};
+}
 
 /**
- * Formata número de telefone
+ * Formatar data relativa
  */
-export const formatPhone = (phone) => {
-    if (!phone) return '';
-
-    // Remove espaços e caracteres especiais
-    const cleaned = phone.replace(/\D/g, '');
-
-    // Formato português
-    if (cleaned.length === 9) {
-        return `${cleaned.slice(0, 3)} ${cleaned.slice(3, 6)} ${cleaned.slice(6)}`;
-    }
-
-    return phone;
-};
-
-/**
- * Calcula dias desde data
- */
-export const getDaysSince = (date) => {
-    if (!date) return null;
-
-    try {
-        let dateObj;
-
-        // Verificar tipo e converter para Date
-        if (date.toDate && typeof date.toDate === 'function') {
-            // É um Timestamp do Firebase
-            dateObj = date.toDate();
-        } else if (date instanceof Date) {
-            // Já é um objeto Date
-            dateObj = date;
-        } else if (typeof date === 'string' || typeof date === 'number') {
-            // É uma string ou número - converter
-            dateObj = new Date(date);
-        } else {
-            // Tipo desconhecido
-            console.warn('Tipo de data desconhecido:', typeof date);
-            return null;
-        }
-
-        // Verificar se a data é válida
-        if (isNaN(dateObj.getTime())) {
-            console.warn('Data inválida:', date);
-            return null;
-        }
-
-        const now = new Date();
-        const diffTime = Math.abs(now - dateObj);
-        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-
-        return diffDays;
-    } catch (error) {
-        console.warn('Erro ao calcular dias desde a data:', error);
-        return null;
-    }
-};
-
-/**
- * Formata data relativa
- * CORRIGIDO: Usa a função getDaysSince corrigida
- */
-export const getRelativeTime = (date) => {
+export function getRelativeTime(date) {
     if (!date) return '';
 
-    const days = getDaysSince(date);
+    const now = new Date();
+    const then = new Date(date);
+    const diffMs = now - then;
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffMinutes = Math.floor(diffMs / (1000 * 60));
 
-    if (days === null) return '';
-    if (days === 0) return 'Hoje';
-    if (days === 1) return 'Ontem';
-    if (days < 7) return `${days} dias atrás`;
-    if (days < 30) return `${Math.floor(days / 7)} semanas atrás`;
-    if (days < 365) return `${Math.floor(days / 30)} meses atrás`;
+    if (diffMinutes < 1) return 'agora mesmo';
+    if (diffMinutes < 60) return `há ${diffMinutes} minuto${diffMinutes > 1 ? 's' : ''}`;
+    if (diffHours < 24) return `há ${diffHours} hora${diffHours > 1 ? 's' : ''}`;
+    if (diffDays < 30) return `há ${diffDays} dia${diffDays > 1 ? 's' : ''}`;
 
-    return `${Math.floor(days / 365)} anos atrás`;
+    return then.toLocaleDateString('pt-PT');
+}
+
+// ===== EXPORT DEFAULT =====
+export default {
+    Lead,
+    LEAD_TYPES,
+    LEAD_TYPE_LABELS,
+    LEAD_SOURCES,
+    LEAD_SOURCE_LABELS,
+    LEAD_FUNNEL_STATES,
+    LEAD_FUNNEL_LABELS,
+    LEAD_TEMPERATURES,
+    LEAD_TEMPERATURE_LABELS,
+    calculateLeadScore,
+    calculateTemperature,
+    needsFollowUp,
+    validateLeadData,
+    getFunnelStateLabel,
+    getFunnelStateColor,
+    getTemperatureIcon,
+    getRelativeTime
 };
