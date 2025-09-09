@@ -1,97 +1,99 @@
 /**
- * LEAD MODEL FINAL - MyImoMatePro
- * Modelo completo com todas as constantes e funções
- * ✅ CORRIGIDO: getNextRecommendedAction retorna datas válidas
+ * LEAD MODEL - MyImoMatePro
+ * Modelo de dados, validações e lógica de negócio para leads
  * 
  * Caminho: src/models/leadModel.js
  */
 
 import { Timestamp } from 'firebase/firestore';
-import { validateClientData } from './clientModel';
 
-// ===== CONSTANTES DE FONTE =====
+// ===== CONSTANTES E ENUMS =====
+
+// Status da Lead
+export const LEAD_STATUS = {
+    NOVO: 'novo',
+    CONTACTADO: 'contactado',
+    QUALIFICADO: 'qualificado',
+    PROPOSTA: 'proposta',
+    NEGOCIACAO: 'negociacao',
+    GANHO: 'ganho',
+    PERDIDO: 'perdido',
+    STANDBY: 'standby'
+};
+
+export const LEAD_STATUS_LABELS = {
+    [LEAD_STATUS.NOVO]: 'Nova',
+    [LEAD_STATUS.CONTACTADO]: 'Contactado',
+    [LEAD_STATUS.QUALIFICADO]: 'Qualificado',
+    [LEAD_STATUS.PROPOSTA]: 'Proposta Enviada',
+    [LEAD_STATUS.NEGOCIACAO]: 'Em Negociação',
+    [LEAD_STATUS.GANHO]: 'Ganho',
+    [LEAD_STATUS.PERDIDO]: 'Perdido',
+    [LEAD_STATUS.STANDBY]: 'Stand-by'
+};
+
+// Fontes de Lead
 export const LEAD_SOURCES = {
     WEBSITE: 'website',
-    GOOGLE: 'google',
-    FACEBOOK: 'facebook',
-    INSTAGRAM: 'instagram',
-    RECOMENDACAO: 'recomendacao',
-    PORTAL: 'portal',
+    REFERENCIA: 'referencia',
+    REDES_SOCIAIS: 'redes_sociais',
+    EMAIL_MARKETING: 'email_marketing',
+    TELEFONE: 'telefone',
+    EVENTO: 'evento',
     PUBLICIDADE: 'publicidade',
-    RADIO: 'radio',
-    JORNAL: 'jornal',
-    COLD_CALL: 'cold_call',
-    NETWORKING: 'networking',
+    PARCEIRO: 'parceiro',
+    DIRETO: 'direto',
     OUTRO: 'outro'
 };
 
 export const LEAD_SOURCE_LABELS = {
     [LEAD_SOURCES.WEBSITE]: 'Website',
-    [LEAD_SOURCES.GOOGLE]: 'Google',
-    [LEAD_SOURCES.FACEBOOK]: 'Facebook',
-    [LEAD_SOURCES.INSTAGRAM]: 'Instagram',
-    [LEAD_SOURCES.RECOMENDACAO]: 'Recomendação',
-    [LEAD_SOURCES.PORTAL]: 'Portal Imobiliário',
-    [LEAD_SOURCES.PUBLICIDADE]: 'Publicidade Exterior',
-    [LEAD_SOURCES.RADIO]: 'Rádio',
-    [LEAD_SOURCES.JORNAL]: 'Jornal',
-    [LEAD_SOURCES.COLD_CALL]: 'Cold Call',
-    [LEAD_SOURCES.NETWORKING]: 'Networking',
+    [LEAD_SOURCES.REFERENCIA]: 'Referência',
+    [LEAD_SOURCES.REDES_SOCIAIS]: 'Redes Sociais',
+    [LEAD_SOURCES.EMAIL_MARKETING]: 'Email Marketing',
+    [LEAD_SOURCES.TELEFONE]: 'Telefone',
+    [LEAD_SOURCES.EVENTO]: 'Evento',
+    [LEAD_SOURCES.PUBLICIDADE]: 'Publicidade',
+    [LEAD_SOURCES.PARCEIRO]: 'Parceiro',
+    [LEAD_SOURCES.DIRETO]: 'Direto',
     [LEAD_SOURCES.OUTRO]: 'Outro'
 };
 
-// ===== CONSTANTES DE INTERESSE =====
+// Interesses da Lead
 export const LEAD_INTERESTS = {
     COMPRAR: 'comprar',
     VENDER: 'vender',
     ARRENDAR: 'arrendar',
+    ALUGAR: 'alugar',
     INVESTIR: 'investir',
-    AVALIAR: 'avaliar'
+    AVALIAR: 'avaliar',
+    OUTRO: 'outro'
 };
 
 export const LEAD_INTEREST_LABELS = {
-    [LEAD_INTERESTS.COMPRAR]: 'Comprar Imóvel',
-    [LEAD_INTERESTS.VENDER]: 'Vender Imóvel',
-    [LEAD_INTERESTS.ARRENDAR]: 'Arrendar Imóvel',
-    [LEAD_INTERESTS.INVESTIR]: 'Investimento Imobiliário',
-    [LEAD_INTERESTS.AVALIAR]: 'Avaliar Imóvel'
+    [LEAD_INTERESTS.COMPRAR]: 'Comprar',
+    [LEAD_INTERESTS.VENDER]: 'Vender',
+    [LEAD_INTERESTS.ARRENDAR]: 'Arrendar',
+    [LEAD_INTERESTS.ALUGAR]: 'Alugar',
+    [LEAD_INTERESTS.INVESTIR]: 'Investir',
+    [LEAD_INTERESTS.AVALIAR]: 'Avaliar',
+    [LEAD_INTERESTS.OUTRO]: 'Outro'
 };
 
-// ===== CONSTANTES DE STATUS =====
-export const LEAD_STATUS = {
-    NOVO: 'novo',
-    CONTACTADO: 'contactado',
-    QUALIFICADO: 'qualificado',
-    EM_PROCESSO: 'em_processo',
-    CONVERTIDO: 'convertido',
-    PERDIDO: 'perdido',
-    DESQUALIFICADO: 'desqualificado'
-};
-
-export const LEAD_STATUS_LABELS = {
-    [LEAD_STATUS.NOVO]: 'Novo',
-    [LEAD_STATUS.CONTACTADO]: 'Contactado',
-    [LEAD_STATUS.QUALIFICADO]: 'Qualificado',
-    [LEAD_STATUS.EM_PROCESSO]: 'Em Processo',
-    [LEAD_STATUS.CONVERTIDO]: 'Convertido',
-    [LEAD_STATUS.PERDIDO]: 'Perdido',
-    [LEAD_STATUS.DESQUALIFICADO]: 'Desqualificado'
-};
-
-// ===== CONSTANTES DE TEMPERATURA =====
+// Temperatura da Lead
 export const LEAD_TEMPERATURES = {
-    QUENTE: 'quente',
+    FRIO: 'frio',
     MORNO: 'morno',
-    FRIO: 'frio'
+    QUENTE: 'quente'
 };
 
 export const LEAD_TEMPERATURE_LABELS = {
-    [LEAD_TEMPERATURES.QUENTE]: 'Quente',
+    [LEAD_TEMPERATURES.FRIO]: 'Frio',
     [LEAD_TEMPERATURES.MORNO]: 'Morno',
-    [LEAD_TEMPERATURES.FRIO]: 'Frio'
+    [LEAD_TEMPERATURES.QUENTE]: 'Quente'
 };
 
-// ===== CONSTANTES DE TASKS =====
+// Tipos de Tarefas
 export const TASK_TYPES = {
     CALL: 'call',
     EMAIL: 'email',
@@ -136,6 +138,8 @@ export const TASK_STATUS_LABELS = {
 
 // ===== SCHEMA PRINCIPAL DA LEAD =====
 export const createLeadSchema = (leadData) => {
+    const now = Timestamp.now();
+
     return {
         id: null,
         consultorId: null,
@@ -143,7 +147,7 @@ export const createLeadSchema = (leadData) => {
         // ===== DADOS PESSOAIS BÁSICOS =====
         name: leadData.name?.trim() || '',
         phone: leadData.phone?.trim() || '',
-        email: leadData.email?.trim() || '', // OPCIONAL
+        email: leadData.email?.trim() || '',
 
         // ===== CLASSIFICAÇÃO DA LEAD =====
         leadSource: leadData.leadSource || LEAD_SOURCES.WEBSITE,
@@ -163,15 +167,15 @@ export const createLeadSchema = (leadData) => {
         consultorObservations: leadData.consultorObservations?.trim() || '',
 
         // ===== TIMESTAMPS COM HORA =====
-        criadaEm: Timestamp.now(),
-        atualizadaEm: Timestamp.now(),
+        criadaEm: now,
+        atualizadaEm: now,
         proximoContacto: leadData.proximoContacto ?
             Timestamp.fromDate(new Date(leadData.proximoContacto)) : null,
 
         // ===== STATUS E QUALIFICAÇÃO =====
         status: LEAD_STATUS.NOVO,
         temperatura: LEAD_TEMPERATURES.MORNO,
-        score: 50, // Score inicial
+        score: 50,
 
         // ===== HISTÓRICO DE ATIVIDADES =====
         ultimoContacto: null,
@@ -204,6 +208,8 @@ export const createLeadSchema = (leadData) => {
 
 // ===== SCHEMA PARA TASK =====
 export const createTaskSchema = (taskData) => {
+    const now = Timestamp.now();
+
     return {
         id: null,
         leadId: taskData.leadId,
@@ -227,8 +233,8 @@ export const createTaskSchema = (taskData) => {
         notas: '',
 
         // Timestamps
-        criadaEm: Timestamp.now(),
-        atualizadaEm: Timestamp.now(),
+        criadaEm: now,
+        atualizadaEm: now,
 
         // Próxima ação
         proximaAcao: {
@@ -242,6 +248,8 @@ export const createTaskSchema = (taskData) => {
 
 // ===== SCHEMA PARA CONTACTO =====
 export const createContactoSchema = (contactoData) => {
+    const now = Timestamp.now();
+
     return {
         id: null,
         leadId: contactoData.leadId,
@@ -249,7 +257,7 @@ export const createContactoSchema = (contactoData) => {
 
         // Dados do contacto
         tipo: contactoData.tipo || TASK_TYPES.CALL,
-        dataContacto: Timestamp.now(),
+        dataContacto: now,
         duracao: contactoData.duracao || null,
 
         // Conteúdo
@@ -265,49 +273,42 @@ export const createContactoSchema = (contactoData) => {
         // Qualificação
         interesseConfirmado: contactoData.interesseConfirmado || false,
         orcamentoDiscutido: contactoData.orcamentoDiscutido || false,
-        tempoDecisao: contactoData.tempoDecisao || null,
+        tempoDecisao: contactoData.tempoDecisao || '',
 
-        // Metadata
-        criadoEm: Timestamp.now()
+        // Timestamps
+        criadoEm: now,
+        atualizadoEm: now
     };
 };
 
 // ===== VALIDAÇÕES =====
+
+/**
+ * Valida dados da lead
+ */
 export const validateLeadData = (leadData) => {
-    // Validar dados básicos de cliente
-    const clientValidation = validateClientData(leadData);
-    const errors = { ...clientValidation.errors };
+    const errors = {};
 
-    // Validações específicas de lead
-    if (!leadData.leadSource || !Object.values(LEAD_SOURCES).includes(leadData.leadSource)) {
-        errors.leadSource = 'Fonte da lead é obrigatória';
+    // Nome obrigatório
+    if (!leadData.name?.trim()) {
+        errors.name = 'Nome é obrigatório';
     }
 
-    if (!leadData.interesse || !Object.values(LEAD_INTERESTS).includes(leadData.interesse)) {
-        errors.interesse = 'Interesse é obrigatório';
+    // Telefone obrigatório e formato válido
+    if (!leadData.phone?.trim()) {
+        errors.phone = 'Telefone é obrigatório';
+    } else if (!/^[0-9+\-\s()]+$/.test(leadData.phone)) {
+        errors.phone = 'Formato de telefone inválido';
     }
 
-    // Descrição obrigatória
-    if (!leadData.descricao || leadData.descricao.trim().length < 10) {
-        errors.descricao = 'Descrição é obrigatória (mínimo 10 caracteres)';
+    // Email opcional mas se fornecido deve ser válido
+    if (leadData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(leadData.email)) {
+        errors.email = 'Email inválido';
     }
 
-    if (leadData.descricao && leadData.descricao.length > 1000) {
-        errors.descricao = 'Descrição não pode ter mais de 1000 caracteres';
-    }
-
-    // Validar orçamento
-    if (leadData.orcamentoEstimado && (leadData.orcamentoEstimado < 0 || leadData.orcamentoEstimado > 10000000)) {
-        errors.orcamentoEstimado = 'Orçamento deve estar entre 0 e 10.000.000€';
-    }
-
-    // Validar data de contacto
-    if (leadData.proximoContacto) {
-        const dataContacto = new Date(leadData.proximoContacto);
-        const agora = new Date();
-        if (dataContacto < agora) {
-            errors.proximoContacto = 'Data do próximo contacto deve ser futura';
-        }
+    // Orçamento deve ser positivo se fornecido
+    if (leadData.orcamentoEstimado && leadData.orcamentoEstimado < 0) {
+        errors.orcamentoEstimado = 'Orçamento deve ser positivo';
     }
 
     return {
@@ -316,32 +317,26 @@ export const validateLeadData = (leadData) => {
     };
 };
 
-// ===== VALIDAÇÃO DE TASK =====
+/**
+ * Valida dados de task
+ */
 export const validateTaskData = (taskData) => {
     const errors = {};
 
-    if (!taskData.leadId) {
-        errors.leadId = 'ID da lead é obrigatório';
+    if (!taskData.titulo?.trim()) {
+        errors.titulo = 'Título é obrigatório';
     }
 
-    if (!taskData.tipo || !Object.values(TASK_TYPES).includes(taskData.tipo)) {
+    if (!taskData.tipo) {
         errors.tipo = 'Tipo de tarefa é obrigatório';
     }
 
-    if (!taskData.titulo || taskData.titulo.trim().length < 3) {
-        errors.titulo = 'Título é obrigatório (mínimo 3 caracteres)';
+    if (!taskData.leadId) {
+        errors.leadId = 'Lead ID é obrigatório';
     }
 
-    if (taskData.agendadaPara) {
-        const dataAgendamento = new Date(taskData.agendadaPara);
-        const agora = new Date();
-        if (dataAgendamento < agora) {
-            errors.agendadaPara = 'Data deve ser futura';
-        }
-    }
-
-    if (taskData.duracaoEstimada && (taskData.duracaoEstimada < 1 || taskData.duracaoEstimada > 480)) {
-        errors.duracaoEstimada = 'Duração deve estar entre 1 e 480 minutos';
+    if (!taskData.consultorId) {
+        errors.consultorId = 'Consultor ID é obrigatório';
     }
 
     return {
@@ -353,193 +348,214 @@ export const validateTaskData = (taskData) => {
 // ===== FUNÇÕES DE CÁLCULO =====
 
 /**
- * ✅ CORRIGIDO: Validações defensivas para datas inválidas
+ * Calcula temperatura da lead baseado no último contacto
  */
 export const calculateLeadTemperature = (ultimoContacto) => {
     if (!ultimoContacto) return LEAD_TEMPERATURES.FRIO;
 
-    try {
-        const agora = new Date();
-        const ultimaAtividade = ultimoContacto.toDate ?
-            ultimoContacto.toDate() :
-            new Date(ultimoContacto);
+    const diasSemContacto = Math.floor(
+        (Date.now() - ultimoContacto.toDate().getTime()) / (1000 * 60 * 60 * 24)
+    );
 
-        // Verificar se a data é válida
-        if (isNaN(ultimaAtividade.getTime())) {
-            console.warn('Data de ultimoContacto inválida:', ultimoContacto);
-            return LEAD_TEMPERATURES.FRIO;
-        }
-
-        const diasSemContacto = Math.floor((agora - ultimaAtividade) / (1000 * 60 * 60 * 24));
-
-        if (diasSemContacto <= 2) return LEAD_TEMPERATURES.QUENTE;
-        if (diasSemContacto <= 7) return LEAD_TEMPERATURES.MORNO;
-        return LEAD_TEMPERATURES.FRIO;
-    } catch (error) {
-        console.warn('Erro ao calcular temperatura da lead:', error);
-        return LEAD_TEMPERATURES.FRIO;
-    }
+    if (diasSemContacto <= 3) return LEAD_TEMPERATURES.QUENTE;
+    if (diasSemContacto <= 7) return LEAD_TEMPERATURES.MORNO;
+    return LEAD_TEMPERATURES.FRIO;
 };
 
+/**
+ * Calcula score da lead baseado em múltiplos fatores
+ */
 export const calculateLeadScore = (leadData) => {
     let score = 0;
 
-    // Score por interesse
-    const interesseScores = {
-        [LEAD_INTERESTS.COMPRAR]: 30,
-        [LEAD_INTERESTS.VENDER]: 35,
-        [LEAD_INTERESTS.INVESTIR]: 40,
-        [LEAD_INTERESTS.ARRENDAR]: 25,
-        [LEAD_INTERESTS.AVALIAR]: 15
-    };
-    score += interesseScores[leadData.interesse] || 20;
+    // Fonte da lead (20 pontos)
+    const highValueSources = [LEAD_SOURCES.REFERENCIA, LEAD_SOURCES.DIRETO];
+    if (highValueSources.includes(leadData.leadSource)) {
+        score += 20;
+    } else {
+        score += 10;
+    }
 
-    // Score por urgência
-    const urgenciaScores = {
-        'imediata': 25,
-        'alta': 20,
-        'media': 15,
-        'baixa': 10
-    };
-    score += urgenciaScores[leadData.urgencia] || 15;
+    // Interesse (20 pontos)
+    const highValueInterests = [LEAD_INTERESTS.COMPRAR, LEAD_INTERESTS.INVESTIR];
+    if (highValueInterests.includes(leadData.interesse)) {
+        score += 20;
+    } else {
+        score += 10;
+    }
 
-    // Score por orçamento
+    // Urgência (20 pontos)
+    if (leadData.urgencia === 'alta') score += 20;
+    else if (leadData.urgencia === 'media') score += 10;
+    else score += 5;
+
+    // Orçamento (20 pontos)
     if (leadData.orcamentoEstimado) {
         if (leadData.orcamentoEstimado >= 500000) score += 20;
-        else if (leadData.orcamentoEstimado >= 300000) score += 15;
-        else if (leadData.orcamentoEstimado >= 150000) score += 10;
+        else if (leadData.orcamentoEstimado >= 250000) score += 15;
+        else if (leadData.orcamentoEstimado >= 100000) score += 10;
         else score += 5;
     }
 
-    // Score por descrição
-    if (leadData.descricao) {
-        if (leadData.descricao.length >= 200) score += 10;
-        else if (leadData.descricao.length >= 100) score += 7;
-        else if (leadData.descricao.length >= 50) score += 5;
-    }
+    // Engajamento (20 pontos)
+    if (leadData.totalContactos > 5) score += 20;
+    else if (leadData.totalContactos > 2) score += 10;
+    else if (leadData.totalContactos > 0) score += 5;
 
-    // Score por contactos
-    if (leadData.email && leadData.phone) score += 10;
-    else if (leadData.phone) score += 5;
-
-    return Math.min(score, 100);
+    return Math.min(100, score);
 };
 
 /**
- * ✅ CORRIGIDO: Retornar objetos Date válidos em vez de strings
- * PROBLEMA: Retornava strings 'imediato', '2_horas', '1_semana'
- * SOLUÇÃO: Retornar datas calculadas corretamente
+ * Determina próxima ação recomendada
  */
 export const getNextRecommendedAction = (leadData) => {
-    const agora = new Date();
-    const criadaEm = leadData.criadaEm?.toDate() || agora;
-    const horasDesdeEm = (agora - criadaEm) / (1000 * 60 * 60);
-
-    if (horasDesdeEm < 1) {
-        // ✅ CORREÇÃO: Retornar data atual + 15 minutos em vez de string 'imediato'
-        const prazoData = new Date();
-        prazoData.setMinutes(prazoData.getMinutes() + 15);
-
+    // Lead nova
+    if (leadData.status === LEAD_STATUS.NOVO) {
         return {
-            tipo: TASK_TYPES.CALL,
-            prazo: prazoData,
-            descricao: 'Contacto inicial imediato'
+            type: TASK_TYPES.CALL,
+            label: 'Primeiro Contacto',
+            description: 'Fazer primeira chamada de apresentação'
         };
     }
 
-    if (horasDesdeEm < 24 && leadData.status === LEAD_STATUS.NOVO) {
-        // ✅ CORREÇÃO: Retornar data atual + 2 horas em vez de string '2_horas'
-        const prazoData = new Date();
-        prazoData.setHours(prazoData.getHours() + 2);
-
+    // Lead contactada mas não qualificada
+    if (leadData.status === LEAD_STATUS.CONTACTADO &&
+        leadData.statusQualificacao === 'por_qualificar') {
         return {
-            tipo: TASK_TYPES.CALL,
-            prazo: prazoData,
-            descricao: 'Follow-up de primeiro contacto'
+            type: TASK_TYPES.MEETING,
+            label: 'Reunião de Qualificação',
+            description: 'Agendar reunião para qualificar necessidades'
         };
     }
 
-    if (leadData.temperatura === LEAD_TEMPERATURES.FRIO) {
-        // ✅ CORREÇÃO: Retornar data atual + 1 semana em vez de string '1_semana'
-        const prazoData = new Date();
-        prazoData.setDate(prazoData.getDate() + 7);
-
+    // Lead qualificada
+    if (leadData.status === LEAD_STATUS.QUALIFICADO) {
         return {
-            tipo: TASK_TYPES.EMAIL,
-            prazo: prazoData,
-            descricao: 'Reativar lead fria'
+            type: TASK_TYPES.PRESENTATION,
+            label: 'Apresentação de Proposta',
+            description: 'Preparar e apresentar proposta comercial'
         };
     }
 
-    return null;
+    // Lead em negociação
+    if (leadData.status === LEAD_STATUS.NEGOCIACAO) {
+        return {
+            type: TASK_TYPES.NEGOTIATION,
+            label: 'Negociação',
+            description: 'Finalizar termos e fechar negócio'
+        };
+    }
+
+    // Default: follow-up
+    return {
+        type: TASK_TYPES.FOLLOW_UP,
+        label: 'Follow-up',
+        description: 'Fazer acompanhamento da lead'
+    };
 };
 
 /**
- * ✅ CORRIGIDO: Validações defensivas para evitar erros com undefined
+ * Verifica se lead precisa de alerta
  */
 export const needsAlert = (leadData) => {
-    // ✅ CORREÇÃO: Validações defensivas para evitar erros com undefined
-    if (!leadData) return false;
+    const alerts = [];
 
-    const agora = new Date();
-
-    // Contacto em atraso
-    if (leadData.proximoContacto) {
-        try {
-            const dataContacto = leadData.proximoContacto.toDate ?
-                leadData.proximoContacto.toDate() :
-                new Date(leadData.proximoContacto);
-
-            if (isNaN(dataContacto.getTime())) {
-                // Data inválida, ignorar este alerta
-                console.warn('Data de proximoContacto inválida:', leadData.proximoContacto);
-            } else if (dataContacto < agora) {
-                return {
-                    tipo: 'contacto_atrasado',
-                    urgencia: 'alta',
-                    mensagem: 'Contacto agendado em atraso'
-                };
-            }
-        } catch (error) {
-            console.warn('Erro ao processar proximoContacto:', error);
-        }
-    }
-
-    // Lead fria
+    // Alerta de lead fria
     if (leadData.temperatura === LEAD_TEMPERATURES.FRIO) {
-        try {
-            const ultimoContacto = leadData.ultimoContacto?.toDate() || leadData.criadaEm?.toDate() || agora;
-            const diasSemContacto = Math.floor((agora - ultimoContacto) / (1000 * 60 * 60 * 24));
+        alerts.push({
+            type: 'temperature',
+            message: 'Lead está fria - necessita contacto urgente',
+            severity: 'high'
+        });
+    }
 
-            if (diasSemContacto >= 7) {
-                return {
-                    tipo: 'lead_fria',
-                    urgencia: 'media',
-                    mensagem: `${diasSemContacto} dias sem contacto`
-                };
-            }
-        } catch (error) {
-            console.warn('Erro ao calcular dias sem contacto:', error);
+    // Alerta de tempo sem contacto
+    if (leadData.ultimoContacto) {
+        const diasSemContacto = Math.floor(
+            (Date.now() - leadData.ultimoContacto.toDate().getTime()) / (1000 * 60 * 60 * 24)
+        );
+
+        if (diasSemContacto > 7) {
+            alerts.push({
+                type: 'no_contact',
+                message: `${diasSemContacto} dias sem contacto`,
+                severity: 'medium'
+            });
         }
     }
 
-    // Lead urgente sem follow-up
-    if (leadData.urgencia === 'imediata' || leadData.urgencia === 'alta') {
-        try {
-            const criadaEm = leadData.criadaEm?.toDate() || agora;
-            const horasSemContacto = (agora - criadaEm) / (1000 * 60 * 60);
+    // Alerta de próximo contacto vencido
+    if (leadData.proximoContacto) {
+        const now = Date.now();
+        const proximoContacto = leadData.proximoContacto.toDate().getTime();
 
-            if (horasSemContacto >= 24 && leadData.status === LEAD_STATUS.NOVO) {
-                return {
-                    tipo: 'urgencia_alta',
-                    urgencia: 'alta',
-                    mensagem: 'Lead urgente sem follow-up há mais de 24h'
-                };
-            }
-        } catch (error) {
-            console.warn('Erro ao calcular horas sem contacto:', error);
+        if (proximoContacto < now) {
+            alerts.push({
+                type: 'overdue',
+                message: 'Contacto agendado está em atraso',
+                severity: 'high'
+            });
         }
     }
 
-    return null;
+    // Alerta de alta prioridade
+    if (leadData.urgencia === 'alta' && leadData.status === LEAD_STATUS.NOVO) {
+        alerts.push({
+            type: 'priority',
+            message: 'Lead de alta prioridade aguarda primeiro contacto',
+            severity: 'high'
+        });
+    }
+
+    return alerts;
+};
+
+// ===== HELPERS =====
+
+/**
+ * Formata número de telefone
+ */
+export const formatPhone = (phone) => {
+    if (!phone) return '';
+
+    // Remove espaços e caracteres especiais
+    const cleaned = phone.replace(/\D/g, '');
+
+    // Formato português
+    if (cleaned.length === 9) {
+        return `${cleaned.slice(0, 3)} ${cleaned.slice(3, 6)} ${cleaned.slice(6)}`;
+    }
+
+    return phone;
+};
+
+/**
+ * Calcula dias desde data
+ */
+export const getDaysSince = (date) => {
+    if (!date) return null;
+
+    const dateObj = date.toDate ? date.toDate() : new Date(date);
+    const now = new Date();
+    const diffTime = Math.abs(now - dateObj);
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+    return diffDays;
+};
+
+/**
+ * Formata data relativa
+ */
+export const getRelativeTime = (date) => {
+    if (!date) return '';
+
+    const days = getDaysSince(date);
+
+    if (days === 0) return 'Hoje';
+    if (days === 1) return 'Ontem';
+    if (days < 7) return `${days} dias atrás`;
+    if (days < 30) return `${Math.floor(days / 7)} semanas atrás`;
+    if (days < 365) return `${Math.floor(days / 30)} meses atrás`;
+
+    return `${Math.floor(days / 365)} anos atrás`;
 };

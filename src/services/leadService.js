@@ -4,9 +4,6 @@
  * 
  * Caminho: src/services/leadService.js
  * Estrutura: consultores/{consultorId}/leads/{leadId}
- * 
- * ✅ CORREÇÃO: Removido orderBy com campos undefined que causavam erro Firebase
- * ✅ CORREÇÃO: Status corrigidos para usar LEAD_STATUS.NOVO em vez de LEAD_STATUS.NOVA
  */
 
 import {
@@ -84,25 +81,11 @@ export const createLead = async (consultorId, leadData) => {
         const leadSchema = createLeadSchema(leadData);
         leadSchema.consultorId = consultorId;
 
-        // Calcular score automático
+        // Calcular score inicial
         leadSchema.score = calculateLeadScore(leadSchema);
-        leadSchema.temperatura = calculateLeadTemperature(leadSchema.ultimoContacto);
 
-        // Salvar no Firestore
+        // Adicionar ao Firestore
         const leadRef = await addDoc(getLeadCollection(consultorId), leadSchema);
-
-        // Criar primeira tarefa automática se não tiver último contacto
-        if (!leadSchema.ultimoContacto) {
-            const nextAction = getNextRecommendedAction(leadSchema);
-            if (nextAction) {
-                await createTask(consultorId, leadRef.id, {
-                    tipo: nextAction.tipo,
-                    titulo: 'Contacto inicial',
-                    descricao: nextAction.motivo,
-                    agendadaPara: nextAction.prazo
-                });
-            }
-        }
 
         return {
             id: leadRef.id,
@@ -115,7 +98,45 @@ export const createLead = async (consultorId, leadData) => {
 };
 
 /**
- * Obter lead por ID
+ * Criar leads em lote
+ */
+export const createLeadsBatch = async (consultorId, leadsData) => {
+    try {
+        const batch = writeBatch(db);
+        const leads = [];
+
+        for (const leadData of leadsData) {
+            const validation = validateLeadData(leadData);
+            if (!validation.isValid) {
+                console.warn('Lead inválida ignorada:', validation.errors);
+                continue;
+            }
+
+            const leadSchema = createLeadSchema(leadData);
+            leadSchema.consultorId = consultorId;
+            leadSchema.score = calculateLeadScore(leadSchema);
+
+            const leadRef = doc(getLeadCollection(consultorId));
+            batch.set(leadRef, leadSchema);
+
+            leads.push({
+                id: leadRef.id,
+                ...leadSchema
+            });
+        }
+
+        await batch.commit();
+        return leads;
+    } catch (error) {
+        console.error('Erro ao criar leads em lote:', error);
+        throw error;
+    }
+};
+
+// ===== READ OPERATIONS =====
+
+/**
+ * Buscar lead por ID
  */
 export const getLead = async (consultorId, leadId) => {
     try {
@@ -125,30 +146,23 @@ export const getLead = async (consultorId, leadId) => {
             throw new Error('Lead não encontrada');
         }
 
-        const leadData = {
-            id: leadDoc.id,
-            ...leadDoc.data()
-        };
-
-        // Carregar tarefas pendentes
-        const tasksQuery = query(
-            getTaskCollection(consultorId, leadId),
-            where('status', '==', TASK_STATUS.PENDENTE),
-            orderBy('agendadaPara', 'asc')
-        );
-        const tasksSnapshot = await getDocs(tasksQuery);
-        leadData.tarefasPendentes = tasksSnapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-        }));
+        const leadData = leadDoc.data();
 
         // Calcular temperatura atual
         leadData.temperatura = calculateLeadTemperature(leadData.ultimoContacto);
-        leadData.precisaAlerta = needsAlert(leadData);
 
-        return leadData;
+        // Verificar alertas
+        leadData.alerts = needsAlert(leadData);
+
+        // Próxima ação recomendada
+        leadData.nextAction = getNextRecommendedAction(leadData);
+
+        return {
+            id: leadDoc.id,
+            ...leadData
+        };
     } catch (error) {
-        console.error('Erro ao obter lead:', error);
+        console.error('Erro ao buscar lead:', error);
         throw error;
     }
 };
@@ -156,76 +170,190 @@ export const getLead = async (consultorId, leadId) => {
 /**
  * Listar leads com filtros e paginação
  */
-export const listLeads = async (consultorId, options = {}) => {
+export const getLeads = async (consultorId, options = {}) => {
     try {
         const {
-            status = 'all',
-            fonte = 'all',
-            interesse = 'all',
-            temperatura = 'all',
+            status = null,
+            leadSource = null,
+            interesse = null,
+            temperatura = null,
+            searchTerm = null,
+            sortBy = 'criadaEm',
+            sortOrder = 'desc',
             pageSize = DEFAULT_PAGE_SIZE,
-            lastDoc = null,
-            orderField = 'criadoEm',
-            orderDirection = 'desc'
+            lastDoc = null
         } = options;
 
-        let leadQuery = query(getLeadCollection(consultorId));
+        let q = getLeadCollection(consultorId);
+        const constraints = [];
 
         // Aplicar filtros
-        if (status !== 'all') {
-            leadQuery = query(leadQuery, where('status', '==', status));
+        if (status) {
+            constraints.push(where('status', '==', status));
         }
 
-        if (fonte !== 'all') {
-            leadQuery = query(leadQuery, where('leadSource', '==', fonte));
+        if (leadSource) {
+            constraints.push(where('leadSource', '==', leadSource));
         }
 
-        if (interesse !== 'all') {
-            leadQuery = query(leadQuery, where('interesse', '==', interesse));
+        if (interesse) {
+            constraints.push(where('interesse', '==', interesse));
+        }
+
+        if (temperatura) {
+            constraints.push(where('temperatura', '==', temperatura));
         }
 
         // Ordenação
-        leadQuery = query(leadQuery, orderBy(orderField, orderDirection));
+        if (sortBy) {
+            constraints.push(orderBy(sortBy, sortOrder));
+        }
 
         // Paginação
+        constraints.push(limit(pageSize));
+
         if (lastDoc) {
-            leadQuery = query(leadQuery, startAfter(lastDoc));
+            constraints.push(startAfter(lastDoc));
         }
 
-        leadQuery = query(leadQuery, limit(pageSize));
+        // Executar query
+        q = query(q, ...constraints);
+        const snapshot = await getDocs(q);
 
-        const snapshot = await getDocs(leadQuery);
         const leads = [];
+        snapshot.forEach(doc => {
+            const leadData = doc.data();
 
-        snapshot.forEach((doc) => {
-            const leadData = {
-                id: doc.id,
-                ...doc.data()
-            };
-
-            // Calcular temperatura atual
+            // Calcular campos dinâmicos
             leadData.temperatura = calculateLeadTemperature(leadData.ultimoContacto);
-            leadData.precisaAlerta = needsAlert(leadData);
+            leadData.alerts = needsAlert(leadData);
 
-            leads.push(leadData);
+            // Filtro de pesquisa local
+            if (searchTerm) {
+                const term = searchTerm.toLowerCase();
+                const matchesSearch =
+                    leadData.name?.toLowerCase().includes(term) ||
+                    leadData.email?.toLowerCase().includes(term) ||
+                    leadData.phone?.includes(term) ||
+                    leadData.descricao?.toLowerCase().includes(term);
+
+                if (!matchesSearch) return;
+            }
+
+            leads.push({
+                id: doc.id,
+                ...leadData
+            });
         });
 
-        // Aplicar filtro de temperatura (manual, pois é calculado)
-        let filteredLeads = leads;
-        if (temperatura !== 'all') {
-            filteredLeads = leads.filter(lead => lead.temperatura === temperatura);
-        }
-
         return {
-            leads: filteredLeads,
+            leads,
             hasMore: snapshot.docs.length === pageSize,
-            lastDoc: snapshot.docs[snapshot.docs.length - 1] || null
+            lastDoc: snapshot.docs[snapshot.docs.length - 1]
         };
     } catch (error) {
         console.error('Erro ao listar leads:', error);
         throw error;
     }
 };
+
+/**
+ * Obter estatísticas das leads
+ */
+export const getLeadsStats = async (consultorId) => {
+    try {
+        const snapshot = await getDocs(getLeadCollection(consultorId));
+
+        const stats = {
+            total: 0,
+            porStatus: {},
+            porFonte: {},
+            porInteresse: {},
+            porTemperatura: {
+                frio: 0,
+                morno: 0,
+                quente: 0
+            },
+            alertas: 0,
+            taxaConversao: 0
+        };
+
+        snapshot.forEach(doc => {
+            const lead = doc.data();
+            stats.total++;
+
+            // Por status
+            stats.porStatus[lead.status] = (stats.porStatus[lead.status] || 0) + 1;
+
+            // Por fonte
+            stats.porFonte[lead.leadSource] = (stats.porFonte[lead.leadSource] || 0) + 1;
+
+            // Por interesse
+            stats.porInteresse[lead.interesse] = (stats.porInteresse[lead.interesse] || 0) + 1;
+
+            // Por temperatura
+            const temp = calculateLeadTemperature(lead.ultimoContacto);
+            stats.porTemperatura[temp]++;
+
+            // Alertas
+            const alerts = needsAlert(lead);
+            if (alerts.length > 0) {
+                stats.alertas++;
+            }
+        });
+
+        // Taxa de conversão
+        const ganhas = stats.porStatus[LEAD_STATUS.GANHO] || 0;
+        const perdidas = stats.porStatus[LEAD_STATUS.PERDIDO] || 0;
+        const total = ganhas + perdidas;
+
+        if (total > 0) {
+            stats.taxaConversao = Math.round((ganhas / total) * 100);
+        }
+
+        return stats;
+    } catch (error) {
+        console.error('Erro ao obter estatísticas:', error);
+        throw error;
+    }
+};
+
+/**
+ * Obter leads com alertas
+ */
+export const getAlertLeads = async (consultorId) => {
+    try {
+        const snapshot = await getDocs(getLeadCollection(consultorId));
+        const alertLeads = [];
+
+        snapshot.forEach(doc => {
+            const lead = doc.data();
+            const alerts = needsAlert(lead);
+
+            if (alerts.length > 0) {
+                alertLeads.push({
+                    id: doc.id,
+                    ...lead,
+                    alerts
+                });
+            }
+        });
+
+        // Ordenar por severidade
+        alertLeads.sort((a, b) => {
+            const aHighAlerts = a.alerts.filter(alert => alert.severity === 'high').length;
+            const bHighAlerts = b.alerts.filter(alert => alert.severity === 'high').length;
+            return bHighAlerts - aHighAlerts;
+        });
+
+        return alertLeads;
+    } catch (error) {
+        console.error('Erro ao obter leads com alertas:', error);
+        throw error;
+    }
+};
+
+// ===== UPDATE OPERATIONS =====
 
 /**
  * Atualizar lead
@@ -243,7 +371,7 @@ export const updateLead = async (consultorId, leadId, updateData) => {
         // Preparar dados de atualização
         const updatePayload = {
             ...updateData,
-            atualizadoEm: Timestamp.now()
+            atualizadaEm: Timestamp.now()
         };
 
         // Recalcular score se dados relevantes mudaram
@@ -289,15 +417,30 @@ export const deleteLead = async (consultorId, leadId) => {
  */
 export const createTask = async (consultorId, leadId, taskData) => {
     try {
-        const validation = validateTaskData(taskData);
+        // Atribuir leadId aos dados ANTES da validação
+        const taskDataWithLeadId = {
+            ...taskData,
+            leadId: leadId,
+            consultorId: consultorId
+        };
+
+        // Validar dados
+        const validation = validateTaskData(taskDataWithLeadId);
         if (!validation.isValid) {
             throw new Error(`Dados da tarefa inválidos: ${JSON.stringify(validation.errors)}`);
         }
 
-        const taskSchema = createTaskSchema(taskData);
-        taskSchema.leadId = leadId;
+        // Criar schema da tarefa
+        const taskSchema = createTaskSchema(taskDataWithLeadId);
 
+        // Adicionar ao Firestore
         const taskRef = await addDoc(getTaskCollection(consultorId, leadId), taskSchema);
+
+        // Atualizar contador de tasks na lead
+        await updateDoc(getLeadDoc(consultorId, leadId), {
+            totalTasks: arrayUnion(1),
+            atualizadaEm: Timestamp.now()
+        });
 
         return {
             id: taskRef.id,
@@ -312,23 +455,28 @@ export const createTask = async (consultorId, leadId, taskData) => {
 /**
  * Obter tarefas da lead
  */
-export const getLeadTasks = async (consultorId, leadId, status = 'all') => {
+export const getLeadTasks = async (consultorId, leadId) => {
     try {
-        let tasksQuery = query(getTaskCollection(consultorId, leadId));
+        const snapshot = await getDocs(getTaskCollection(consultorId, leadId));
+        const tasks = [];
 
-        if (status !== 'all') {
-            tasksQuery = query(tasksQuery, where('status', '==', status));
-        }
+        snapshot.forEach(doc => {
+            tasks.push({
+                id: doc.id,
+                ...doc.data()
+            });
+        });
 
-        tasksQuery = query(tasksQuery, orderBy('agendadaPara', 'asc'));
+        // Ordenar por data de agendamento
+        tasks.sort((a, b) => {
+            const aDate = a.agendadaPara?.toDate() || new Date(0);
+            const bDate = b.agendadaPara?.toDate() || new Date(0);
+            return aDate - bDate;
+        });
 
-        const snapshot = await getDocs(tasksQuery);
-        return snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-        }));
+        return tasks;
     } catch (error) {
-        console.error('Erro ao obter tarefas da lead:', error);
+        console.error('Erro ao obter tarefas:', error);
         throw error;
     }
 };
@@ -336,14 +484,24 @@ export const getLeadTasks = async (consultorId, leadId, status = 'all') => {
 /**
  * Completar tarefa
  */
-export const completeTask = async (consultorId, leadId, taskId, notes = '') => {
+export const completeTask = async (consultorId, leadId, taskId, resultData) => {
     try {
         const taskRef = doc(getTaskCollection(consultorId, leadId), taskId);
 
         await updateDoc(taskRef, {
             status: TASK_STATUS.CONCLUIDA,
-            completedAt: Timestamp.now(),
-            notes: notes
+            executadaEm: Timestamp.now(),
+            resultado: resultData.resultado || '',
+            notas: resultData.notas || '',
+            duracaoReal: resultData.duracao || null,
+            atualizadaEm: Timestamp.now()
+        });
+
+        // Atualizar lead
+        await updateDoc(getLeadDoc(consultorId, leadId), {
+            tasksCompletas: arrayUnion(1),
+            ultimoContacto: Timestamp.now(),
+            atualizadaEm: Timestamp.now()
         });
 
         return true;
@@ -360,16 +518,19 @@ export const completeTask = async (consultorId, leadId, taskId, notes = '') => {
  */
 export const addContact = async (consultorId, leadId, contactData) => {
     try {
-        const contactSchema = createContactoSchema(contactData);
-        contactSchema.leadId = leadId;
+        const contactSchema = createContactoSchema({
+            ...contactData,
+            leadId,
+            consultorId
+        });
 
-        // Adicionar contacto
         const contactRef = await addDoc(getContactCollection(consultorId, leadId), contactSchema);
 
-        // Atualizar último contacto na lead
+        // Atualizar lead
         await updateDoc(getLeadDoc(consultorId, leadId), {
-            ultimoContacto: contactSchema.dataContacto,
-            atualizadoEm: Timestamp.now()
+            totalContactos: arrayUnion(1),
+            ultimoContacto: Timestamp.now(),
+            atualizadaEm: Timestamp.now()
         });
 
         return {
@@ -387,18 +548,26 @@ export const addContact = async (consultorId, leadId, contactData) => {
  */
 export const getLeadContacts = async (consultorId, leadId) => {
     try {
-        const contactsQuery = query(
-            getContactCollection(consultorId, leadId),
-            orderBy('dataContacto', 'desc')
-        );
+        const snapshot = await getDocs(getContactCollection(consultorId, leadId));
+        const contacts = [];
 
-        const snapshot = await getDocs(contactsQuery);
-        return snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-        }));
+        snapshot.forEach(doc => {
+            contacts.push({
+                id: doc.id,
+                ...doc.data()
+            });
+        });
+
+        // Ordenar por data (mais recente primeiro)
+        contacts.sort((a, b) => {
+            const aDate = a.dataContacto?.toDate() || new Date(0);
+            const bDate = b.dataContacto?.toDate() || new Date(0);
+            return bDate - aDate;
+        });
+
+        return contacts;
     } catch (error) {
-        console.error('Erro ao obter contactos da lead:', error);
+        console.error('Erro ao obter contactos:', error);
         throw error;
     }
 };
@@ -406,196 +575,70 @@ export const getLeadContacts = async (consultorId, leadId) => {
 // ===== CONVERSION OPERATIONS =====
 
 /**
- * Converter lead para cliente
+ * Converter lead em cliente
  */
-export const convertLeadToClient = async (consultorId, leadId, clientData, conversionNotes = '') => {
+export const convertLeadToClient = async (consultorId, leadId, clientData) => {
     try {
-        // Importar createClient dinamicamente para evitar dependência circular
-        const { createClient } = await import('./clientService');
+        const batch = writeBatch(db);
 
-        // Criar novo cliente
-        const newClient = await createClient(consultorId, clientData);
-
-        // Atualizar lead como convertida
-        await updateDoc(getLeadDoc(consultorId, leadId), {
-            status: LEAD_STATUS.CONVERTIDO,
-            'conversao.convertida': true,
-            'conversao.dataConversao': Timestamp.now(),
-            'conversao.clienteId': newClient.id,
-            'conversao.motivoConversao': conversionNotes,
-            atualizadoEm: Timestamp.now()
-        });
-
-        return {
-            clientId: newClient.id,
-            leadId: leadId,
-            convertedAt: new Date()
-        };
-    } catch (error) {
-        console.error('Erro ao converter lead para cliente:', error);
-        throw error;
-    }
-};
-
-// ===== SEARCH OPERATIONS =====
-
-/**
- * Pesquisar leads por texto
- */
-export const searchLeads = async (consultorId, searchTerm, options = {}) => {
-    try {
-        const { limit: searchLimit = 50 } = options;
-
-        // Obter todas as leads ativas (Firestore não suporta busca full-text nativa)
-        const leadsQuery = query(
-            getLeadCollection(consultorId),
-            where('status', 'in', [LEAD_STATUS.NOVO, LEAD_STATUS.CONTACTADO, LEAD_STATUS.QUALIFICADO]),
-            orderBy('criadoEm', 'desc'),
-            limit(searchLimit)
-        );
-
-        const snapshot = await getDocs(leadsQuery);
-        const leads = snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-        }));
-
-        // Filtrar por termo de pesquisa (busca simples)
-        const searchTermLower = searchTerm.toLowerCase().trim();
-        const filteredLeads = leads.filter(lead => {
-            return (
-                lead.name?.toLowerCase().includes(searchTermLower) ||
-                lead.email?.toLowerCase().includes(searchTermLower) ||
-                lead.phone?.includes(searchTerm) ||
-                lead.descricao?.toLowerCase().includes(searchTermLower)
-            );
-        });
-
-        // Calcular temperatura atual para cada lead
-        return filteredLeads.map(lead => ({
-            ...lead,
-            temperatura: calculateLeadTemperature(lead.ultimoContacto),
-            precisaAlerta: needsAlert(lead)
-        }));
-    } catch (error) {
-        console.error('Erro ao pesquisar leads:', error);
-        throw error;
-    }
-};
-
-// ===== ANALYTICS OPERATIONS =====
-
-/**
- * Obter estatísticas das leads
- */
-export const getLeadStats = async (consultorId) => {
-    try {
-        const leadsQuery = query(getLeadCollection(consultorId));
-        const snapshot = await getDocs(leadsQuery);
-
-        const leads = snapshot.docs.map(doc => doc.data());
-
-        const stats = {
-            total: leads.length,
-            novas: leads.filter(lead => lead.status === LEAD_STATUS.NOVO).length,
-            contactadas: leads.filter(lead => lead.status === LEAD_STATUS.CONTACTADO).length,
-            qualificadas: leads.filter(lead => lead.status === LEAD_STATUS.QUALIFICADO).length,
-            convertidas: leads.filter(lead => lead.status === LEAD_STATUS.CONVERTIDO).length,
-            perdidas: leads.filter(lead => lead.status === LEAD_STATUS.PERDIDO).length,
-            scoresMedios: {
-                geral: 0,
-                convertidas: 0
-            },
-            conversaoRate: 0
-        };
-
-        // Calcular scores médios
-        const scoresGerais = leads.map(lead => lead.score || 0);
-        stats.scoresMedios.geral = scoresGerais.length > 0 ?
-            scoresGerais.reduce((a, b) => a + b, 0) / scoresGerais.length : 0;
-
-        const leadsConvertidas = leads.filter(lead => lead.status === LEAD_STATUS.CONVERTIDO);
-        if (leadsConvertidas.length > 0) {
-            const scoresConvertidas = leadsConvertidas.map(lead => lead.score || 0);
-            stats.scoresMedios.convertidas = scoresConvertidas.reduce((a, b) => a + b, 0) / scoresConvertidas.length;
+        // Obter dados da lead
+        const leadDoc = await getDoc(getLeadDoc(consultorId, leadId));
+        if (!leadDoc.exists()) {
+            throw new Error('Lead não encontrada');
         }
 
-        // Taxa de conversão
-        stats.conversaoRate = stats.total > 0 ? (stats.convertidas / stats.total) * 100 : 0;
+        const leadData = leadDoc.data();
 
-        return stats;
+        // Criar cliente
+        const clientRef = doc(collection(db, CONSULTOR_COLLECTION, consultorId, CLIENTS_COLLECTION));
+        const clientSchema = {
+            ...clientData,
+            name: leadData.name,
+            phone: leadData.phone,
+            email: leadData.email,
+            leadOrigem: leadId,
+            consultorId: consultorId,
+            criadoEm: Timestamp.now(),
+            atualizadoEm: Timestamp.now()
+        };
+
+        batch.set(clientRef, clientSchema);
+
+        // Atualizar lead
+        batch.update(getLeadDoc(consultorId, leadId), {
+            status: LEAD_STATUS.GANHO,
+            convertidaEm: Timestamp.now(),
+            clienteId: clientRef.id,
+            atualizadaEm: Timestamp.now()
+        });
+
+        await batch.commit();
+
+        return {
+            clientId: clientRef.id,
+            leadId: leadId
+        };
     } catch (error) {
-        console.error('Erro ao obter estatísticas das leads:', error);
+        console.error('Erro ao converter lead:', error);
         throw error;
     }
 };
 
 /**
- * Obter leads que precisam de alerta
- * ✅ CORREÇÃO: Removido orderBy problemático que causava erro com campos undefined
+ * Marcar lead como perdida
  */
-export const getLeadsNeedingAlert = async (consultorId) => {
+export const markLeadAsLost = async (consultorId, leadId, motivoPerda) => {
     try {
-        // ✅ Remover orderBy('ultimoContacto') que causava erro quando campo é undefined
-        const leadsQuery = query(
-            getLeadCollection(consultorId),
-            where('status', 'in', [LEAD_STATUS.NOVO, LEAD_STATUS.CONTACTADO, LEAD_STATUS.QUALIFICADO])
-        );
-
-        const snapshot = await getDocs(leadsQuery);
-        const leadsWithAlerts = [];
-
-        snapshot.forEach((doc) => {
-            const leadData = {
-                id: doc.id,
-                ...doc.data()
-            };
-
-            // Verificar se precisa de alerta usando função do model
-            if (needsAlert(leadData)) {
-                leadData.temperatura = calculateLeadTemperature(leadData.ultimoContacto);
-                leadData.nextAction = getNextRecommendedAction(leadData);
-                leadsWithAlerts.push(leadData);
-            }
+        await updateDoc(getLeadDoc(consultorId, leadId), {
+            status: LEAD_STATUS.PERDIDO,
+            motivoPerda: motivoPerda,
+            perdidaEm: Timestamp.now(),
+            atualizadaEm: Timestamp.now()
         });
 
-        // Ordenar manualmente por urgência (leads com ultimoContacto mais antigo primeiro)
-        leadsWithAlerts.sort((a, b) => {
-            const dateA = a.ultimoContacto?.toDate?.() || new Date(0);
-            const dateB = b.ultimoContacto?.toDate?.() || new Date(0);
-            return dateA - dateB;
-        });
-
-        return leadsWithAlerts;
+        return true;
     } catch (error) {
-        console.error('Erro ao obter leads com alerta:', error);
+        console.error('Erro ao marcar lead como perdida:', error);
         throw error;
     }
-};
-
-// ===== EXPORTS =====
-export default {
-    // CRUD básico
-    createLead,
-    getLead,
-    listLeads,
-    updateLead,
-    deleteLead,
-
-    // Tarefas
-    createTask,
-    getLeadTasks,
-    completeTask,
-
-    // Contactos
-    addContact,
-    getLeadContacts,
-
-    // Conversão
-    convertLeadToClient,
-
-    // Pesquisa e analytics
-    searchLeads,
-    getLeadStats,
-    getLeadsNeedingAlert
 };

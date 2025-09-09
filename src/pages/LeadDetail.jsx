@@ -13,9 +13,14 @@ import {
     LEAD_STATUS_LABELS,
     LEAD_SOURCE_LABELS,
     LEAD_INTEREST_LABELS,
+    LEAD_TEMPERATURE_LABELS,
     TASK_TYPES,
+    TASK_TYPE_LABELS,
+    TASK_STATUS_LABELS,
     calculateLeadTemperature,
-    getNextRecommendedAction
+    getNextRecommendedAction,
+    getRelativeTime,
+    formatPhone
 } from '../models/leadModel';
 import Layout from '../components/Layout';
 import {
@@ -37,7 +42,11 @@ import {
     BanknotesIcon,
     HomeIcon,
     IdentificationIcon,
-    XMarkIcon
+    XMarkIcon,
+    TrashIcon,
+    ArrowRightIcon,
+    ChevronDownIcon,
+    ChevronUpIcon
 } from '@heroicons/react/24/outline';
 import { Snowflake } from 'lucide-react';
 
@@ -58,6 +67,9 @@ const LeadDetailPage = () => {
         addContact,
         completeTask,
         convertLead,
+        markAsLost,
+        updateLead,
+        deleteLead,
         clearCurrentLead,
         clearError
     } = useLeads();
@@ -67,12 +79,22 @@ const LeadDetailPage = () => {
     const [showTaskModal, setShowTaskModal] = useState(false);
     const [showContactModal, setShowContactModal] = useState(false);
     const [showConvertModal, setShowConvertModal] = useState(false);
+    const [showLostModal, setShowLostModal] = useState(false);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [expandedSections, setExpandedSections] = useState({
+        tasks: true,
+        contacts: true,
+        timeline: true
+    });
+
+    // Estados dos formulários
     const [taskForm, setTaskForm] = useState({
         tipo: 'call',
         titulo: '',
         descricao: '',
         agendadaPara: ''
     });
+
     const [contactForm, setContactForm] = useState({
         tipo: 'call',
         resumo: '',
@@ -82,20 +104,42 @@ const LeadDetailPage = () => {
         proximoContactoData: '',
         proximoContactoTipo: 'call'
     });
-    const [convertNotes, setConvertNotes] = useState('');
 
-    // Carregar dados da lead
+    const [convertForm, setConvertForm] = useState({
+        tipoNegocio: '',
+        valorNegocio: '',
+        comissao: '',
+        observacoes: ''
+    });
+
+    const [lostReason, setLostReason] = useState('');
+
+    // Carregar dados ao montar
     useEffect(() => {
-        if (leadId) {
-            fetchLead(leadId);
-            fetchLeadTasks(leadId);
-            fetchLeadContacts(leadId);
-        }
+        const loadData = async () => {
+            if (leadId) {
+                await fetchLead(leadId);
+                await fetchLeadTasks(leadId);
+                await fetchLeadContacts(leadId);
+            }
+        };
+        loadData();
 
+        // Limpar ao desmontar
         return () => {
             clearCurrentLead();
+            clearError('fetch');
         };
-    }, [leadId, fetchLead, fetchLeadTasks, fetchLeadContacts, clearCurrentLead]);
+    }, [leadId]);
+
+    // Navegação
+    const handleBack = () => {
+        navigate('/leads');
+    };
+
+    const handleEdit = () => {
+        navigate(`/leads/${leadId}/edit`);
+    };
 
     // Criar tarefa
     const handleCreateTask = async (e) => {
@@ -110,9 +154,27 @@ const LeadDetailPage = () => {
                 descricao: '',
                 agendadaPara: ''
             });
-            fetchLeadTasks(leadId);
+
+            // Recarregar tarefas
+            await fetchLeadTasks(leadId);
         } catch (error) {
             console.error('Erro ao criar tarefa:', error);
+        }
+    };
+
+    // Completar tarefa
+    const handleCompleteTask = async (taskId) => {
+        try {
+            await completeTask(leadId, taskId, {
+                resultado: 'Tarefa completada',
+                notas: ''
+            });
+
+            // Recarregar dados
+            await fetchLeadTasks(leadId);
+            await fetchLead(leadId);
+        } catch (error) {
+            console.error('Erro ao completar tarefa:', error);
         }
     };
 
@@ -132,102 +194,108 @@ const LeadDetailPage = () => {
                 proximoContactoData: '',
                 proximoContactoTipo: 'call'
             });
-            fetchLeadContacts(leadId);
-            fetchLead(leadId); // Atualizar lead com último contacto
+
+            // Recarregar contactos
+            await fetchLeadContacts(leadId);
+            await fetchLead(leadId);
         } catch (error) {
             console.error('Erro ao adicionar contacto:', error);
         }
     };
 
-    // Completar tarefa
-    const handleCompleteTask = async (taskId, resultado) => {
-        try {
-            await completeTask(leadId, taskId, resultado);
-            fetchLeadTasks(leadId);
-        } catch (error) {
-            console.error('Erro ao completar tarefa:', error);
-        }
-    };
-
     // Converter lead
-    const handleConvertLead = async () => {
+    const handleConvertLead = async (e) => {
+        e.preventDefault();
+
         try {
-            const result = await convertLead(leadId, convertNotes);
+            await convertLead(leadId, convertForm);
             setShowConvertModal(false);
-            navigate(`/clients/${result.clientId}`);
+
+            // Redirecionar para clientes
+            navigate('/clients', {
+                state: {
+                    message: 'Lead convertida em cliente com sucesso!'
+                }
+            });
         } catch (error) {
             console.error('Erro ao converter lead:', error);
         }
     };
 
-    // Obter badge de temperatura
-    const getTemperatureBadge = (temperatura) => {
-        const badges = {
-            quente: {
-                color: 'bg-red-100 text-red-700 border-red-200',
-                icon: FireIcon,
-                label: 'Quente'
-            },
-            morna: {
-                color: 'bg-yellow-100 text-yellow-700 border-yellow-200',
-                icon: ClockIcon,
-                label: 'Morna'
-            },
-            fria: {
-                color: 'bg-blue-100 text-blue-700 border-blue-200',
-                icon: Snowflake,
-                label: 'Fria'
-            }
-        };
+    // Marcar como perdida
+    const handleMarkAsLost = async () => {
+        try {
+            await markAsLost(leadId, lostReason);
+            setShowLostModal(false);
 
-        const badge = badges[temperatura] || badges.fria;
-        const Icon = badge.icon;
-
-        return (
-            <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium border ${badge.color}`}>
-                <Icon className="w-4 h-4 mr-2" />
-                {badge.label}
-            </span>
-        );
+            // Recarregar lead
+            await fetchLead(leadId);
+        } catch (error) {
+            console.error('Erro ao marcar como perdida:', error);
+        }
     };
 
-    // Obter badge de status
-    const getStatusBadge = (status) => {
-        const badges = {
-            nova: 'bg-green-100 text-green-700 border-green-200',
-            contactada: 'bg-blue-100 text-blue-700 border-blue-200',
-            qualificada: 'bg-purple-100 text-purple-700 border-purple-200',
-            convertida: 'bg-emerald-100 text-emerald-700 border-emerald-200',
-            perdida: 'bg-gray-100 text-gray-700 border-gray-200'
+    // Eliminar lead
+    const handleDelete = async () => {
+        try {
+            await deleteLead(leadId);
+            navigate('/leads', {
+                state: {
+                    message: 'Lead eliminada com sucesso!'
+                }
+            });
+        } catch (error) {
+            console.error('Erro ao eliminar lead:', error);
+        }
+    };
+
+    // Toggle seções expandidas
+    const toggleSection = (section) => {
+        setExpandedSections(prev => ({
+            ...prev,
+            [section]: !prev[section]
+        }));
+    };
+
+    // Componente de temperatura
+    const TemperatureIcon = ({ temperatura }) => {
+        switch (temperatura) {
+            case 'quente':
+                return <FireIcon className="h-5 w-5 text-red-500" />;
+            case 'morno':
+                return <ClockIcon className="h-5 w-5 text-yellow-500" />;
+            case 'frio':
+                return <Snowflake className="h-5 w-5 text-blue-500" />;
+            default:
+                return null;
+        }
+    };
+
+    // Componente de status badge
+    const StatusBadge = ({ status }) => {
+        const colors = {
+            novo: 'bg-blue-100 text-blue-800',
+            contactado: 'bg-yellow-100 text-yellow-800',
+            qualificado: 'bg-green-100 text-green-800',
+            proposta: 'bg-purple-100 text-purple-800',
+            negociacao: 'bg-orange-100 text-orange-800',
+            ganho: 'bg-green-500 text-white',
+            perdido: 'bg-red-100 text-red-800',
+            standby: 'bg-gray-100 text-gray-800'
         };
 
         return (
-            <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium border ${badges[status] || badges.nova}`}>
+            <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${colors[status] || 'bg-gray-100 text-gray-800'}`}>
                 {LEAD_STATUS_LABELS[status] || status}
             </span>
         );
     };
 
-    // Obter ícone do tipo de contacto/tarefa
-    const getTypeIcon = (tipo) => {
-        const icons = {
-            call: PhoneIcon,
-            email: EnvelopeIcon,
-            whatsapp: ChatBubbleLeftIcon,
-            meeting: CalendarIcon,
-            follow_up: ClockIcon
-        };
-        return icons[tipo] || PhoneIcon;
-    };
-
-    if (loading.current) {
+    if (loading.fetch) {
         return (
             <Layout>
-                <div className="flex items-center justify-center h-64">
-                    <div className="text-center">
-                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                        <p className="text-gray-600">Carregando detalhes da lead...</p>
-                    </div>
+                <div className="flex justify-center items-center h-64">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
                 </div>
             </Layout>
         );
@@ -237,642 +305,968 @@ const LeadDetailPage = () => {
         return (
             <Layout>
                 <div className="text-center py-12">
-                    <ExclamationTriangleIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">Lead não encontrada</h3>
-                    <p className="text-gray-600 mb-6">A lead que está procurando não existe ou foi removida.</p>
-                    <button
-                        onClick={() => navigate('/leads')}
-                        className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                    >
-                        <ArrowLeftIcon className="w-5 h-5 mr-2" />
-                        Voltar para Leads
-                    </button>
+                    <ExclamationTriangleIcon className="mx-auto h-12 w-12 text-gray-400" />
+                    <h3 className="mt-2 text-sm font-medium text-gray-900">Lead não encontrada</h3>
+                    <div className="mt-6">
+                        <button
+                            onClick={handleBack}
+                            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-indigo-600 bg-indigo-100 hover:bg-indigo-200"
+                        >
+                            Voltar às Leads
+                        </button>
+                    </div>
                 </div>
             </Layout>
         );
     }
 
-    const temperatura = calculateLeadTemperature(currentLead.ultimoContacto);
-    const nextAction = getNextRecommendedAction(currentLead);
-
     return (
         <Layout>
-            <div className="p-6">
+            <div className="space-y-6">
                 {/* Header */}
-                <div className="flex items-center justify-between mb-6">
-                    <div className="flex items-center space-x-4">
-                        <button
-                            onClick={() => navigate('/leads')}
-                            className="text-gray-500 hover:text-gray-700 transition-colors"
-                        >
-                            <ArrowLeftIcon className="w-5 h-5" />
-                        </button>
-                        <div>
-                            <div className="flex items-center space-x-3 mb-2">
-                                <h1 className="text-2xl font-bold text-gray-900">
-                                    {currentLead.nome}
-                                </h1>
-                                <span className="px-3 py-1 bg-blue-100 text-blue-700 text-sm font-medium rounded-full border border-blue-200">
-                                    PROSPECT
-                                </span>
-                            </div>
-                            <div className="flex items-center space-x-4">
-                                {getStatusBadge(currentLead.status)}
-                                {getTemperatureBadge(temperatura)}
-                                <div className="flex items-center text-sm text-gray-600">
-                                    <TagIcon className="w-4 h-4 mr-1" />
-                                    Score: {currentLead.score || 0}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="flex space-x-3">
-                        <button
-                            onClick={() => navigate(`/leads/${leadId}/edit`)}
-                            className="inline-flex items-center px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
-                        >
-                            <PencilIcon className="w-4 h-4 mr-2" />
-                            Editar
-                        </button>
-                        <button
-                            onClick={() => setShowConvertModal(true)}
-                            className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                        >
-                            <UserPlusIcon className="w-4 h-4 mr-2" />
-                            Converter em Cliente
-                        </button>
-                    </div>
-                </div>
-
-                {/* Próxima ação recomendada */}
-                {nextAction && (
-                    <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-6">
-                        <div className="flex items-center">
-                            <ExclamationTriangleIcon className="w-5 h-5 text-orange-600 mr-3 flex-shrink-0" />
-                            <div>
-                                <h3 className="text-sm font-medium text-orange-800">Ação Recomendada</h3>
-                                <p className="text-sm text-orange-700 mt-1">{nextAction}</p>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {/* Tabs */}
-                <div className="border-b border-gray-200 mb-6">
-                    <nav className="-mb-px flex space-x-8">
-                        {[
-                            { id: 'info', label: 'Informações', icon: EyeIcon },
-                            { id: 'tasks', label: 'Tarefas', icon: DocumentTextIcon },
-                            { id: 'contacts', label: 'Contactos', icon: PhoneIcon },
-                            { id: 'timeline', label: 'Timeline', icon: ClockIcon }
-                        ].map((tab) => {
-                            const Icon = tab.icon;
-                            return (
+                <div className="bg-white shadow rounded-lg">
+                    <div className="px-6 py-4">
+                        <div className="flex items-center justify-between mb-4">
+                            <button
+                                onClick={handleBack}
+                                className="inline-flex items-center text-sm text-gray-500 hover:text-gray-700"
+                            >
+                                <ArrowLeftIcon className="h-4 w-4 mr-1" />
+                                Voltar às Leads
+                            </button>
+                            <div className="flex space-x-2">
                                 <button
-                                    key={tab.id}
-                                    onClick={() => setActiveTab(tab.id)}
-                                    className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center ${activeTab === tab.id
-                                            ? 'border-blue-500 text-blue-600'
-                                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                                        }`}
+                                    onClick={handleEdit}
+                                    className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
                                 >
-                                    <Icon className="w-4 h-4 mr-2" />
-                                    {tab.label}
+                                    <PencilIcon className="h-4 w-4 mr-2" />
+                                    Editar
                                 </button>
-                            );
-                        })}
-                    </nav>
-                </div>
+                                <button
+                                    onClick={() => setShowDeleteConfirm(true)}
+                                    className="inline-flex items-center px-3 py-2 border border-red-300 shadow-sm text-sm leading-4 font-medium rounded-md text-red-700 bg-white hover:bg-red-50"
+                                >
+                                    <TrashIcon className="h-4 w-4 mr-2" />
+                                    Eliminar
+                                </button>
+                            </div>
+                        </div>
 
-                {/* Conteúdo dos Tabs */}
-                <div className="space-y-6">
-                    {/* Tab: Informações */}
-                    {activeTab === 'info' && (
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                            {/* Contactos */}
-                            <div className="bg-white rounded-lg border border-gray-200 p-6">
-                                <h3 className="text-lg font-semibold text-gray-900 mb-4">Contactos</h3>
-                                <div className="space-y-3">
-                                    {currentLead.telefone && (
-                                        <div className="flex items-center space-x-3">
-                                            <PhoneIcon className="w-5 h-5 text-gray-400" />
-                                            <span className="text-gray-900">{currentLead.telefone}</span>
-                                        </div>
-                                    )}
-                                    {currentLead.email && (
-                                        <div className="flex items-center space-x-3">
-                                            <EnvelopeIcon className="w-5 h-5 text-gray-400" />
-                                            <span className="text-gray-900">{currentLead.email}</span>
-                                        </div>
-                                    )}
-                                    <div className="flex items-center space-x-3">
-                                        <IdentificationIcon className="w-5 h-5 text-gray-400" />
-                                        <span className="text-gray-900">{currentLead.age || 'N/A'}</span>
+                        <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                                <h1 className="text-2xl font-bold text-gray-900">
+                                    {currentLead.name}
+                                </h1>
+                                <div className="mt-2 flex items-center space-x-4">
+                                    <StatusBadge status={currentLead.status} />
+                                    <div className="flex items-center">
+                                        <TemperatureIcon temperatura={currentLead.temperatura} />
+                                        <span className="ml-1 text-sm text-gray-500">
+                                            {LEAD_TEMPERATURE_LABELS[currentLead.temperatura]}
+                                        </span>
                                     </div>
-                                    <div className="flex items-center space-x-3">
-                                        <BanknotesIcon className="w-5 h-5 text-gray-400" />
-                                        <span className="text-gray-900">{currentLead.profession || 'N/A'}</span>
-                                    </div>
-                                    {currentLead.address?.city && (
-                                        <div className="flex items-center space-x-3">
-                                            <HomeIcon className="w-5 h-5 text-gray-400" />
-                                            <span className="text-gray-900">
-                                                {currentLead.address.city}, {currentLead.address.municipality}
+                                    {currentLead.score && (
+                                        <div className="flex items-center">
+                                            <span className="text-sm text-gray-500">Score:</span>
+                                            <span className="ml-1 text-sm font-medium text-gray-900">
+                                                {currentLead.score}/100
                                             </span>
                                         </div>
                                     )}
                                 </div>
                             </div>
 
-                            {/* Informações da Lead */}
-                            <div className="bg-white rounded-lg border border-gray-200 p-6">
-                                <h3 className="text-lg font-semibold text-gray-900 mb-4">Dados do Prospect</h3>
-                                <div className="space-y-4">
-                                    <div>
-                                        <p className="text-sm text-gray-500">Interesse</p>
-                                        <p className="font-medium text-gray-900">
-                                            {LEAD_INTEREST_LABELS[currentLead.interesse] || currentLead.interesse}
+                            {/* Ações Rápidas */}
+                            <div className="flex space-x-2">
+                                {currentLead.status !== 'ganho' && currentLead.status !== 'perdido' && (
+                                    <>
+                                        <button
+                                            onClick={() => setShowConvertModal(true)}
+                                            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700"
+                                        >
+                                            <UserPlusIcon className="h-4 w-4 mr-2" />
+                                            Converter
+                                        </button>
+                                        <button
+                                            onClick={() => setShowLostModal(true)}
+                                            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-red-600 hover:bg-red-700"
+                                        >
+                                            <XMarkIcon className="h-4 w-4 mr-2" />
+                                            Marcar Perdida
+                                        </button>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Alertas */}
+                        {currentLead.alerts?.length > 0 && (
+                            <div className="mt-4 bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
+                                <div className="flex">
+                                    <ExclamationTriangleIcon className="h-5 w-5 text-yellow-400" />
+                                    <div className="ml-3">
+                                        <p className="text-sm font-medium text-yellow-800">
+                                            Alertas Ativos
                                         </p>
-                                    </div>
-                                    <div>
-                                        <p className="text-sm text-gray-500">Fonte</p>
-                                        <p className="font-medium text-gray-900">
-                                            {LEAD_SOURCE_LABELS[currentLead.leadSource] || currentLead.leadSource}
-                                        </p>
-                                    </div>
-                                    {currentLead.descricao && (
-                                        <div>
-                                            <p className="text-sm text-gray-500">Descrição</p>
-                                            <p className="text-gray-700 bg-gray-50 p-3 rounded-lg">
-                                                {currentLead.descricao}
-                                            </p>
+                                        <div className="mt-2 text-sm text-yellow-700">
+                                            <ul className="list-disc list-inside space-y-1">
+                                                {currentLead.alerts.map((alert, index) => (
+                                                    <li key={index}>{alert.message}</li>
+                                                ))}
+                                            </ul>
                                         </div>
-                                    )}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Tabs */}
+                    <div className="border-t border-gray-200">
+                        <nav className="-mb-px flex space-x-8 px-6" aria-label="Tabs">
+                            {['info', 'timeline', 'tarefas', 'contactos'].map((tab) => (
+                                <button
+                                    key={tab}
+                                    onClick={() => setActiveTab(tab)}
+                                    className={`
+                                        whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm capitalize
+                                        ${activeTab === tab
+                                            ? 'border-indigo-500 text-indigo-600'
+                                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
+                                    `}
+                                >
+                                    {tab}
+                                </button>
+                            ))}
+                        </nav>
+                    </div>
+                </div>
+
+                {/* Conteúdo das Tabs */}
+                <div className="bg-white shadow rounded-lg p-6">
+                    {/* Tab: Informações */}
+                    {activeTab === 'info' && (
+                        <div className="space-y-6">
+                            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                                {/* Dados de Contacto */}
+                                <div>
+                                    <h3 className="text-lg font-medium text-gray-900 mb-4">
+                                        Dados de Contacto
+                                    </h3>
+                                    <dl className="space-y-3">
+                                        <div className="flex items-center">
+                                            <dt className="flex items-center text-sm font-medium text-gray-500 w-24">
+                                                <PhoneIcon className="h-4 w-4 mr-2" />
+                                                Telefone
+                                            </dt>
+                                            <dd className="text-sm text-gray-900">
+                                                {formatPhone(currentLead.phone)}
+                                            </dd>
+                                        </div>
+                                        {currentLead.email && (
+                                            <div className="flex items-center">
+                                                <dt className="flex items-center text-sm font-medium text-gray-500 w-24">
+                                                    <EnvelopeIcon className="h-4 w-4 mr-2" />
+                                                    Email
+                                                </dt>
+                                                <dd className="text-sm text-gray-900">
+                                                    {currentLead.email}
+                                                </dd>
+                                            </div>
+                                        )}
+                                        <div className="flex items-center">
+                                            <dt className="flex items-center text-sm font-medium text-gray-500 w-24">
+                                                <ChatBubbleLeftIcon className="h-4 w-4 mr-2" />
+                                                Preferência
+                                            </dt>
+                                            <dd className="text-sm text-gray-900">
+                                                {currentLead.contactPreference === 'phone' ? 'Telefone' :
+                                                    currentLead.contactPreference === 'email' ? 'Email' :
+                                                        currentLead.contactPreference === 'whatsapp' ? 'WhatsApp' : 'Qualquer'}
+                                            </dd>
+                                        </div>
+                                        {currentLead.melhorHorario && (
+                                            <div className="flex items-center">
+                                                <dt className="flex items-center text-sm font-medium text-gray-500 w-24">
+                                                    <ClockIcon className="h-4 w-4 mr-2" />
+                                                    Horário
+                                                </dt>
+                                                <dd className="text-sm text-gray-900">
+                                                    {currentLead.melhorHorario}
+                                                </dd>
+                                            </div>
+                                        )}
+                                    </dl>
+                                </div>
+
+                                {/* Qualificação */}
+                                <div>
+                                    <h3 className="text-lg font-medium text-gray-900 mb-4">
+                                        Qualificação
+                                    </h3>
+                                    <dl className="space-y-3">
+                                        <div>
+                                            <dt className="text-sm font-medium text-gray-500">Fonte</dt>
+                                            <dd className="text-sm text-gray-900">
+                                                {LEAD_SOURCE_LABELS[currentLead.leadSource]}
+                                            </dd>
+                                        </div>
+                                        <div>
+                                            <dt className="text-sm font-medium text-gray-500">Interesse</dt>
+                                            <dd className="text-sm text-gray-900">
+                                                {LEAD_INTEREST_LABELS[currentLead.interesse]}
+                                            </dd>
+                                        </div>
+                                        <div>
+                                            <dt className="text-sm font-medium text-gray-500">Urgência</dt>
+                                            <dd className="text-sm text-gray-900">
+                                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                                                    ${currentLead.urgencia === 'alta' ? 'bg-red-100 text-red-800' :
+                                                        currentLead.urgencia === 'media' ? 'bg-yellow-100 text-yellow-800' :
+                                                            'bg-green-100 text-green-800'}`}>
+                                                    {currentLead.urgencia ?
+                                                        currentLead.urgencia.charAt(0).toUpperCase() + currentLead.urgencia.slice(1) :
+                                                        'Não definida'}
+                                                </span>
+                                            </dd>
+                                        </div>
+                                        {currentLead.orcamentoEstimado && (
+                                            <div>
+                                                <dt className="text-sm font-medium text-gray-500">Orçamento</dt>
+                                                <dd className="text-sm text-gray-900">
+                                                    €{currentLead.orcamentoEstimado.toLocaleString()}
+                                                </dd>
+                                            </div>
+                                        )}
+                                    </dl>
                                 </div>
                             </div>
 
-                            {/* Datas Importantes */}
-                            <div className="bg-white rounded-lg border border-gray-200 p-6">
-                                <h3 className="text-lg font-semibold text-gray-900 mb-4">Datas Importantes</h3>
-                                <div className="space-y-3">
-                                    <div>
-                                        <p className="text-sm text-gray-500">Criada em</p>
-                                        <p className="font-medium text-gray-900">
-                                            {currentLead.criadoEm?.toDate?.()?.toLocaleDateString('pt-PT') || 'N/A'}
-                                        </p>
+                            {/* Detalhes Adicionais */}
+                            <div className="border-t pt-6">
+                                <h3 className="text-lg font-medium text-gray-900 mb-4">
+                                    Detalhes Adicionais
+                                </h3>
+                                <dl className="space-y-4">
+                                    {currentLead.zonaInteresse && (
+                                        <div>
+                                            <dt className="text-sm font-medium text-gray-500">Zona de Interesse</dt>
+                                            <dd className="mt-1 text-sm text-gray-900">
+                                                {currentLead.zonaInteresse}
+                                            </dd>
+                                        </div>
+                                    )}
+                                    {currentLead.tipologiaInteresse && (
+                                        <div>
+                                            <dt className="text-sm font-medium text-gray-500">Tipologia</dt>
+                                            <dd className="mt-1 text-sm text-gray-900">
+                                                {currentLead.tipologiaInteresse}
+                                            </dd>
+                                        </div>
+                                    )}
+                                    {currentLead.descricao && (
+                                        <div>
+                                            <dt className="text-sm font-medium text-gray-500">Descrição</dt>
+                                            <dd className="mt-1 text-sm text-gray-900 whitespace-pre-wrap">
+                                                {currentLead.descricao}
+                                            </dd>
+                                        </div>
+                                    )}
+                                    {currentLead.consultorObservations && (
+                                        <div>
+                                            <dt className="text-sm font-medium text-gray-500">Observações do Consultor</dt>
+                                            <dd className="mt-1 text-sm text-gray-900 whitespace-pre-wrap">
+                                                {currentLead.consultorObservations}
+                                            </dd>
+                                        </div>
+                                    )}
+                                </dl>
+                            </div>
+
+                            {/* Tags */}
+                            {currentLead.tags?.length > 0 && (
+                                <div className="border-t pt-6">
+                                    <h3 className="text-lg font-medium text-gray-900 mb-4">Tags</h3>
+                                    <div className="flex flex-wrap gap-2">
+                                        {currentLead.tags.map((tag, index) => (
+                                            <span
+                                                key={index}
+                                                className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-800"
+                                            >
+                                                <TagIcon className="h-4 w-4 mr-1" />
+                                                {tag}
+                                            </span>
+                                        ))}
                                     </div>
-                                    {currentLead.ultimoContacto && (
-                                        <div>
-                                            <p className="text-sm text-gray-500">Último contacto</p>
-                                            <p className="font-medium text-gray-900">
-                                                {currentLead.ultimoContacto.toDate?.()?.toLocaleDateString('pt-PT')}
-                                            </p>
-                                        </div>
-                                    )}
-                                    {currentLead.proximoContacto && (
-                                        <div>
-                                            <p className="text-sm text-gray-500">Próximo contacto</p>
-                                            <p className="font-medium text-orange-600">
-                                                {currentLead.proximoContacto.toDate?.()?.toLocaleDateString('pt-PT')}
-                                            </p>
-                                        </div>
-                                    )}
+                                </div>
+                            )}
+
+                            {/* Estatísticas */}
+                            <div className="border-t pt-6">
+                                <h3 className="text-lg font-medium text-gray-900 mb-4">Estatísticas</h3>
+                                <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                                    <div className="text-center">
+                                        <p className="text-2xl font-semibold text-gray-900">
+                                            {currentLead.totalContactos || 0}
+                                        </p>
+                                        <p className="text-sm text-gray-500">Contactos</p>
+                                    </div>
+                                    <div className="text-center">
+                                        <p className="text-2xl font-semibold text-gray-900">
+                                            {currentLead.totalTasks || 0}
+                                        </p>
+                                        <p className="text-sm text-gray-500">Tarefas</p>
+                                    </div>
+                                    <div className="text-center">
+                                        <p className="text-2xl font-semibold text-gray-900">
+                                            {currentLead.tasksCompletas || 0}
+                                        </p>
+                                        <p className="text-sm text-gray-500">Concluídas</p>
+                                    </div>
+                                    <div className="text-center">
+                                        <p className="text-2xl font-semibold text-gray-900">
+                                            {currentLead.ultimoContacto ?
+                                                getRelativeTime(currentLead.ultimoContacto) :
+                                                'Nunca'}
+                                        </p>
+                                        <p className="text-sm text-gray-500">Último Contacto</p>
+                                    </div>
                                 </div>
                             </div>
                         </div>
                     )}
 
-                    {/* Tab: Tarefas */}
-                    {activeTab === 'tasks' && (
+                    {/* Tab: Timeline */}
+                    {activeTab === 'timeline' && (
                         <div className="space-y-4">
-                            <div className="flex justify-between items-center">
-                                <h3 className="text-lg font-semibold text-gray-900">Tarefas</h3>
+                            <div className="flex justify-between items-center mb-4">
+                                <h3 className="text-lg font-medium text-gray-900">
+                                    Histórico de Atividades
+                                </h3>
+                            </div>
+
+                            {/* Timeline combinado de tarefas e contactos */}
+                            <div className="flow-root">
+                                <ul className="-mb-8">
+                                    {[...leadTasks, ...leadContacts]
+                                        .sort((a, b) => {
+                                            const dateA = a.agendadaPara || a.dataContacto || a.criadaEm;
+                                            const dateB = b.agendadaPara || b.dataContacto || b.criadaEm;
+                                            return dateB?.toDate() - dateA?.toDate();
+                                        })
+                                        .map((item, index, array) => (
+                                            <li key={`${item.id}-${index}`}>
+                                                <div className="relative pb-8">
+                                                    {index !== array.length - 1 && (
+                                                        <span
+                                                            className="absolute top-4 left-4 -ml-px h-full w-0.5 bg-gray-200"
+                                                            aria-hidden="true"
+                                                        />
+                                                    )}
+                                                    <div className="relative flex space-x-3">
+                                                        <div>
+                                                            <span className={`
+                                                                h-8 w-8 rounded-full flex items-center justify-center ring-8 ring-white
+                                                                ${item.status === 'concluida' || item.resultado ?
+                                                                    'bg-green-500' :
+                                                                    'bg-gray-400'}
+                                                            `}>
+                                                                {item.tipo === 'call' ? (
+                                                                    <PhoneIcon className="h-4 w-4 text-white" />
+                                                                ) : item.tipo === 'email' ? (
+                                                                    <EnvelopeIcon className="h-4 w-4 text-white" />
+                                                                ) : item.tipo === 'meeting' ? (
+                                                                    <CalendarIcon className="h-4 w-4 text-white" />
+                                                                ) : (
+                                                                    <ChatBubbleLeftIcon className="h-4 w-4 text-white" />
+                                                                )}
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex-1 min-w-0">
+                                                            <div>
+                                                                <p className="text-sm font-medium text-gray-900">
+                                                                    {item.titulo || item.resumo || TASK_TYPE_LABELS[item.tipo]}
+                                                                </p>
+                                                                <p className="text-sm text-gray-500">
+                                                                    {getRelativeTime(
+                                                                        item.agendadaPara || item.dataContacto || item.criadaEm
+                                                                    )}
+                                                                </p>
+                                                            </div>
+                                                            {(item.descricao || item.notas) && (
+                                                                <div className="mt-2 text-sm text-gray-700">
+                                                                    {item.descricao || item.notas}
+                                                                </div>
+                                                            )}
+                                                            {item.resultado && (
+                                                                <div className="mt-2">
+                                                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                                                        {item.resultado}
+                                                                    </span>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </li>
+                                        ))}
+                                </ul>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Tab: Tarefas */}
+                    {activeTab === 'tarefas' && (
+                        <div className="space-y-4">
+                            <div className="flex justify-between items-center mb-4">
+                                <h3 className="text-lg font-medium text-gray-900">
+                                    Tarefas ({leadTasks.length})
+                                </h3>
                                 <button
                                     onClick={() => setShowTaskModal(true)}
-                                    className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                                    className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700"
                                 >
-                                    <PlusIcon className="w-4 h-4 mr-2" />
+                                    <PlusIcon className="h-4 w-4 mr-2" />
                                     Nova Tarefa
                                 </button>
                             </div>
 
                             {leadTasks.length === 0 ? (
-                                <div className="text-center py-8 bg-white rounded-lg border border-gray-200">
-                                    <DocumentTextIcon className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                                    <p className="text-gray-600">Ainda não há tarefas para esta lead</p>
+                                <div className="text-center py-6 text-gray-500">
+                                    Sem tarefas agendadas
                                 </div>
                             ) : (
                                 <div className="space-y-3">
-                                    {leadTasks.map((task) => {
-                                        const TypeIcon = getTypeIcon(task.tipo);
-                                        return (
-                                            <div key={task.id} className="bg-white border border-gray-200 rounded-lg p-4">
-                                                <div className="flex items-start justify-between">
-                                                    <div className="flex-1">
-                                                        <div className="flex items-center space-x-3 mb-2">
-                                                            <TypeIcon className="w-4 h-4 text-gray-400" />
-                                                            <h4 className="font-medium text-gray-900">{task.titulo}</h4>
-                                                            <span className={`px-2 py-1 text-xs rounded-full ${task.status === 'completed'
-                                                                    ? 'bg-green-100 text-green-700'
-                                                                    : task.status === 'overdue'
-                                                                        ? 'bg-red-100 text-red-700'
-                                                                        : 'bg-yellow-100 text-yellow-700'
-                                                                }`}>
-                                                                {task.status === 'completed' ? 'Concluída' :
-                                                                    task.status === 'overdue' ? 'Em atraso' : 'Pendente'}
-                                                            </span>
-                                                        </div>
-                                                        {task.descricao && (
-                                                            <p className="text-sm text-gray-600 mb-2">{task.descricao}</p>
-                                                        )}
-                                                        <p className="text-xs text-gray-500">
-                                                            Agendada para: {task.agendadaPara?.toDate?.()?.toLocaleDateString('pt-PT')}
-                                                        </p>
+                                    {leadTasks.map((task) => (
+                                        <div
+                                            key={task.id}
+                                            className="bg-gray-50 rounded-lg p-4 hover:bg-gray-100 transition-colors"
+                                        >
+                                            <div className="flex items-start justify-between">
+                                                <div className="flex-1">
+                                                    <div className="flex items-center">
+                                                        <h4 className="text-sm font-medium text-gray-900">
+                                                            {task.titulo}
+                                                        </h4>
+                                                        <span className={`ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                                                            ${task.status === 'concluida' ? 'bg-green-100 text-green-800' :
+                                                                task.status === 'pendente' ? 'bg-yellow-100 text-yellow-800' :
+                                                                    'bg-gray-100 text-gray-800'}`}>
+                                                            {TASK_STATUS_LABELS[task.status]}
+                                                        </span>
                                                     </div>
-                                                    {task.status !== 'completed' && (
-                                                        <button
-                                                            onClick={() => handleCompleteTask(task.id, 'completed')}
-                                                            className="ml-4 text-green-600 hover:text-green-800"
-                                                        >
-                                                            <CheckCircleIcon className="w-5 h-5" />
-                                                        </button>
-                                                    )}
+                                                    <p className="mt-1 text-sm text-gray-600">
+                                                        {task.descricao}
+                                                    </p>
+                                                    <div className="mt-2 flex items-center text-sm text-gray-500">
+                                                        <CalendarIcon className="h-4 w-4 mr-1" />
+                                                        {task.agendadaPara ?
+                                                            new Date(task.agendadaPara.toDate()).toLocaleString() :
+                                                            'Sem data definida'}
+                                                    </div>
                                                 </div>
+                                                {task.status === 'pendente' && (
+                                                    <button
+                                                        onClick={() => handleCompleteTask(task.id)}
+                                                        className="ml-4 inline-flex items-center px-3 py-1 border border-transparent text-sm leading-4 font-medium rounded-md text-green-700 bg-green-100 hover:bg-green-200"
+                                                    >
+                                                        <CheckCircleIcon className="h-4 w-4 mr-1" />
+                                                        Concluir
+                                                    </button>
+                                                )}
                                             </div>
-                                        );
-                                    })}
+                                        </div>
+                                    ))}
                                 </div>
                             )}
                         </div>
                     )}
 
                     {/* Tab: Contactos */}
-                    {activeTab === 'contacts' && (
+                    {activeTab === 'contactos' && (
                         <div className="space-y-4">
-                            <div className="flex justify-between items-center">
-                                <h3 className="text-lg font-semibold text-gray-900">Histórico de Contactos</h3>
+                            <div className="flex justify-between items-center mb-4">
+                                <h3 className="text-lg font-medium text-gray-900">
+                                    Histórico de Contactos ({leadContacts.length})
+                                </h3>
                                 <button
                                     onClick={() => setShowContactModal(true)}
-                                    className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                                    className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700"
                                 >
-                                    <PlusIcon className="w-4 h-4 mr-2" />
+                                    <PlusIcon className="h-4 w-4 mr-2" />
                                     Registar Contacto
                                 </button>
                             </div>
 
                             {leadContacts.length === 0 ? (
-                                <div className="text-center py-8 bg-white rounded-lg border border-gray-200">
-                                    <PhoneIcon className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                                    <p className="text-gray-600">Ainda não há contactos registados</p>
+                                <div className="text-center py-6 text-gray-500">
+                                    Sem contactos registados
                                 </div>
                             ) : (
                                 <div className="space-y-3">
-                                    {leadContacts.map((contact) => {
-                                        const TypeIcon = getTypeIcon(contact.tipo);
-                                        return (
-                                            <div key={contact.id} className="bg-white border border-gray-200 rounded-lg p-4">
-                                                <div className="flex items-start space-x-3">
-                                                    <TypeIcon className="w-5 h-5 text-gray-400 mt-0.5" />
-                                                    <div className="flex-1">
-                                                        <div className="flex items-center justify-between mb-2">
-                                                            <h4 className="font-medium text-gray-900">{contact.resumo}</h4>
-                                                            <span className={`px-2 py-1 text-xs rounded-full ${contact.resultado === 'positivo'
-                                                                    ? 'bg-green-100 text-green-700'
-                                                                    : contact.resultado === 'negativo'
-                                                                        ? 'bg-red-100 text-red-700'
-                                                                        : 'bg-yellow-100 text-yellow-700'
-                                                                }`}>
+                                    {leadContacts.map((contact) => (
+                                        <div
+                                            key={contact.id}
+                                            className="bg-gray-50 rounded-lg p-4"
+                                        >
+                                            <div className="flex items-start justify-between">
+                                                <div className="flex-1">
+                                                    <div className="flex items-center">
+                                                        <h4 className="text-sm font-medium text-gray-900">
+                                                            {TASK_TYPE_LABELS[contact.tipo]}
+                                                        </h4>
+                                                        {contact.resultado && (
+                                                            <span className={`ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                                                                ${contact.resultado === 'positivo' ? 'bg-green-100 text-green-800' :
+                                                                    contact.resultado === 'negativo' ? 'bg-red-100 text-red-800' :
+                                                                        'bg-gray-100 text-gray-800'}`}>
                                                                 {contact.resultado}
                                                             </span>
-                                                        </div>
-                                                        {contact.notas && (
-                                                            <p className="text-sm text-gray-600 mb-2">{contact.notas}</p>
                                                         )}
-                                                        <p className="text-xs text-gray-500">
-                                                            {contact.criadoEm?.toDate?.()?.toLocaleDateString('pt-PT')} às {contact.criadoEm?.toDate?.()?.toLocaleTimeString('pt-PT')}
+                                                    </div>
+                                                    <p className="mt-1 text-sm text-gray-600">
+                                                        {contact.resumo}
+                                                    </p>
+                                                    {contact.notas && (
+                                                        <p className="mt-2 text-sm text-gray-500">
+                                                            {contact.notas}
                                                         </p>
+                                                    )}
+                                                    <div className="mt-2 flex items-center text-sm text-gray-500">
+                                                        <CalendarIcon className="h-4 w-4 mr-1" />
+                                                        {getRelativeTime(contact.dataContacto)}
                                                     </div>
                                                 </div>
                                             </div>
-                                        );
-                                    })}
+                                        </div>
+                                    ))}
                                 </div>
                             )}
                         </div>
                     )}
-
-                    {/* Tab: Timeline */}
-                    {activeTab === 'timeline' && (
-                        <div className="bg-white rounded-lg border border-gray-200 p-6">
-                            <h3 className="text-lg font-semibold text-gray-900 mb-6">Timeline de Atividades</h3>
-
-                            <div className="flow-root">
-                                <ul className="-mb-8">
-                                    {/* Eventos combinados de contactos e tarefas */}
-                                    {[...leadContacts, ...leadTasks]
-                                        .sort((a, b) => (b.criadoEm || b.agendadaPara) - (a.criadoEm || a.agendadaPara))
-                                        .map((item, index, array) => {
-                                            const isContact = !!item.resumo;
-                                            const TypeIcon = getTypeIcon(item.tipo);
-                                            const date = isContact ? item.criadoEm : item.agendadaPara;
-
-                                            return (
-                                                <li key={`${isContact ? 'contact' : 'task'}-${item.id}`}>
-                                                    <div className="relative pb-8">
-                                                        {index !== array.length - 1 && (
-                                                            <span className="absolute top-4 left-4 -ml-px h-full w-0.5 bg-gray-200" />
-                                                        )}
-                                                        <div className="relative flex items-start space-x-3">
-                                                            <div className="relative">
-                                                                <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center ring-8 ring-white">
-                                                                    <TypeIcon className="w-4 h-4 text-gray-600" />
-                                                                </div>
-                                                            </div>
-                                                            <div className="min-w-0 flex-1">
-                                                                <div className="text-sm text-gray-900">
-                                                                    <p className="font-medium">
-                                                                        {isContact ? item.resumo : item.titulo}
-                                                                    </p>
-                                                                    <p className="text-xs text-gray-500">
-                                                                        {date?.toDate().toLocaleDateString('pt-PT')}
-                                                                    </p>
-                                                                </div>
-                                                                <p className="text-sm text-gray-600">
-                                                                    {isContact ? 'Contacto registado' : 'Tarefa criada'}
-                                                                </p>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </li>
-                                            );
-                                        })}
-
-                                    {/* Evento de criação da lead */}
-                                    <li>
-                                        <div className="flex items-start space-x-4">
-                                            <div className="flex-shrink-0">
-                                                <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
-                                                    <UserPlusIcon className="w-4 h-4 text-gray-600" />
-                                                </div>
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <div className="flex items-center justify-between">
-                                                    <p className="text-sm font-medium text-gray-900">Lead criada</p>
-                                                    <p className="text-xs text-gray-500">
-                                                        {currentLead.criadoEm?.toDate?.()?.toLocaleDateString('pt-PT')}
-                                                    </p>
-                                                </div>
-                                                <p className="text-sm text-gray-600">
-                                                    Lead criada no sistema
-                                                </p>
-                                            </div>
-                                        </div>
-                                    </li>
-                                </ul>
-                            </div>
-                        </div>
-                    )}
                 </div>
 
-                {/* Modais */}
-                {/* Modal de Criar Tarefa */}
-                {showTaskModal && (
-                    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-                        <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
-                            <div className="flex items-center justify-between mb-4">
-                                <h3 className="text-lg font-medium text-gray-900">Nova Tarefa</h3>
-                                <button
-                                    onClick={() => setShowTaskModal(false)}
-                                    className="text-gray-400 hover:text-gray-600"
-                                >
-                                    <XMarkIcon className="w-5 h-5" />
-                                </button>
-                            </div>
-
-                            <form onSubmit={handleCreateTask} className="space-y-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
-                                    <select
-                                        value={taskForm.tipo}
-                                        onChange={(e) => setTaskForm({ ...taskForm, tipo: e.target.value })}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                    >
-                                        <option value="call">Chamada</option>
-                                        <option value="email">Email</option>
-                                        <option value="whatsapp">WhatsApp</option>
-                                        <option value="meeting">Reunião</option>
-                                        <option value="follow_up">Follow-up</option>
-                                    </select>
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Título</label>
-                                    <input
-                                        type="text"
-                                        value={taskForm.titulo}
-                                        onChange={(e) => setTaskForm({ ...taskForm, titulo: e.target.value })}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                        placeholder="Título da tarefa"
-                                        required
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Descrição</label>
-                                    <textarea
-                                        value={taskForm.descricao}
-                                        onChange={(e) => setTaskForm({ ...taskForm, descricao: e.target.value })}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                        rows="3"
-                                        placeholder="Descrição da tarefa"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Agendada para</label>
-                                    <input
-                                        type="datetime-local"
-                                        value={taskForm.agendadaPara}
-                                        onChange={(e) => setTaskForm({ ...taskForm, agendadaPara: e.target.value })}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                        required
-                                    />
-                                </div>
-
-                                <div className="flex justify-end space-x-3 pt-4">
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowTaskModal(false)}
-                                        className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800"
-                                    >
-                                        Cancelar
-                                    </button>
-                                    <button
-                                        type="submit"
-                                        className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"
-                                    >
-                                        Criar Tarefa
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                )}
-
-                {/* Modal de Registar Contacto */}
-                {showContactModal && (
-                    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-                        <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
-                            <div className="flex items-center justify-between mb-4">
-                                <h3 className="text-lg font-medium text-gray-900">Registar Contacto</h3>
-                                <button
-                                    onClick={() => setShowContactModal(false)}
-                                    className="text-gray-400 hover:text-gray-600"
-                                >
-                                    <XMarkIcon className="w-5 h-5" />
-                                </button>
-                            </div>
-
-                            <form onSubmit={handleAddContact} className="space-y-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
-                                    <select
-                                        value={contactForm.tipo}
-                                        onChange={(e) => setContactForm({ ...contactForm, tipo: e.target.value })}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                    >
-                                        <option value="call">Chamada</option>
-                                        <option value="email">Email</option>
-                                        <option value="whatsapp">WhatsApp</option>
-                                        <option value="meeting">Reunião</option>
-                                    </select>
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Resumo</label>
-                                    <input
-                                        type="text"
-                                        value={contactForm.resumo}
-                                        onChange={(e) => setContactForm({ ...contactForm, resumo: e.target.value })}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                        placeholder="Resumo do contacto"
-                                        required
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Resultado</label>
-                                    <select
-                                        value={contactForm.resultado}
-                                        onChange={(e) => setContactForm({ ...contactForm, resultado: e.target.value })}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                    >
-                                        <option value="positivo">Positivo</option>
-                                        <option value="neutro">Neutro</option>
-                                        <option value="negativo">Negativo</option>
-                                    </select>
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Notas</label>
-                                    <textarea
-                                        value={contactForm.notas}
-                                        onChange={(e) => setContactForm({ ...contactForm, notas: e.target.value })}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                        rows="3"
-                                        placeholder="Notas do contacto"
-                                    />
-                                </div>
-
-                                <div className="flex justify-end space-x-3 pt-4">
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowContactModal(false)}
-                                        className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800"
-                                    >
-                                        Cancelar
-                                    </button>
-                                    <button
-                                        type="submit"
-                                        className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"
-                                    >
-                                        Registar
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                )}
-
-                {/* Modal de Converter Lead */}
-                {showConvertModal && (
-                    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-                        <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
-                            <div className="flex items-center justify-between mb-4">
-                                <h3 className="text-lg font-medium text-gray-900">Converter em Cliente</h3>
-                                <button
-                                    onClick={() => setShowConvertModal(false)}
-                                    className="text-gray-400 hover:text-gray-600"
-                                >
-                                    <XMarkIcon className="w-5 h-5" />
-                                </button>
-                            </div>
-
-                            <div className="mb-4">
-                                <p className="text-sm text-gray-600">
-                                    Converter esta lead em cliente irá criar um registo completo na secção de clientes.
-                                </p>
-                            </div>
-
-                            <div className="mb-4">
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Notas de Conversão</label>
-                                <textarea
-                                    value={convertNotes}
-                                    onChange={(e) => setConvertNotes(e.target.value)}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                    rows="3"
-                                    placeholder="Notas sobre a conversão (opcional)"
-                                />
-                            </div>
-
-                            <div className="flex justify-end space-x-3">
-                                <button
-                                    onClick={() => setShowConvertModal(false)}
-                                    className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800"
-                                >
-                                    Cancelar
-                                </button>
-                                <button
-                                    onClick={handleConvertLead}
-                                    className="px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700"
-                                >
-                                    Converter
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {/* Erros */}
-                {errors.current && (
-                    <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                {/* Próxima Ação Recomendada */}
+                {currentLead.nextAction && currentLead.status !== 'ganho' && currentLead.status !== 'perdido' && (
+                    <div className="bg-indigo-50 border-l-4 border-indigo-400 p-4 rounded-lg">
                         <div className="flex">
-                            <ExclamationTriangleIcon className="w-5 h-5 text-red-600 mr-3 flex-shrink-0" />
-                            <div className="flex-1">
-                                <h3 className="text-sm font-medium text-red-800">Erro</h3>
-                                <p className="text-sm text-red-700 mt-1">{errors.current}</p>
+                            <InformationCircleIcon className="h-5 w-5 text-indigo-400" />
+                            <div className="ml-3">
+                                <p className="text-sm font-medium text-indigo-800">
+                                    Próxima Ação Recomendada
+                                </p>
+                                <p className="mt-1 text-sm text-indigo-700">
+                                    {currentLead.nextAction.label}: {currentLead.nextAction.description}
+                                </p>
                                 <button
-                                    onClick={() => clearError('current')}
-                                    className="text-sm text-red-600 hover:text-red-800 mt-2 font-medium"
+                                    onClick={() => {
+                                        setTaskForm({
+                                            tipo: currentLead.nextAction.type,
+                                            titulo: currentLead.nextAction.label,
+                                            descricao: currentLead.nextAction.description,
+                                            agendadaPara: ''
+                                        });
+                                        setShowTaskModal(true);
+                                    }}
+                                    className="mt-2 text-sm font-medium text-indigo-600 hover:text-indigo-500"
                                 >
-                                    Dispensar
+                                    Criar tarefa →
                                 </button>
                             </div>
                         </div>
                     </div>
                 )}
             </div>
+
+            {/* Modal: Nova Tarefa */}
+            {showTaskModal && (
+                <div className="fixed z-10 inset-0 overflow-y-auto">
+                    <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+                        <div className="fixed inset-0 transition-opacity" aria-hidden="true">
+                            <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
+                        </div>
+
+                        <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+
+                        <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+                            <form onSubmit={handleCreateTask}>
+                                <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                                    <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
+                                        Nova Tarefa
+                                    </h3>
+
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700">
+                                                Tipo
+                                            </label>
+                                            <select
+                                                value={taskForm.tipo}
+                                                onChange={(e) => setTaskForm({ ...taskForm, tipo: e.target.value })}
+                                                className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 rounded-md"
+                                            >
+                                                {Object.entries(TASK_TYPE_LABELS).map(([value, label]) => (
+                                                    <option key={value} value={value}>
+                                                        {label}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700">
+                                                Título
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={taskForm.titulo}
+                                                onChange={(e) => setTaskForm({ ...taskForm, titulo: e.target.value })}
+                                                required
+                                                className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700">
+                                                Descrição
+                                            </label>
+                                            <textarea
+                                                value={taskForm.descricao}
+                                                onChange={(e) => setTaskForm({ ...taskForm, descricao: e.target.value })}
+                                                rows={3}
+                                                className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700">
+                                                Agendar para
+                                            </label>
+                                            <input
+                                                type="datetime-local"
+                                                value={taskForm.agendadaPara}
+                                                onChange={(e) => setTaskForm({ ...taskForm, agendadaPara: e.target.value })}
+                                                className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                                    <button
+                                        type="submit"
+                                        className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:ml-3 sm:w-auto sm:text-sm"
+                                    >
+                                        Criar Tarefa
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowTaskModal(false)}
+                                        className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                                    >
+                                        Cancelar
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal: Registar Contacto */}
+            {showContactModal && (
+                <div className="fixed z-10 inset-0 overflow-y-auto">
+                    <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+                        <div className="fixed inset-0 transition-opacity" aria-hidden="true">
+                            <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
+                        </div>
+
+                        <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+
+                        <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+                            <form onSubmit={handleAddContact}>
+                                <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                                    <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
+                                        Registar Contacto
+                                    </h3>
+
+                                    <div className="space-y-4">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700">
+                                                Tipo
+                                            </label>
+                                            <select
+                                                value={contactForm.tipo}
+                                                onChange={(e) => setContactForm({ ...contactForm, tipo: e.target.value })}
+                                                className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 rounded-md"
+                                            >
+                                                {Object.entries(TASK_TYPE_LABELS).map(([value, label]) => (
+                                                    <option key={value} value={value}>
+                                                        {label}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700">
+                                                Resumo
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={contactForm.resumo}
+                                                onChange={(e) => setContactForm({ ...contactForm, resumo: e.target.value })}
+                                                required
+                                                className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700">
+                                                Notas
+                                            </label>
+                                            <textarea
+                                                value={contactForm.notas}
+                                                onChange={(e) => setContactForm({ ...contactForm, notas: e.target.value })}
+                                                rows={3}
+                                                className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700">
+                                                Resultado
+                                            </label>
+                                            <select
+                                                value={contactForm.resultado}
+                                                onChange={(e) => setContactForm({ ...contactForm, resultado: e.target.value })}
+                                                className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 rounded-md"
+                                            >
+                                                <option value="positivo">Positivo</option>
+                                                <option value="neutro">Neutro</option>
+                                                <option value="negativo">Negativo</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                                    <button
+                                        type="submit"
+                                        className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:ml-3 sm:w-auto sm:text-sm"
+                                    >
+                                        Registar
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowContactModal(false)}
+                                        className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                                    >
+                                        Cancelar
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal: Converter Lead */}
+            {showConvertModal && (
+                <div className="fixed z-10 inset-0 overflow-y-auto">
+                    <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+                        <div className="fixed inset-0 transition-opacity" aria-hidden="true">
+                            <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
+                        </div>
+
+                        <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+
+                        <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+                            <form onSubmit={handleConvertLead}>
+                                <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                                    <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
+                                        Converter Lead em Cliente
+                                    </h3>
+
+                                    <div className="space-y-4">
+                                        <div className="bg-green-50 border-l-4 border-green-400 p-4">
+                                            <p className="text-sm text-green-700">
+                                                Está prestes a converter <strong>{currentLead.name}</strong> em cliente.
+                                            </p>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700">
+                                                Tipo de Negócio
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={convertForm.tipoNegocio}
+                                                onChange={(e) => setConvertForm({ ...convertForm, tipoNegocio: e.target.value })}
+                                                placeholder="Ex: Venda de Apartamento T2"
+                                                className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700">
+                                                Valor do Negócio (€)
+                                            </label>
+                                            <input
+                                                type="number"
+                                                value={convertForm.valorNegocio}
+                                                onChange={(e) => setConvertForm({ ...convertForm, valorNegocio: e.target.value })}
+                                                className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700">
+                                                Comissão (€)
+                                            </label>
+                                            <input
+                                                type="number"
+                                                value={convertForm.comissao}
+                                                onChange={(e) => setConvertForm({ ...convertForm, comissao: e.target.value })}
+                                                className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700">
+                                                Observações
+                                            </label>
+                                            <textarea
+                                                value={convertForm.observacoes}
+                                                onChange={(e) => setConvertForm({ ...convertForm, observacoes: e.target.value })}
+                                                rows={3}
+                                                className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                                    <button
+                                        type="submit"
+                                        className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-base font-medium text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 sm:ml-3 sm:w-auto sm:text-sm"
+                                    >
+                                        Converter em Cliente
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowConvertModal(false)}
+                                        className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                                    >
+                                        Cancelar
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal: Marcar como Perdida */}
+            {showLostModal && (
+                <div className="fixed z-10 inset-0 overflow-y-auto">
+                    <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+                        <div className="fixed inset-0 transition-opacity" aria-hidden="true">
+                            <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
+                        </div>
+
+                        <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+
+                        <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+                            <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                                <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
+                                    Marcar Lead como Perdida
+                                </h3>
+
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700">
+                                            Motivo da Perda
+                                        </label>
+                                        <textarea
+                                            value={lostReason}
+                                            onChange={(e) => setLostReason(e.target.value)}
+                                            rows={3}
+                                            required
+                                            placeholder="Descreva o motivo da perda..."
+                                            className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                                <button
+                                    onClick={handleMarkAsLost}
+                                    disabled={!lostReason}
+                                    className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50"
+                                >
+                                    Marcar como Perdida
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setShowLostModal(false);
+                                        setLostReason('');
+                                    }}
+                                    className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                                >
+                                    Cancelar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal: Confirmar Exclusão */}
+            {showDeleteConfirm && (
+                <div className="fixed z-10 inset-0 overflow-y-auto">
+                    <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+                        <div className="fixed inset-0 transition-opacity" aria-hidden="true">
+                            <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
+                        </div>
+
+                        <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+
+                        <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+                            <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                                <div className="sm:flex sm:items-start">
+                                    <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
+                                        <ExclamationTriangleIcon className="h-6 w-6 text-red-600" />
+                                    </div>
+                                    <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+                                        <h3 className="text-lg leading-6 font-medium text-gray-900">
+                                            Eliminar Lead
+                                        </h3>
+                                        <div className="mt-2">
+                                            <p className="text-sm text-gray-500">
+                                                Tem a certeza que deseja eliminar a lead <strong>{currentLead.name}</strong>?
+                                                Esta ação não pode ser revertida.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                                <button
+                                    onClick={handleDelete}
+                                    className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm"
+                                >
+                                    Eliminar
+                                </button>
+                                <button
+                                    onClick={() => setShowDeleteConfirm(false)}
+                                    className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                                >
+                                    Cancelar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </Layout>
     );
 };

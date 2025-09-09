@@ -1,7 +1,6 @@
 /**
  * LEAD FORM PAGE - MyImoMatePro
  * Formulário para criar/editar leads
- * Reutiliza ClientForm com campos específicos de lead
  * 
  * Caminho: src/pages/LeadForm.jsx
  */
@@ -25,7 +24,13 @@ import {
     InformationCircleIcon,
     TagIcon,
     ClockIcon,
-    PhoneIcon
+    PhoneIcon,
+    EnvelopeIcon,
+    UserIcon,
+    HomeIcon,
+    CurrencyEuroIcon,
+    CalendarIcon,
+    ChatBubbleLeftIcon
 } from '@heroicons/react/24/outline';
 
 const LeadFormPage = () => {
@@ -51,18 +56,20 @@ const LeadFormPage = () => {
     const [formData, setFormData] = useState(getInitialFormData());
     const [validationErrors, setValidationErrors] = useState({});
     const [touched, setTouched] = useState({});
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [showSuccess, setShowSuccess] = useState(false);
 
-    // Função para dados iniciais MELHORADA
+    // Função para dados iniciais
     function getInitialFormData() {
         return {
-            // ===== DADOS PESSOAIS BÁSICOS =====
+            // Passo 1 - Dados Básicos
             name: '',
             phone: '',
-            email: '', // AGORA OPCIONAL
-
-            // ===== CAMPOS DE QUALIFICAÇÃO =====
+            email: '',
             leadSource: LEAD_SOURCES.WEBSITE,
             interesse: LEAD_INTERESTS.COMPRAR,
+
+            // Passo 2 - Qualificação
             urgencia: 'media',
             orcamentoEstimado: '',
             zonaInteresse: '',
@@ -71,268 +78,175 @@ const LeadFormPage = () => {
             contactPreference: 'phone',
             statusQualificacao: 'por_qualificar',
 
-            // ===== DESCRIÇÃO E OBSERVAÇÕES =====
-            descricao: '', // AGORA OBRIGATÓRIO
+            // Passo 3 - Informações Adicionais
+            descricao: '',
             consultorObservations: '',
-
-            // ===== AGENDAMENTO COM HORA =====
-            proximoContacto: '', // datetime-local format
-
-            // ===== CONSENTIMENTOS =====
-            gdprConsent: false,
-            marketingConsent: false,
-
-            // ===== CAMPOS HERDADOS DO CLIENTE (OPCIONAIS) =====
-            cc: '',
-            ccValidity: '',
-            nif: '',
-            birthDate: '',
-            birthPlace: '',
-            parish: '',
-            municipality: '',
-            district: '',
-            profession: '',
-            maritalStatus: 'single',
-            marriageRegime: '',
-
-            // Dados do cônjuge
-            spouse: {
-                name: '',
-                phone: '',
-                email: '',
-                cc: '',
-                ccValidity: '',
-                profession: '',
-                nif: '',
-                birthPlace: '',
-                parish: '',
-                municipality: '',
-                district: ''
-            },
-
-            // Morada
-            address: {
-                street: '',
-                number: '',
-                floor: '',
-                postalCode: '',
-                city: '',
-                parish: '',
-                municipality: '',
-                district: ''
-            },
-
-            // Financeiro
-            financial: {
-                monthlyIncome: '',
-                spouseMonthlyIncome: '',
-                availableCapital: '',
-                creditSituation: 'no_credit',
-                relationshipBank: '',
-                hasPreApproval: false,
-                bankApprovalWhere: '',
-                bankApprovalAmount: '',
-                bankApprovalConditions: ''
-            },
-
-            // Documentação
-            documents: {
-                ccFront: false,
-                ccBack: false,
-                ibanProof: false,
-                irsDeclaration: false,
-                salaryReceipts: false,
-                birthCertificate: false,
-                marriageCertificate: false,
-                propertyRegistry: false,
-                residenceCertificate: false,
-                workContract: false
-            },
-
-            // Tags e observações extras
+            proximoContacto: '',
             tags: [],
-            nextContactDate: ''
+            gdprConsent: false,
+            marketingConsent: false
         };
     }
 
-    // Carregar lead para edição
+    // Carregar dados da lead em modo de edição
     useEffect(() => {
-        if (isEditMode && leadId) {
-            fetchLead(leadId);
-        } else {
-            clearCurrentLead();
-        }
+        const loadLead = async () => {
+            if (isEditMode && leadId) {
+                try {
+                    const lead = await fetchLead(leadId);
+                    if (lead) {
+                        setFormData({
+                            name: lead.name || '',
+                            phone: lead.phone || '',
+                            email: lead.email || '',
+                            leadSource: lead.leadSource || LEAD_SOURCES.WEBSITE,
+                            interesse: lead.interesse || LEAD_INTERESTS.COMPRAR,
+                            urgencia: lead.urgencia || 'media',
+                            orcamentoEstimado: lead.orcamentoEstimado || '',
+                            zonaInteresse: lead.zonaInteresse || '',
+                            tipologiaInteresse: lead.tipologiaInteresse || '',
+                            melhorHorario: lead.melhorHorario || '',
+                            contactPreference: lead.contactPreference || 'phone',
+                            statusQualificacao: lead.statusQualificacao || 'por_qualificar',
+                            descricao: lead.descricao || '',
+                            consultorObservations: lead.consultorObservations || '',
+                            proximoContacto: lead.proximoContacto ?
+                                new Date(lead.proximoContacto.toDate()).toISOString().slice(0, 16) : '',
+                            tags: lead.tags || [],
+                            gdprConsent: lead.gdprConsent || false,
+                            marketingConsent: lead.marketingConsent || false
+                        });
+                    }
+                } catch (error) {
+                    console.error('Erro ao carregar lead:', error);
+                    setValidationErrors({ global: 'Erro ao carregar dados da lead' });
+                }
+            }
+        };
 
+        loadLead();
+    }, [isEditMode, leadId, fetchLead]);
+
+    // Limpar ao desmontar
+    useEffect(() => {
         return () => {
             clearCurrentLead();
+            clearError('create');
+            clearError('update');
         };
-    }, [isEditMode, leadId, fetchLead, clearCurrentLead]);
+    }, [clearCurrentLead, clearError]);
 
-    // Preencher dados quando carregar lead para edição MELHORADO
-    useEffect(() => {
-        if (isEditMode && currentLead) {
-            setFormData({
-                // Dados pessoais básicos
-                name: currentLead.name || '',
-                phone: currentLead.phone || '',
-                email: currentLead.email || '',
+    // Manipular mudanças no formulário
+    const handleChange = useCallback((e) => {
+        const { name, value, type, checked } = e.target;
+        setFormData(prev => ({
+            ...prev,
+            [name]: type === 'checkbox' ? checked : value
+        }));
 
-                // ===== NOVOS CAMPOS DE QUALIFICAÇÃO =====
-                leadSource: currentLead.leadSource || LEAD_SOURCES.WEBSITE,
-                interesse: currentLead.interesse || LEAD_INTERESTS.COMPRAR,
-                urgencia: currentLead.urgencia || 'media',
-                orcamentoEstimado: currentLead.orcamentoEstimado || '',
-                zonaInteresse: currentLead.zonaInteresse || '',
-                tipologiaInteresse: currentLead.tipologiaInteresse || '',
-                melhorHorario: currentLead.melhorHorario || '',
-                contactPreference: currentLead.contactPreference || 'phone',
-                statusQualificacao: currentLead.statusQualificacao || 'por_qualificar',
+        // Marcar como tocado
+        setTouched(prev => ({ ...prev, [name]: true }));
 
-                // Descrição e observações
-                descricao: currentLead.descricao || '',
-                consultorObservations: currentLead.consultorObservations || '',
-
-                // ===== AGENDAMENTO COM DATETIME-LOCAL =====
-                proximoContacto: currentLead.proximoContacto ?
-                    new Date(currentLead.proximoContacto.toDate()).toISOString().slice(0, 16) : '',
-
-                // Consentimentos
-                gdprConsent: currentLead.gdprConsent || false,
-                marketingConsent: currentLead.marketingConsent || false,
-
-                // Resto dos campos (herdados do cliente)
-                cc: currentLead.cc || '',
-                ccValidity: currentLead.ccValidity || '',
-                nif: currentLead.nif || '',
-                birthDate: currentLead.birthDate ?
-                    currentLead.birthDate.toDate?.()?.toISOString().split('T')[0] : '',
-                birthPlace: currentLead.birthPlace || '',
-                parish: currentLead.parish || '',
-                municipality: currentLead.municipality || '',
-                district: currentLead.district || '',
-                profession: currentLead.profession || '',
-                maritalStatus: currentLead.maritalStatus || 'single',
-                marriageRegime: currentLead.marriageRegime || '',
-
-                // Dados do cônjuge
-                spouse: {
-                    name: currentLead.spouse?.name || '',
-                    phone: currentLead.spouse?.phone || '',
-                    email: currentLead.spouse?.email || '',
-                    cc: currentLead.spouse?.cc || '',
-                    ccValidity: currentLead.spouse?.ccValidity || '',
-                    profession: currentLead.spouse?.profession || '',
-                    nif: currentLead.spouse?.nif || '',
-                    birthPlace: currentLead.spouse?.birthPlace || '',
-                    parish: currentLead.spouse?.parish || '',
-                    municipality: currentLead.spouse?.municipality || '',
-                    district: currentLead.spouse?.district || ''
-                },
-
-                // Morada
-                address: {
-                    street: currentLead.address?.street || '',
-                    number: currentLead.address?.number || '',
-                    floor: currentLead.address?.floor || '',
-                    postalCode: currentLead.address?.postalCode || '',
-                    city: currentLead.address?.city || '',
-                    parish: currentLead.address?.parish || '',
-                    municipality: currentLead.address?.municipality || '',
-                    district: currentLead.address?.district || ''
-                },
-
-                // Financeiro
-                financial: {
-                    monthlyIncome: currentLead.financial?.monthlyIncome || '',
-                    spouseMonthlyIncome: currentLead.financial?.spouseMonthlyIncome || '',
-                    availableCapital: currentLead.financial?.availableCapital || '',
-                    creditSituation: currentLead.financial?.creditSituation || 'no_credit',
-                    relationshipBank: currentLead.financial?.relationshipBank || '',
-                    hasPreApproval: currentLead.financial?.hasPreApproval || false,
-                    bankApprovalWhere: currentLead.financial?.bankApprovalWhere || '',
-                    bankApprovalAmount: currentLead.financial?.bankApprovalAmount || '',
-                    bankApprovalConditions: currentLead.financial?.bankApprovalConditions || ''
-                },
-
-                // Documentação
-                documents: {
-                    ccFront: currentLead.documents?.ccFront || false,
-                    ccBack: currentLead.documents?.ccBack || false,
-                    ibanProof: currentLead.documents?.ibanProof || false,
-                    irsDeclaration: currentLead.documents?.irsDeclaration || false,
-                    salaryReceipts: currentLead.documents?.salaryReceipts || false,
-                    birthCertificate: currentLead.documents?.birthCertificate || false,
-                    marriageCertificate: currentLead.documents?.marriageCertificate || false,
-                    propertyRegistry: currentLead.documents?.propertyRegistry || false,
-                    residenceCertificate: currentLead.documents?.residenceCertificate || false,
-                    workContract: currentLead.documents?.workContract || false
-                },
-
-                // Tags e observações
-                tags: currentLead.tags || [],
-                nextContactDate: currentLead.nextContactDate ?
-                    currentLead.nextContactDate.toDate?.()?.toISOString().split('T')[0] : ''
+        // Limpar erro do campo
+        if (validationErrors[name]) {
+            setValidationErrors(prev => {
+                const newErrors = { ...prev };
+                delete newErrors[name];
+                return newErrors;
             });
         }
-    }, [isEditMode, currentLead]);
+    }, [validationErrors]);
 
-    // Validação em tempo real
-    const validateForm = useCallback(() => {
-        const validation = validateLeadData(formData);
-        setValidationErrors(validation.errors);
-        return validation.isValid;
-    }, [formData]);
+    // Adicionar tag
+    const handleAddTag = useCallback((tag) => {
+        if (tag && !formData.tags.includes(tag)) {
+            setFormData(prev => ({
+                ...prev,
+                tags: [...prev.tags, tag]
+            }));
+        }
+    }, [formData.tags]);
 
-    useEffect(() => {
-        validateForm();
-    }, [validateForm]);
-
-    // Atualizar campo
-    const updateField = useCallback((fieldPath, value) => {
-        setFormData(prev => {
-            const newData = { ...prev };
-
-            if (fieldPath.includes('.')) {
-                const [parent, child] = fieldPath.split('.');
-                newData[parent] = {
-                    ...newData[parent],
-                    [child]: value
-                };
-            } else {
-                newData[fieldPath] = value;
-            }
-
-            return newData;
-        });
-
-        setTouched(prev => ({
+    // Remover tag
+    const handleRemoveTag = useCallback((tagToRemove) => {
+        setFormData(prev => ({
             ...prev,
-            [fieldPath]: true
+            tags: prev.tags.filter(tag => tag !== tagToRemove)
         }));
     }, []);
 
-    // Próximo passo
-    const handleNextStep = () => {
-        if (currentStep < totalSteps) {
-            setCurrentStep(currentStep + 1);
-        }
-    };
+    // Validar passo atual
+    const validateStep = useCallback((step) => {
+        const stepData = {};
+        const errors = {};
 
-    // Passo anterior
-    const handlePrevStep = () => {
-        if (currentStep > 1) {
-            setCurrentStep(currentStep - 1);
-        }
-    };
+        switch (step) {
+            case 1:
+                // Validar dados básicos
+                stepData.name = formData.name;
+                stepData.phone = formData.phone;
+                stepData.email = formData.email;
 
-    // ===== SUBMISSÃO CORRIGIDA =====
+                if (!formData.name?.trim()) {
+                    errors.name = 'Nome é obrigatório';
+                }
+                if (!formData.phone?.trim()) {
+                    errors.phone = 'Telefone é obrigatório';
+                } else if (!/^[0-9+\-\s()]+$/.test(formData.phone)) {
+                    errors.phone = 'Formato de telefone inválido';
+                }
+                if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+                    errors.email = 'Email inválido';
+                }
+                break;
+
+            case 2:
+                // Validar qualificação
+                if (formData.orcamentoEstimado && formData.orcamentoEstimado < 0) {
+                    errors.orcamentoEstimado = 'Orçamento deve ser positivo';
+                }
+                break;
+
+            case 3:
+                // Validar informações adicionais
+                if (!formData.gdprConsent) {
+                    errors.gdprConsent = 'Consentimento GDPR é obrigatório';
+                }
+                break;
+        }
+
+        setValidationErrors(errors);
+        return Object.keys(errors).length === 0;
+    }, [formData]);
+
+    // Navegar entre passos
+    const handleNextStep = useCallback(() => {
+        if (validateStep(currentStep)) {
+            setCurrentStep(prev => Math.min(prev + 1, totalSteps));
+        }
+    }, [currentStep, validateStep]);
+
+    const handlePrevStep = useCallback(() => {
+        setCurrentStep(prev => Math.max(prev - 1, 1));
+    }, []);
+
+    // Submeter formulário
     const handleSubmit = async (e) => {
         e.preventDefault();
 
-        if (!validateForm()) {
-            setCurrentStep(1); // Voltar ao primeiro passo se houver erros
-            return;
+        // Validar todos os passos
+        let isValid = true;
+        for (let i = 1; i <= totalSteps; i++) {
+            if (!validateStep(i)) {
+                isValid = false;
+                setCurrentStep(i);
+                break;
+            }
         }
+
+        if (!isValid) return;
+
+        setIsSubmitting(true);
 
         try {
             if (isEditMode) {
@@ -341,545 +255,593 @@ const LeadFormPage = () => {
                 await createLead(formData);
             }
 
-            // Navegar para a lista de leads após sucesso
-            navigate('/leads');
+            setShowSuccess(true);
+
+            // Redirecionar após 2 segundos
+            setTimeout(() => {
+                navigate('/leads', {
+                    state: {
+                        fromForm: true,
+                        action: isEditMode ? 'updated' : 'created'
+                    }
+                });
+            }, 2000);
         } catch (error) {
-            console.error('Erro ao salvar lead:', error);
-            // O erro já será mostrado pelo contexto através de contextErrors
+            console.error('Erro ao guardar lead:', error);
+            setValidationErrors({
+                global: `Erro ao ${isEditMode ? 'atualizar' : 'criar'} lead: ${error.message}`
+            });
+            setIsSubmitting(false);
         }
     };
 
-    // Renderizar dados pessoais (com campos obrigatórios corrigidos)
-    const renderPersonalData = () => (
-        <div className="space-y-8">
-            <div className="text-center mb-8">
-                <div className="flex items-center justify-center space-x-3 mb-4">
-                    <h2 className="text-2xl font-bold text-gray-900">Dados Pessoais</h2>
-                    <span className="px-3 py-1 bg-blue-100 text-blue-700 text-sm font-medium rounded-full border border-blue-200">
-                        PROSPECT
-                    </span>
-                </div>
-                <p className="text-gray-600">Informações básicas do prospect</p>
-            </div>
-
-            {/* Campos obrigatórios */}
-            <div className="bg-blue-50 p-6 rounded-xl border border-blue-200">
-                <div className="flex items-center mb-6">
-                    <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
-                        <CheckCircleIcon className="w-6 h-6 text-white" />
-                    </div>
-                    <h3 className="text-lg font-semibold text-gray-800 ml-3">Informações Obrigatórias</h3>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Nome */}
-                    <div className="md:col-span-2">
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Nome Completo *
-                        </label>
-                        <input
-                            type="text"
-                            value={formData.name}
-                            onChange={(e) => updateField('name', e.target.value)}
-                            className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${validationErrors.name && touched.name
-                                ? 'border-red-300 bg-red-50'
-                                : 'border-gray-300'
-                                }`}
-                            placeholder="Nome completo do prospect"
-                        />
-                        {validationErrors.name && touched.name && (
-                            <p className="text-red-600 text-sm mt-1">{validationErrors.name}</p>
-                        )}
-                    </div>
-
-                    {/* Telefone */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Telefone *
-                        </label>
-                        <input
-                            type="tel"
-                            value={formData.phone}
-                            onChange={(e) => updateField('phone', e.target.value)}
-                            className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${validationErrors.phone && touched.phone
-                                ? 'border-red-300 bg-red-50'
-                                : 'border-gray-300'
-                                }`}
-                            placeholder="911234567"
-                        />
-                        {validationErrors.phone && touched.phone && (
-                            <p className="text-red-600 text-sm mt-1">{validationErrors.phone}</p>
-                        )}
-                    </div>
-
-                    {/* Email - AGORA OPCIONAL */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Email
-                        </label>
-                        <input
-                            type="email"
-                            value={formData.email}
-                            onChange={(e) => updateField('email', e.target.value)}
-                            className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${validationErrors.email && touched.email
-                                ? 'border-red-300 bg-red-50'
-                                : 'border-gray-300'
-                                }`}
-                            placeholder="exemplo@email.com (opcional)"
-                        />
-                        {validationErrors.email && touched.email && (
-                            <p className="text-red-600 text-sm mt-1">{validationErrors.email}</p>
-                        )}
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-
-    // Renderizar informações da lead com campos MELHORADOS
-    const renderLeadInfo = () => (
-        <div className="space-y-8">
-            <div className="text-center mb-8">
-                <h2 className="text-2xl font-bold text-gray-900">Qualificação do Prospect</h2>
-                <p className="text-gray-600">Informações para qualificar e classificar a lead</p>
-            </div>
-
-            {/* Seção 1: Classificação Básica */}
-            <div className="bg-orange-50 p-6 rounded-xl border border-orange-200">
-                <div className="flex items-center mb-6">
-                    <div className="w-10 h-10 bg-orange-600 rounded-lg flex items-center justify-center">
-                        <TagIcon className="w-6 h-6 text-white" />
-                    </div>
-                    <h3 className="text-lg font-semibold text-gray-800 ml-3">Classificação da Lead</h3>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Fonte da Lead */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Fonte da Lead *
-                        </label>
-                        <select
-                            value={formData.leadSource}
-                            onChange={(e) => updateField('leadSource', e.target.value)}
-                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        >
-                            {Object.entries(LEAD_SOURCE_LABELS).map(([value, label]) => (
-                                <option key={value} value={value}>{label}</option>
-                            ))}
-                        </select>
-                    </div>
-
-                    {/* Interesse Principal */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Interesse Principal *
-                        </label>
-                        <select
-                            value={formData.interesse}
-                            onChange={(e) => updateField('interesse', e.target.value)}
-                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        >
-                            {Object.entries(LEAD_INTEREST_LABELS).map(([value, label]) => (
-                                <option key={value} value={value}>{label}</option>
-                            ))}
-                        </select>
-                    </div>
-
-                    {/* Novo: Urgência */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Urgência
-                        </label>
-                        <select
-                            value={formData.urgencia || 'media'}
-                            onChange={(e) => updateField('urgencia', e.target.value)}
-                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        >
-                            <option value="baixa">Baixa - Mais de 6 meses</option>
-                            <option value="media">Média - 3-6 meses</option>
-                            <option value="alta">Alta - 1-3 meses</option>
-                            <option value="imediata">Imediata - Menos de 1 mês</option>
-                        </select>
-                    </div>
-
-                    {/* Novo: Orçamento Estimado */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Orçamento Estimado (€)
-                        </label>
-                        <input
-                            type="number"
-                            value={formData.orcamentoEstimado || ''}
-                            onChange={(e) => updateField('orcamentoEstimado', e.target.value)}
-                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                            placeholder="ex: 300000"
-                        />
-                    </div>
-
-                    {/* Novo: Zona de Interesse */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Zona de Interesse
-                        </label>
-                        <input
-                            type="text"
-                            value={formData.zonaInteresse || ''}
-                            onChange={(e) => updateField('zonaInteresse', e.target.value)}
-                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                            placeholder="ex: Centro do Porto, Matosinhos..."
-                        />
-                    </div>
-
-                    {/* Novo: Tipologia Interesse */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Tipologia de Interesse
-                        </label>
-                        <select
-                            value={formData.tipologiaInteresse || ''}
-                            onChange={(e) => updateField('tipologiaInteresse', e.target.value)}
-                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        >
-                            <option value="">Selecionar...</option>
-                            <option value="T0">T0 - Estúdio</option>
-                            <option value="T1">T1 - 1 Quarto</option>
-                            <option value="T2">T2 - 2 Quartos</option>
-                            <option value="T3">T3 - 3 Quartos</option>
-                            <option value="T4">T4 - 4 Quartos</option>
-                            <option value="T5+">T5+ - 5 ou mais quartos</option>
-                            <option value="moradia">Moradia</option>
-                            <option value="terreno">Terreno</option>
-                            <option value="comercial">Espaço Comercial</option>
-                        </select>
-                    </div>
-                </div>
-            </div>
-
-            {/* Seção 2: Agendamento e Follow-up */}
-            <div className="bg-purple-50 p-6 rounded-xl border border-purple-200">
-                <div className="flex items-center mb-6">
-                    <div className="w-10 h-10 bg-purple-600 rounded-lg flex items-center justify-center">
-                        <ClockIcon className="w-6 h-6 text-white" />
-                    </div>
-                    <h3 className="text-lg font-semibold text-gray-800 ml-3">Agendamento e Follow-up</h3>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Próximo Contacto - AGORA COM HORA */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Próximo Contacto (Data e Hora)
-                        </label>
-                        <input
-                            type="datetime-local"
-                            value={formData.proximoContacto || ''}
-                            onChange={(e) => updateField('proximoContacto', e.target.value)}
-                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                            min={new Date().toISOString().slice(0, 16)}
-                        />
-                    </div>
-
-                    {/* Melhor horário para contacto */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Melhor Horário para Contacto
-                        </label>
-                        <select
-                            value={formData.melhorHorario || ''}
-                            onChange={(e) => updateField('melhorHorario', e.target.value)}
-                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        >
-                            <option value="">Selecionar...</option>
-                            <option value="manha">Manhã (9h-12h)</option>
-                            <option value="tarde">Tarde (14h-17h)</option>
-                            <option value="final_tarde">Final da Tarde (17h-20h)</option>
-                            <option value="flexivel">Horário Flexível</option>
-                        </select>
-                    </div>
-
-                    {/* Tipo de contacto preferido */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            <PhoneIcon className="w-4 h-4 inline mr-1" />
-                            Contacto Preferido
-                        </label>
-                        <select
-                            value={formData.contactPreference}
-                            onChange={(e) => updateField('contactPreference', e.target.value)}
-                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        >
-                            <option value="phone">Telefone</option>
-                            <option value="email">Email</option>
-                            <option value="whatsapp">WhatsApp</option>
-                            <option value="presencial">Presencial</option>
-                        </select>
-                    </div>
-
-                    {/* Status da qualificação */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Status da Qualificação
-                        </label>
-                        <select
-                            value={formData.statusQualificacao || 'por_qualificar'}
-                            onChange={(e) => updateField('statusQualificacao', e.target.value)}
-                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        >
-                            <option value="por_qualificar">Por Qualificar</option>
-                            <option value="qualificada">Qualificada</option>
-                            <option value="desqualificada">Desqualificada</option>
-                            <option value="em_processo">Em Processo</option>
-                        </select>
-                    </div>
-                </div>
-            </div>
-
-            {/* Seção 3: Descrição Detalhada */}
-            <div className="bg-gray-50 p-6 rounded-xl border border-gray-200">
-                <div className="flex items-center mb-6">
-                    <div className="w-10 h-10 bg-gray-600 rounded-lg flex items-center justify-center">
-                        <InformationCircleIcon className="w-6 h-6 text-white" />
-                    </div>
-                    <h3 className="text-lg font-semibold text-gray-800 ml-3">Descrição da Lead</h3>
-                </div>
-
-                <div className="space-y-4">
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Descrição Detalhada *
-                        </label>
-                        <textarea
-                            value={formData.descricao}
-                            onChange={(e) => updateField('descricao', e.target.value)}
-                            rows={6}
-                            className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none ${validationErrors.descricao && touched.descricao
-                                ? 'border-red-300 bg-red-50'
-                                : 'border-gray-300'
-                                }`}
-                            placeholder="Descreva detalhadamente:
-• Como o prospect chegou até si?
-• Qual é a situação atual?
-• Quais são as necessidades específicas?
-• Que informações foram partilhadas?
-• Contexto da conversa inicial..."
-                        />
-                        {validationErrors.descricao && touched.descricao && (
-                            <p className="text-red-600 text-sm mt-1">{validationErrors.descricao}</p>
-                        )}
-                        <p className="text-gray-500 text-sm mt-1">
-                            {formData.descricao?.length || 0}/1000 caracteres
-                        </p>
-                    </div>
-
-                    {/* Campo adicional para observações do consultor */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Observações do Consultor
-                        </label>
-                        <textarea
-                            value={formData.consultorObservations}
-                            onChange={(e) => updateField('consultorObservations', e.target.value)}
-                            rows={3}
-                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-                            placeholder="Notas pessoais, impressões, estratégia de abordagem..."
-                        />
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-
-    // Renderizar consentimentos ATUALIZADO
-    const renderConsents = () => (
-        <div className="space-y-8">
-            <div className="text-center mb-8">
-                <h2 className="text-2xl font-bold text-gray-900">Consentimentos</h2>
-                <p className="text-gray-600">Autorizações GDPR necessárias</p>
-            </div>
-
-            <div className="bg-green-50 p-6 rounded-xl border border-green-200">
-                <div className="flex items-center mb-6">
-                    <div className="w-10 h-10 bg-green-600 rounded-lg flex items-center justify-center">
-                        <DocumentArrowUpIcon className="w-6 h-6 text-white" />
-                    </div>
-                    <h3 className="text-lg font-semibold text-gray-800 ml-3">Autorizações GDPR</h3>
-                </div>
-
-                <div className="space-y-4">
-                    {/* GDPR Obrigatório */}
-                    <div className="flex items-start">
-                        <input
-                            type="checkbox"
-                            checked={formData.gdprConsent}
-                            onChange={(e) => updateField('gdprConsent', e.target.checked)}
-                            className="w-4 h-4 text-green-600 bg-gray-100 border-gray-300 rounded focus:ring-green-500 focus:ring-2 mt-1"
-                        />
-                        <label className="ml-3 text-sm text-gray-700">
-                            <span className="font-medium text-red-600">* Obrigatório:</span> Consinto no tratamento dos meus dados pessoais para fins de prestação de serviços imobiliários, conforme descrito na Política de Privacidade.
-                        </label>
-                    </div>
-
-                    {/* Marketing Opcional */}
-                    <div className="flex items-start">
-                        <input
-                            type="checkbox"
-                            checked={formData.marketingConsent}
-                            onChange={(e) => updateField('marketingConsent', e.target.checked)}
-                            className="w-4 h-4 text-green-600 bg-gray-100 border-gray-300 rounded focus:ring-green-500 focus:ring-2 mt-1"
-                        />
-                        <label className="ml-3 text-sm text-gray-700">
-                            Consinto em receber comunicações promocionais e de marketing por email, SMS ou telefone sobre novos imóveis e serviços.
-                        </label>
-                    </div>
-                </div>
-            </div>
-
-            {/* Resumo final MELHORADO */}
-            <div className="bg-gray-50 p-6 rounded-xl border border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-800 mb-4">Resumo da Lead</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                    <div>
-                        <span className="font-medium text-gray-600">Nome:</span> {formData.name || 'N/A'}
-                    </div>
-                    <div>
-                        <span className="font-medium text-gray-600">Telefone:</span> {formData.phone || 'N/A'}
-                    </div>
-                    <div>
-                        <span className="font-medium text-gray-600">Interesse:</span> {LEAD_INTEREST_LABELS[formData.interesse] || 'N/A'}
-                    </div>
-                    <div>
-                        <span className="font-medium text-gray-600">Fonte:</span> {LEAD_SOURCE_LABELS[formData.leadSource] || 'N/A'}
-                    </div>
-                    <div>
-                        <span className="font-medium text-gray-600">Urgência:</span> {
-                            {
-                                'baixa': 'Baixa',
-                                'media': 'Média',
-                                'alta': 'Alta',
-                                'imediata': 'Imediata'
-                            }[formData.urgencia] || 'N/A'
-                        }
-                    </div>
-                    <div>
-                        <span className="font-medium text-gray-600">Orçamento:</span> {formData.orcamentoEstimado ? `${formData.orcamentoEstimado}€` : 'N/A'}
-                    </div>
-                    <div className="md:col-span-2">
-                        <span className="font-medium text-gray-600">Zona:</span> {formData.zonaInteresse || 'N/A'}
-                    </div>
-                    <div className="md:col-span-2">
-                        <span className="font-medium text-gray-600">Próximo Contacto:</span> {
-                            formData.proximoContacto ?
-                                new Date(formData.proximoContacto).toLocaleString('pt-PT') :
-                                'Não agendado'
-                        }
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-
-    // Renderizar passo atual
-    const renderCurrentStep = () => {
-        switch (currentStep) {
-            case 1:
-                return renderPersonalData();
-            case 2:
-                return renderLeadInfo();
-            case 3:
-                return renderConsents();
-            default:
-                return renderPersonalData();
-        }
+    // Cancelar
+    const handleCancel = () => {
+        navigate('/leads');
     };
 
-    // Loading state para edição
-    if (isEditMode && loading.current) {
-        return (
-            <Layout>
-                <div className="flex items-center justify-center h-64">
-                    <div className="text-center">
-                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                        <p className="text-gray-600">Carregando dados da lead...</p>
+    // Componente de indicador de passos
+    const StepIndicator = () => (
+        <div className="mb-8">
+            <div className="flex items-center justify-between">
+                {[1, 2, 3].map((step) => (
+                    <div key={step} className="flex items-center">
+                        <div
+                            className={`
+                                flex items-center justify-center w-10 h-10 rounded-full
+                                ${currentStep >= step
+                                    ? 'bg-indigo-600 text-white'
+                                    : 'bg-gray-200 text-gray-500'}
+                            `}
+                        >
+                            {currentStep > step ? (
+                                <CheckCircleIcon className="w-6 h-6" />
+                            ) : (
+                                step
+                            )}
+                        </div>
+                        {step < 3 && (
+                            <div
+                                className={`w-full h-1 mx-2 ${currentStep > step ? 'bg-indigo-600' : 'bg-gray-200'
+                                    }`}
+                            />
+                        )}
                     </div>
-                </div>
-            </Layout>
-        );
-    }
+                ))}
+            </div>
+            <div className="flex justify-between mt-2">
+                <span className="text-xs text-gray-600">Dados Básicos</span>
+                <span className="text-xs text-gray-600">Qualificação</span>
+                <span className="text-xs text-gray-600">Informações</span>
+            </div>
+        </div>
+    );
 
     return (
         <Layout>
-            <div className="p-6">
+            <div className="max-w-3xl mx-auto">
                 {/* Header */}
-                <div className="flex items-center justify-between mb-6">
-                    <div className="flex items-center space-x-3">
-                        <button
-                            onClick={() => navigate('/leads')}
-                            className="text-gray-500 hover:text-gray-700 transition-colors"
-                        >
-                            <ArrowLeftIcon className="w-5 h-5" />
-                        </button>
-                        <div>
-                            <h1 className="text-2xl font-bold text-gray-900">
-                                {isEditMode ? 'Editar Lead' : 'Nova Lead'}
-                            </h1>
-                            <p className="text-gray-600">
-                                {isEditMode ?
-                                    'Altere os dados da lead conforme necessário' :
-                                    'Registe um novo prospect qualificado'
-                                }
-                            </p>
+                <div className="mb-6">
+                    <button
+                        onClick={handleCancel}
+                        className="inline-flex items-center text-sm text-gray-500 hover:text-gray-700 mb-4"
+                    >
+                        <ArrowLeftIcon className="h-4 w-4 mr-1" />
+                        Voltar às Leads
+                    </button>
+                    <h1 className="text-2xl font-bold text-gray-900">
+                        {isEditMode ? 'Editar Lead' : 'Nova Lead'}
+                    </h1>
+                    <p className="mt-1 text-sm text-gray-600">
+                        {isEditMode
+                            ? 'Atualize as informações da lead'
+                            : 'Adicione uma nova lead ao sistema'}
+                    </p>
+                </div>
+
+                {/* Mensagem de Sucesso */}
+                {showSuccess && (
+                    <div className="mb-4 bg-green-50 border-l-4 border-green-400 p-4">
+                        <div className="flex">
+                            <CheckCircleIcon className="h-5 w-5 text-green-400" />
+                            <div className="ml-3">
+                                <p className="text-sm text-green-700">
+                                    Lead {isEditMode ? 'atualizada' : 'criada'} com sucesso!
+                                </p>
+                            </div>
                         </div>
                     </div>
-                </div>
+                )}
 
-                {/* Progress Steps */}
-                <div className="mb-8">
-                    <nav>
-                        <ol className="flex items-center justify-center space-x-8">
-                            {[1, 2, 3].map((step) => (
-                                <li key={step} className="flex items-center">
-                                    <div className={`flex items-center ${step < 3 ? 'mr-8' : ''}`}>
-                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${step <= currentStep
-                                            ? 'bg-blue-600 text-white'
-                                            : 'bg-gray-300 text-gray-600'
-                                            }`}>
-                                            {step}
-                                        </div>
-                                        <span className={`ml-3 text-sm font-medium ${step <= currentStep ? 'text-blue-600' : 'text-gray-500'
-                                            }`}>
-                                            {step === 1 ? 'Dados Pessoais' : step === 2 ? 'Info. Lead' : 'Consentimentos'}
-                                        </span>
-                                    </div>
-                                </li>
-                            ))}
-                        </ol>
-                    </nav>
-                </div>
+                {/* Erro Global */}
+                {validationErrors.global && (
+                    <div className="mb-4 bg-red-50 border-l-4 border-red-400 p-4">
+                        <div className="flex">
+                            <ExclamationTriangleIcon className="h-5 w-5 text-red-400" />
+                            <div className="ml-3">
+                                <p className="text-sm text-red-700">
+                                    {validationErrors.global}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Indicador de Passos */}
+                <StepIndicator />
 
                 {/* Formulário */}
-                <form onSubmit={handleSubmit}>
-                    {renderCurrentStep()}
+                <form onSubmit={handleSubmit} className="bg-white shadow rounded-lg">
+                    <div className="px-6 py-4">
+                        {/* Passo 1: Dados Básicos */}
+                        {currentStep === 1 && (
+                            <div className="space-y-6">
+                                <h3 className="text-lg font-medium text-gray-900">
+                                    Dados Básicos
+                                </h3>
 
-                    {/* Botões de Navegação CORRIGIDOS */}
-                    <div className="flex items-center justify-between pt-8 border-t border-gray-200 mt-8">
+                                {/* Nome */}
+                                <div>
+                                    <label htmlFor="name" className="block text-sm font-medium text-gray-700">
+                                        Nome Completo *
+                                    </label>
+                                    <div className="mt-1 relative rounded-md shadow-sm">
+                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <UserIcon className="h-5 w-5 text-gray-400" />
+                                        </div>
+                                        <input
+                                            type="text"
+                                            name="name"
+                                            id="name"
+                                            value={formData.name}
+                                            onChange={handleChange}
+                                            className={`
+                                                block w-full pl-10 pr-3 py-2 border rounded-md
+                                                focus:outline-none focus:ring-1
+                                                ${validationErrors.name
+                                                    ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
+                                                    : 'border-gray-300 focus:ring-indigo-500 focus:border-indigo-500'}
+                                            `}
+                                            placeholder="João Silva"
+                                        />
+                                    </div>
+                                    {validationErrors.name && (
+                                        <p className="mt-1 text-sm text-red-600">
+                                            {validationErrors.name}
+                                        </p>
+                                    )}
+                                </div>
+
+                                {/* Telefone */}
+                                <div>
+                                    <label htmlFor="phone" className="block text-sm font-medium text-gray-700">
+                                        Telefone *
+                                    </label>
+                                    <div className="mt-1 relative rounded-md shadow-sm">
+                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <PhoneIcon className="h-5 w-5 text-gray-400" />
+                                        </div>
+                                        <input
+                                            type="text"
+                                            name="phone"
+                                            id="phone"
+                                            value={formData.phone}
+                                            onChange={handleChange}
+                                            className={`
+                                                block w-full pl-10 pr-3 py-2 border rounded-md
+                                                focus:outline-none focus:ring-1
+                                                ${validationErrors.phone
+                                                    ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
+                                                    : 'border-gray-300 focus:ring-indigo-500 focus:border-indigo-500'}
+                                            `}
+                                            placeholder="912 345 678"
+                                        />
+                                    </div>
+                                    {validationErrors.phone && (
+                                        <p className="mt-1 text-sm text-red-600">
+                                            {validationErrors.phone}
+                                        </p>
+                                    )}
+                                </div>
+
+                                {/* Email */}
+                                <div>
+                                    <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+                                        Email
+                                    </label>
+                                    <div className="mt-1 relative rounded-md shadow-sm">
+                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <EnvelopeIcon className="h-5 w-5 text-gray-400" />
+                                        </div>
+                                        <input
+                                            type="email"
+                                            name="email"
+                                            id="email"
+                                            value={formData.email}
+                                            onChange={handleChange}
+                                            className={`
+                                                block w-full pl-10 pr-3 py-2 border rounded-md
+                                                focus:outline-none focus:ring-1
+                                                ${validationErrors.email
+                                                    ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
+                                                    : 'border-gray-300 focus:ring-indigo-500 focus:border-indigo-500'}
+                                            `}
+                                            placeholder="joao.silva@email.com"
+                                        />
+                                    </div>
+                                    {validationErrors.email && (
+                                        <p className="mt-1 text-sm text-red-600">
+                                            {validationErrors.email}
+                                        </p>
+                                    )}
+                                </div>
+
+                                {/* Fonte da Lead */}
+                                <div>
+                                    <label htmlFor="leadSource" className="block text-sm font-medium text-gray-700">
+                                        Fonte da Lead
+                                    </label>
+                                    <select
+                                        id="leadSource"
+                                        name="leadSource"
+                                        value={formData.leadSource}
+                                        onChange={handleChange}
+                                        className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 rounded-md"
+                                    >
+                                        {Object.entries(LEAD_SOURCE_LABELS).map(([value, label]) => (
+                                            <option key={value} value={value}>
+                                                {label}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {/* Interesse */}
+                                <div>
+                                    <label htmlFor="interesse" className="block text-sm font-medium text-gray-700">
+                                        Interesse
+                                    </label>
+                                    <select
+                                        id="interesse"
+                                        name="interesse"
+                                        value={formData.interesse}
+                                        onChange={handleChange}
+                                        className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 rounded-md"
+                                    >
+                                        {Object.entries(LEAD_INTEREST_LABELS).map(([value, label]) => (
+                                            <option key={value} value={value}>
+                                                {label}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Passo 2: Qualificação */}
+                        {currentStep === 2 && (
+                            <div className="space-y-6">
+                                <h3 className="text-lg font-medium text-gray-900">
+                                    Qualificação da Lead
+                                </h3>
+
+                                {/* Urgência */}
+                                <div>
+                                    <label htmlFor="urgencia" className="block text-sm font-medium text-gray-700">
+                                        Urgência
+                                    </label>
+                                    <select
+                                        id="urgencia"
+                                        name="urgencia"
+                                        value={formData.urgencia}
+                                        onChange={handleChange}
+                                        className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 rounded-md"
+                                    >
+                                        <option value="baixa">Baixa</option>
+                                        <option value="media">Média</option>
+                                        <option value="alta">Alta</option>
+                                    </select>
+                                </div>
+
+                                {/* Orçamento Estimado */}
+                                <div>
+                                    <label htmlFor="orcamentoEstimado" className="block text-sm font-medium text-gray-700">
+                                        Orçamento Estimado (€)
+                                    </label>
+                                    <div className="mt-1 relative rounded-md shadow-sm">
+                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <CurrencyEuroIcon className="h-5 w-5 text-gray-400" />
+                                        </div>
+                                        <input
+                                            type="number"
+                                            name="orcamentoEstimado"
+                                            id="orcamentoEstimado"
+                                            value={formData.orcamentoEstimado}
+                                            onChange={handleChange}
+                                            className={`
+                                                block w-full pl-10 pr-3 py-2 border rounded-md
+                                                focus:outline-none focus:ring-1
+                                                ${validationErrors.orcamentoEstimado
+                                                    ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
+                                                    : 'border-gray-300 focus:ring-indigo-500 focus:border-indigo-500'}
+                                            `}
+                                            placeholder="250000"
+                                            min="0"
+                                        />
+                                    </div>
+                                    {validationErrors.orcamentoEstimado && (
+                                        <p className="mt-1 text-sm text-red-600">
+                                            {validationErrors.orcamentoEstimado}
+                                        </p>
+                                    )}
+                                </div>
+
+                                {/* Zona de Interesse */}
+                                <div>
+                                    <label htmlFor="zonaInteresse" className="block text-sm font-medium text-gray-700">
+                                        Zona de Interesse
+                                    </label>
+                                    <div className="mt-1 relative rounded-md shadow-sm">
+                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <HomeIcon className="h-5 w-5 text-gray-400" />
+                                        </div>
+                                        <input
+                                            type="text"
+                                            name="zonaInteresse"
+                                            id="zonaInteresse"
+                                            value={formData.zonaInteresse}
+                                            onChange={handleChange}
+                                            className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                                            placeholder="Porto, Vila Nova de Gaia"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Tipologia de Interesse */}
+                                <div>
+                                    <label htmlFor="tipologiaInteresse" className="block text-sm font-medium text-gray-700">
+                                        Tipologia de Interesse
+                                    </label>
+                                    <select
+                                        id="tipologiaInteresse"
+                                        name="tipologiaInteresse"
+                                        value={formData.tipologiaInteresse}
+                                        onChange={handleChange}
+                                        className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 rounded-md"
+                                    >
+                                        <option value="">Selecionar...</option>
+                                        <option value="T0">T0</option>
+                                        <option value="T1">T1</option>
+                                        <option value="T2">T2</option>
+                                        <option value="T3">T3</option>
+                                        <option value="T4">T4</option>
+                                        <option value="T5+">T5+</option>
+                                        <option value="moradia">Moradia</option>
+                                        <option value="terreno">Terreno</option>
+                                        <option value="comercial">Comercial</option>
+                                    </select>
+                                </div>
+
+                                {/* Melhor Horário */}
+                                <div>
+                                    <label htmlFor="melhorHorario" className="block text-sm font-medium text-gray-700">
+                                        Melhor Horário para Contacto
+                                    </label>
+                                    <div className="mt-1 relative rounded-md shadow-sm">
+                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <ClockIcon className="h-5 w-5 text-gray-400" />
+                                        </div>
+                                        <input
+                                            type="text"
+                                            name="melhorHorario"
+                                            id="melhorHorario"
+                                            value={formData.melhorHorario}
+                                            onChange={handleChange}
+                                            className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                                            placeholder="Manhã, Tarde, Fim de tarde"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Preferência de Contacto */}
+                                <div>
+                                    <label htmlFor="contactPreference" className="block text-sm font-medium text-gray-700">
+                                        Preferência de Contacto
+                                    </label>
+                                    <select
+                                        id="contactPreference"
+                                        name="contactPreference"
+                                        value={formData.contactPreference}
+                                        onChange={handleChange}
+                                        className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 rounded-md"
+                                    >
+                                        <option value="phone">Telefone</option>
+                                        <option value="email">Email</option>
+                                        <option value="whatsapp">WhatsApp</option>
+                                        <option value="any">Qualquer</option>
+                                    </select>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Passo 3: Informações Adicionais */}
+                        {currentStep === 3 && (
+                            <div className="space-y-6">
+                                <h3 className="text-lg font-medium text-gray-900">
+                                    Informações Adicionais
+                                </h3>
+
+                                {/* Descrição */}
+                                <div>
+                                    <label htmlFor="descricao" className="block text-sm font-medium text-gray-700">
+                                        Descrição / Necessidades
+                                    </label>
+                                    <div className="mt-1">
+                                        <textarea
+                                            id="descricao"
+                                            name="descricao"
+                                            rows={4}
+                                            value={formData.descricao}
+                                            onChange={handleChange}
+                                            className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md"
+                                            placeholder="Descreva as necessidades e expectativas do cliente..."
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Observações do Consultor */}
+                                <div>
+                                    <label htmlFor="consultorObservations" className="block text-sm font-medium text-gray-700">
+                                        Observações do Consultor
+                                    </label>
+                                    <div className="mt-1">
+                                        <textarea
+                                            id="consultorObservations"
+                                            name="consultorObservations"
+                                            rows={3}
+                                            value={formData.consultorObservations}
+                                            onChange={handleChange}
+                                            className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md"
+                                            placeholder="Notas internas sobre a lead..."
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Próximo Contacto */}
+                                <div>
+                                    <label htmlFor="proximoContacto" className="block text-sm font-medium text-gray-700">
+                                        Agendar Próximo Contacto
+                                    </label>
+                                    <div className="mt-1 relative rounded-md shadow-sm">
+                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <CalendarIcon className="h-5 w-5 text-gray-400" />
+                                        </div>
+                                        <input
+                                            type="datetime-local"
+                                            name="proximoContacto"
+                                            id="proximoContacto"
+                                            value={formData.proximoContacto}
+                                            onChange={handleChange}
+                                            className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Tags */}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Tags
+                                    </label>
+                                    <div className="flex flex-wrap gap-2 mb-2">
+                                        {formData.tags.map((tag, index) => (
+                                            <span
+                                                key={index}
+                                                className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-indigo-100 text-indigo-800"
+                                            >
+                                                <TagIcon className="h-4 w-4 mr-1" />
+                                                {tag}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleRemoveTag(tag)}
+                                                    className="ml-2 text-indigo-600 hover:text-indigo-800"
+                                                >
+                                                    ×
+                                                </button>
+                                            </span>
+                                        ))}
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="text"
+                                            placeholder="Adicionar tag..."
+                                            className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                                            onKeyPress={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    e.preventDefault();
+                                                    const input = e.target;
+                                                    if (input.value) {
+                                                        handleAddTag(input.value);
+                                                        input.value = '';
+                                                    }
+                                                }
+                                            }}
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Consentimentos */}
+                                <div className="space-y-4">
+                                    <div className="flex items-start">
+                                        <div className="flex items-center h-5">
+                                            <input
+                                                id="gdprConsent"
+                                                name="gdprConsent"
+                                                type="checkbox"
+                                                checked={formData.gdprConsent}
+                                                onChange={handleChange}
+                                                className="focus:ring-indigo-500 h-4 w-4 text-indigo-600 border-gray-300 rounded"
+                                            />
+                                        </div>
+                                        <div className="ml-3 text-sm">
+                                            <label htmlFor="gdprConsent" className="font-medium text-gray-700">
+                                                Consentimento GDPR *
+                                            </label>
+                                            <p className="text-gray-500">
+                                                O cliente consentiu o tratamento dos seus dados pessoais
+                                            </p>
+                                            {validationErrors.gdprConsent && (
+                                                <p className="mt-1 text-sm text-red-600">
+                                                    {validationErrors.gdprConsent}
+                                                </p>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-start">
+                                        <div className="flex items-center h-5">
+                                            <input
+                                                id="marketingConsent"
+                                                name="marketingConsent"
+                                                type="checkbox"
+                                                checked={formData.marketingConsent}
+                                                onChange={handleChange}
+                                                className="focus:ring-indigo-500 h-4 w-4 text-indigo-600 border-gray-300 rounded"
+                                            />
+                                        </div>
+                                        <div className="ml-3 text-sm">
+                                            <label htmlFor="marketingConsent" className="font-medium text-gray-700">
+                                                Consentimento Marketing
+                                            </label>
+                                            <p className="text-gray-500">
+                                                O cliente aceita receber comunicações de marketing
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Footer com botões */}
+                    <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-between">
                         <div>
                             {currentStep > 1 && (
                                 <button
                                     type="button"
                                     onClick={handlePrevStep}
-                                    className="inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                                    className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                                 >
+                                    <ArrowLeftIcon className="h-4 w-4 mr-2" />
                                     Anterior
                                 </button>
                             )}
                         </div>
 
-                        <div className="flex items-center space-x-3">
+                        <div className="flex gap-3">
                             <button
                                 type="button"
-                                onClick={() => navigate('/leads')}
-                                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                                onClick={handleCancel}
+                                className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                             >
                                 Cancelar
                             </button>
@@ -888,58 +850,32 @@ const LeadFormPage = () => {
                                 <button
                                     type="button"
                                     onClick={handleNextStep}
-                                    disabled={
-                                        // VALIDAÇÃO CORRIGIDA - só Nome + Telefone obrigatórios
-                                        (currentStep === 1 && (!formData.name || !formData.phone)) ||
-                                        (currentStep === 2 && (!formData.name || !formData.phone || !formData.descricao || formData.descricao.length < 10))
-                                    }
-                                    className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                                 >
                                     Próximo
                                 </button>
                             ) : (
                                 <button
                                     type="submit"
-                                    disabled={loading.create || loading.update || !formData.gdprConsent}
-                                    className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    disabled={isSubmitting}
+                                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
-                                    {loading.create || loading.update ? (
+                                    {isSubmitting ? (
                                         <>
                                             <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                                            Salvando...
+                                            A guardar...
                                         </>
                                     ) : (
-                                        isEditMode ? 'Atualizar Lead' : 'Criar Lead'
+                                        <>
+                                            <CheckCircleIcon className="h-4 w-4 mr-2" />
+                                            {isEditMode ? 'Atualizar Lead' : 'Criar Lead'}
+                                        </>
                                     )}
                                 </button>
                             )}
                         </div>
                     </div>
                 </form>
-
-                {/* Mensagens de erro */}
-                {(contextErrors.create || contextErrors.update) && (
-                    <div className="mt-4 bg-red-50 border border-red-200 rounded-lg p-4">
-                        <div className="flex items-center">
-                            <div className="flex-shrink-0">
-                                <ExclamationTriangleIcon className="w-5 h-5 text-red-400" />
-                            </div>
-                            <div className="ml-3">
-                                <p className="text-red-800">
-                                    {contextErrors.create || contextErrors.update}
-                                </p>
-                            </div>
-                            <div className="ml-auto pl-3">
-                                <button
-                                    onClick={() => clearError(isEditMode ? 'update' : 'create')}
-                                    className="text-red-500 hover:text-red-700"
-                                >
-                                    ×
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                )}
             </div>
         </Layout>
     );
