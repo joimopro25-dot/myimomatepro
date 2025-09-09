@@ -417,14 +417,22 @@ export const deleteLead = async (consultorId, leadId) => {
  */
 export const createTask = async (consultorId, leadId, taskData) => {
     try {
+<<<<<<< HEAD
         // Atribuir leadId aos dados ANTES da validação
+=======
+        // ✅ CORREÇÃO: Atribuir leadId aos dados ANTES da validação
+>>>>>>> f3efccaad163bbef4007cd045cb93d4fc3461f6f
         const taskDataWithLeadId = {
             ...taskData,
             leadId: leadId,
             consultorId: consultorId
         };
 
+<<<<<<< HEAD
         // Validar dados
+=======
+        // Validar dados (agora com leadId incluído)
+>>>>>>> f3efccaad163bbef4007cd045cb93d4fc3461f6f
         const validation = validateTaskData(taskDataWithLeadId);
         if (!validation.isValid) {
             throw new Error(`Dados da tarefa inválidos: ${JSON.stringify(validation.errors)}`);
@@ -433,7 +441,11 @@ export const createTask = async (consultorId, leadId, taskData) => {
         // Criar schema da tarefa
         const taskSchema = createTaskSchema(taskDataWithLeadId);
 
+<<<<<<< HEAD
         // Adicionar ao Firestore
+=======
+        // Salvar no Firestore
+>>>>>>> f3efccaad163bbef4007cd045cb93d4fc3461f6f
         const taskRef = await addDoc(getTaskCollection(consultorId, leadId), taskSchema);
 
         // Atualizar contador de tasks na lead
