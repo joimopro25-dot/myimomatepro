@@ -1,7 +1,9 @@
 /**
  * APP.JSX - MyImoMatePro
- * Router principal com todas as rotas do sistema
- * ✅ CORRIGIDO: Rotas dos leads conectadas ao LeadForm e LeadDetail
+ * Router principal com sistema de leads simplificado
+ * Leads = Clientes PROSPECT com qualificação
+ * 
+ * Caminho: src/App.jsx
  */
 
 import React from 'react';
@@ -24,10 +26,9 @@ import ClientList from './pages/ClientList';
 import ClientForm from './pages/ClientForm';
 import ClientDetail from './pages/ClientDetail';
 
-// Sistema de Leads
+// Sistema de Leads Simplificado
 import LeadList from './pages/LeadList';
 import LeadForm from './pages/LeadForm';
-import LeadDetail from './pages/LeadDetail';
 
 import './index.css';
 
@@ -98,28 +99,23 @@ function AppRoutes() {
           </ProtectedRoute>
         } />
 
-        {/* ===== ROTAS PROTEGIDAS - SISTEMA DE LEADS ===== */}
+        {/* ===== ROTAS PROTEGIDAS - SISTEMA DE LEADS SIMPLIFICADO ===== */}
+
+        {/* Lista de Leads (Clientes PROSPECT) */}
         <Route path="/leads" element={
           <ProtectedRoute>
             <LeadList />
           </ProtectedRoute>
         } />
 
-        {/* ✅ CORRIGIDO: Rota para criar nova lead */}
+        {/* Criar Nova Lead */}
         <Route path="/leads/new" element={
           <ProtectedRoute>
             <LeadForm />
           </ProtectedRoute>
         } />
 
-        {/* ✅ CORRIGIDO: Rota para visualizar detalhes da lead */}
-        <Route path="/leads/:leadId" element={
-          <ProtectedRoute>
-            <LeadDetail />
-          </ProtectedRoute>
-        } />
-
-        {/* ✅ CORRIGIDO: Rota para editar lead */}
+        {/* Editar Lead Existente */}
         <Route path="/leads/:leadId/edit" element={
           <ProtectedRoute>
             <LeadForm />
@@ -128,9 +124,9 @@ function AppRoutes() {
 
         {/* ===== FUTURAS ROTAS DO SISTEMA ===== */}
         {/* 
-        Rotas planejadas para próximas fases:
+        Próximas implementações:
         
-        // SISTEMA DE OPORTUNIDADES
+        // SISTEMA DE OPORTUNIDADES (após conversão de leads)
         <Route path="/opportunities" element={<ProtectedRoute><OpportunityList /></ProtectedRoute>} />
         <Route path="/opportunities/new" element={<ProtectedRoute><OpportunityForm /></ProtectedRoute>} />
         <Route path="/opportunities/:opportunityId" element={<ProtectedRoute><OpportunityDetail /></ProtectedRoute>} />
@@ -142,13 +138,13 @@ function AppRoutes() {
         
         // SISTEMA DE RELATÓRIOS
         <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
-        <Route path="/reports/performance" element={<ProtectedRoute><PerformanceReport /></ProtectedRoute>} />
-        <Route path="/reports/commissions" element={<ProtectedRoute><CommissionReport /></ProtectedRoute>} />
+        <Route path="/reports/sales" element={<ProtectedRoute><SalesReport /></ProtectedRoute>} />
+        <Route path="/reports/leads" element={<ProtectedRoute><LeadsReport /></ProtectedRoute>} />
         
         // SISTEMA DE CONFIGURAÇÕES
         <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
         <Route path="/settings/profile" element={<ProtectedRoute><ProfileSettings /></ProtectedRoute>} />
-        <Route path="/settings/integrations" element={<ProtectedRoute><IntegrationSettings /></ProtectedRoute>} />
+        <Route path="/settings/team" element={<ProtectedRoute><TeamSettings /></ProtectedRoute>} />
         */}
 
         {/* ===== ROTA FALLBACK ===== */}
@@ -158,6 +154,7 @@ function AppRoutes() {
   );
 }
 
+// Componente principal com todos os providers
 function App() {
   return (
     <AuthProvider>
