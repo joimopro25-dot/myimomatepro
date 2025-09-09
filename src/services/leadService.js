@@ -672,10 +672,10 @@ export const getLeadStats = async (consultorId) => {
  */
 export const getLeadsNeedingAlert = async (consultorId) => {
     try {
+        // ✅ CORREÇÃO: Buscar todas as leads elegíveis sem orderBy problemático
         const leadsQuery = query(
             getLeadCollection(consultorId),
-            where('status', 'in', [LEAD_STATUS.NOVA, LEAD_STATUS.CONTACTADA, LEAD_STATUS.QUALIFICADA]),
-            orderBy('ultimoContacto', 'asc')
+            where('status', 'in', [LEAD_STATUS.NOVA, LEAD_STATUS.CONTACTADA, LEAD_STATUS.QUALIFICADA])
         );
 
         const snapshot = await getDocs(leadsQuery);
@@ -687,11 +687,20 @@ export const getLeadsNeedingAlert = async (consultorId) => {
                 ...doc.data()
             };
 
+            // ✅ CORREÇÃO: Verificar se needsAlert retorna true antes de processar
             if (needsAlert(leadData)) {
                 leadData.temperatura = calculateLeadTemperature(leadData.ultimoContacto);
                 leadData.nextAction = getNextRecommendedAction(leadData);
                 leadsWithAlerts.push(leadData);
             }
+        });
+
+        // ✅ CORREÇÃO: Ordenar no JavaScript após buscar os dados
+        // Ordenar por ultimoContacto (nulls primeiro), depois por criadaEm
+        leadsWithAlerts.sort((a, b) => {
+            const aContacto = a.ultimoContacto?.toDate() || a.criadaEm?.toDate() || new Date(0);
+            const bContacto = b.ultimoContacto?.toDate() || b.criadaEm?.toDate() || new Date(0);
+            return aContacto - bContacto;
         });
 
         return leadsWithAlerts;
