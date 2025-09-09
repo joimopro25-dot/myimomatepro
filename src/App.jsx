@@ -1,15 +1,34 @@
+/**
+ * APP.JSX - MyImoMatePro
+ * Router principal com todas as rotas do sistema
+ * ✅ ADICIONADO: Sistema de Leads completo
+ */
+
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { SubscriptionProvider } from './contexts/SubscriptionContext';
 import { ClientProvider } from './contexts/ClientContext';
+import { LeadProvider } from './contexts/LeadContext'; // ✅ NOVO: Import do LeadProvider
+
+// Páginas públicas
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
+
+// Dashboard e configurações
 import Dashboard from './pages/Dashboard';
 import AccountSettings from './pages/AccountSettings';
+
+// Sistema de Clientes
 import ClientList from './pages/ClientList';
 import ClientForm from './pages/ClientForm';
-import ClientDetail from './pages/ClientDetail'; // ✅ ADICIONADO: Import do ClientDetail
+import ClientDetail from './pages/ClientDetail';
+
+// ✅ NOVO: Sistema de Leads
+import LeadList from './pages/LeadList';
+import LeadForm from './pages/LeadForm';
+import LeadDetail from './pages/LeadDetail';
+
 import './index.css';
 
 // Componente para proteger rotas autenticadas
@@ -67,7 +86,6 @@ function AppRoutes() {
           </ProtectedRoute>
         } />
 
-        {/* ✅ CORRIGIDO: Rota para visualização de cliente específico */}
         <Route path="/clients/:clientId" element={
           <ProtectedRoute>
             <ClientDetail />
@@ -80,14 +98,44 @@ function AppRoutes() {
           </ProtectedRoute>
         } />
 
+        {/* ===== ROTAS PROTEGIDAS - SISTEMA DE LEADS ===== */}
+        <Route path="/leads" element={
+          <ProtectedRoute>
+            <LeadList />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/leads/new" element={
+          <ProtectedRoute>
+            {/* Temporariamente redireciona para lista até criarmos LeadForm */}
+            <Navigate to="/leads" replace />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/leads/:leadId" element={
+          <ProtectedRoute>
+            {/* Temporariamente redireciona para lista até criarmos LeadDetail */}
+            <Navigate to="/leads" replace />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/leads/:leadId/edit" element={
+          <ProtectedRoute>
+            {/* Temporariamente redireciona para lista até criarmos LeadForm */}
+            <Navigate to="/leads" replace />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/leads/:leadId/convert" element={
+          <ProtectedRoute>
+            {/* Temporariamente redireciona para lista até criarmos conversão */}
+            <Navigate to="/leads" replace />
+          </ProtectedRoute>
+        } />
+
         {/* ===== FUTURAS ROTAS DO SISTEMA ===== */}
         {/* 
         Rotas planejadas para próximas fases:
-        
-        // SISTEMA DE LEADS
-        <Route path="/leads" element={<ProtectedRoute><LeadList /></ProtectedRoute>} />
-        <Route path="/leads/new" element={<ProtectedRoute><LeadForm /></ProtectedRoute>} />
-        <Route path="/leads/:leadId/edit" element={<ProtectedRoute><LeadForm /></ProtectedRoute>} />
         
         // SISTEMA DE OPORTUNIDADES
         <Route path="/opportunities" element={<ProtectedRoute><OpportunityList /></ProtectedRoute>} />
@@ -122,7 +170,10 @@ function App() {
     <AuthProvider>
       <SubscriptionProvider>
         <ClientProvider>
-          <AppRoutes />
+          {/* ✅ NOVO: LeadProvider adicionado à árvore de contextos */}
+          <LeadProvider>
+            <AppRoutes />
+          </LeadProvider>
         </ClientProvider>
       </SubscriptionProvider>
     </AuthProvider>
