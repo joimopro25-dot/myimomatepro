@@ -262,11 +262,6 @@ function leadReducer(state, action) {
             };
 
         case ACTIONS.UPDATE_TASK:
-            // Verificar se a tarefa tem ID válido
-            if (!action.task || !action.task.id) {
-                console.error('Tentativa de atualizar tarefa sem ID válido');
-                return state;
-            }
             return {
                 ...state,
                 leadTasks: state.leadTasks.map(task =>
@@ -412,407 +407,410 @@ export function LeadProvider({ children }) {
         setLoading('create');
         clearError('create');
 
-        const newLead = await createLead(currentUser.uid, leadData);
-
-        dispatch({ type: ACTIONS.ADD_LEAD, lead: newLead });
-
-        return newLead;
-    } catch (error) {
-        setError('create', error);
-        throw error;
-    }
-}, [currentUser]);
-
-// Buscar lead individual
-const fetchLead = useCallback(async (leadId) => {
-    if (!currentUser) throw new Error('Utilizador não autenticado');
-
-    setLoading('fetch');
-    clearError('fetch');
-
-    try {
-        const lead = await leadService.getLead(currentUser.uid, leadId);
-        dispatch({ type: ACTIONS.SET_CURRENT_LEAD, lead });
-        return lead;
-    } catch (error) {
-        setError('fetch', error);
-        throw error;
-    }
-}, [currentUser]);
-
-// Listar leads
-const fetchLeads = useCallback(async (options = {}) => {
-    if (!currentUser) throw new Error('Utilizador não autenticado');
-
-    setLoading('list');
-    clearError('list');
-
-    try {
-        const queryOptions = {
-            ...state.filters,
-            searchTerm: state.searchTerm,
-            sortBy: state.sortBy,
-            sortOrder: state.sortOrder,
-            pageSize: state.pagination.pageSize,
-            lastDoc: state.pagination.lastDoc,
-            ...options
-        };
-
-        const result = await leadService.getLeads(currentUser.uid, queryOptions);
-
-        dispatch({ type: ACTIONS.SET_LEADS, leads: result.leads });
-        dispatch({
-            type: ACTIONS.SET_PAGINATION,
-            pagination: {
-                hasMore: result.hasMore,
-                lastDoc: result.lastDoc
-            }
-        });
-
-        return result;
-    } catch (error) {
-        setError('list', error);
-        throw error;
-    }
-}, [currentUser, state.filters, state.searchTerm, state.sortBy, state.sortOrder, state.pagination]);
-
-// Atualizar lead
-const updateLead = useCallback(async (leadId, updateData) => {
-    if (!currentUser) throw new Error('Utilizador não autenticado');
-
-    setLoading('update');
-    clearError('update');
-
-    try {
-        const updatedLead = await leadService.updateLead(
-            currentUser.uid,
-            leadId,
-            updateData
-        );
-        dispatch({ type: ACTIONS.UPDATE_LEAD, lead: updatedLead });
-
-        // Atualizar estatísticas
-        await fetchStats();
-
-        return updatedLead;
-    } catch (error) {
-        setError('update', error);
-        throw error;
-    }
-}, [currentUser]);
-
-// Eliminar lead
-const deleteLead = useCallback(async (leadId) => {
-    if (!currentUser) throw new Error('Utilizador não autenticado');
-
-    setLoading('delete');
-    clearError('delete');
-
-    try {
-        await leadService.deleteLead(currentUser.uid, leadId);
-        dispatch({ type: ACTIONS.DELETE_LEAD, leadId });
-
-        // Atualizar estatísticas
-        await fetchStats();
-
-        return true;
-    } catch (error) {
-        setError('delete', error);
-        throw error;
-    }
-}, [currentUser]);
-
-// ===== TASK OPERATIONS =====
-
-// Criar tarefa
-const createTask = useCallback(async (leadId, taskData) => {
-    if (!currentUser) throw new Error('Utilizador não autenticado');
-
-    setLoading('tasks');
-    clearError('tasks');
-
-    try {
-        const newTask = await leadService.createTask(
-            currentUser.uid,
-            leadId,
-            taskData
-        );
-        dispatch({ type: ACTIONS.ADD_TASK, task: newTask });
-
-        // Atualizar lead
-        await fetchLead(leadId);
-
-        return newTask;
-    } catch (error) {
-        setError('tasks', error);
-        throw error;
-    }
-}, [currentUser, fetchLead]);
-
-// Buscar tarefas da lead
-const fetchLeadTasks = useCallback(async (leadId) => {
-    if (!currentUser) throw new Error('Utilizador não autenticado');
-
-    setLoading('tasks');
-    clearError('tasks');
-
-    try {
-        const tasks = await leadService.getLeadTasks(currentUser.uid, leadId);
-        dispatch({ type: ACTIONS.SET_LEAD_TASKS, tasks });
-        return tasks;
-    } catch (error) {
-        setError('tasks', error);
-        throw error;
-    }
-}, [currentUser]);
-
-// Completar tarefa
-const completeTask = useCallback(async (leadId, taskId, resultData) => {
-    if (!currentUser) throw new Error('Utilizador não autenticado');
-
-    setLoading('tasks');
-    clearError('tasks');
-
-    try {
-        await leadService.completeTask(
-            currentUser.uid,
-            leadId,
-            taskId,
-            resultData
-        );
-
-        // Atualizar tarefas e lead
-        await fetchLeadTasks(leadId);
-        await fetchLead(leadId);
-
-        return true;
-    } catch (error) {
-        setError('tasks', error);
-        throw error;
-    }
-}, [currentUser, fetchLeadTasks, fetchLead]);
-
-// ===== CONTACT OPERATIONS =====
-
-// Adicionar contacto
-const addContact = useCallback(async (leadId, contactData) => {
-    if (!currentUser) throw new Error('Utilizador não autenticado');
-
-    setLoading('contacts');
-    clearError('contacts');
-
-    try {
-        const newContact = await leadService.addContact(
-            currentUser.uid,
-            leadId,
-            contactData
-        );
-        dispatch({ type: ACTIONS.ADD_CONTACT, contact: newContact });
-
-        // Atualizar lead
-        await fetchLead(leadId);
-
-        return newContact;
-    } catch (error) {
-        setError('contacts', error);
-        throw error;
-    }
-}, [currentUser, fetchLead]);
-
-// Buscar contactos da lead
-const fetchLeadContacts = useCallback(async (leadId) => {
-    if (!currentUser) throw new Error('Utilizador não autenticado');
-
-    setLoading('contacts');
-    clearError('contacts');
-
-    try {
-        const contacts = await leadService.getLeadContacts(currentUser.uid, leadId);
-        dispatch({ type: ACTIONS.SET_LEAD_CONTACTS, contacts });
-        return contacts;
-    } catch (error) {
-        setError('contacts', error);
-        throw error;
-    }
-}, [currentUser]);
-
-// ===== CONVERSION OPERATIONS =====
-
-// Converter lead em cliente
-const convertLead = useCallback(async (leadId, clientData) => {
-    if (!currentUser) throw new Error('Utilizador não autenticado');
-
-    setLoading('convert');
-    clearError('convert');
-
-    try {
-        const result = await leadService.convertLeadToClient(
-            currentUser.uid,
-            leadId,
-            clientData
-        );
-
-        // Atualizar lead
-        await fetchLead(leadId);
-
-        // Atualizar estatísticas
-        await fetchStats();
-
-        return result;
-    } catch (error) {
-        setError('convert', error);
-        throw error;
-    }
-}, [currentUser, fetchLead]);
-
-// Marcar lead como perdida
-const markAsLost = useCallback(async (leadId, motivoPerda) => {
-    if (!currentUser) throw new Error('Utilizador não autenticado');
-
-    setLoading('update');
-    clearError('update');
-
-    try {
-        await leadService.markLeadAsLost(currentUser.uid, leadId, motivoPerda);
-
-        // Atualizar lead e estatísticas
-        await fetchLead(leadId);
-        await fetchStats();
-
-        return true;
-    } catch (error) {
-        setError('update', error);
-        throw error;
-    }
-}, [currentUser, fetchLead]);
-
-// ===== STATS & ALERTS =====
-
-// Buscar estatísticas
-const fetchStats = useCallback(async () => {
-    if (!currentUser) return;
-
-    setLoading('stats');
-    clearError('stats');
-
-    try {
-        const stats = await leadService.getLeadsStats(currentUser.uid);
-        dispatch({ type: ACTIONS.SET_STATS, stats });
-        return stats;
-    } catch (error) {
-        setError('stats', error);
-        throw error;
-    }
-}, [currentUser]);
-
-// Buscar leads com alertas
-const fetchAlertLeads = useCallback(async () => {
-    if (!currentUser) return;
-
-    setLoading('alerts');
-    clearError('alerts');
-
-    try {
-        const alertLeads = await leadService.getAlertLeads(currentUser.uid);
-        dispatch({ type: ACTIONS.SET_ALERT_LEADS, leads: alertLeads });
-        return alertLeads;
-    } catch (error) {
-        setError('alerts', error);
-        throw error;
-    }
-}, [currentUser]);
-
-// ===== SEARCH & FILTERS =====
-
-// Pesquisar leads
-const searchLeads = useCallback(async (searchTerm) => {
-    dispatch({ type: ACTIONS.SET_SEARCH_TERM, term: searchTerm });
-
-    if (!searchTerm) {
+        try {
+            const newLead = await leadService.createLead(currentUser.uid, leadData);
+            dispatch({ type: ACTIONS.ADD_LEAD, lead: newLead });
+
+            // Atualizar estatísticas
+            await fetchStats();
+
+            return newLead;
+        } catch (error) {
+            setError('create', error);
+            throw error;
+        }
+    }, [currentUser]);
+
+    // Buscar lead individual
+    const fetchLead = useCallback(async (leadId) => {
+        if (!currentUser) throw new Error('Utilizador não autenticado');
+
+        setLoading('fetch');
+        clearError('fetch');
+
+        try {
+            const lead = await leadService.getLead(currentUser.uid, leadId);
+            dispatch({ type: ACTIONS.SET_CURRENT_LEAD, lead });
+            return lead;
+        } catch (error) {
+            setError('fetch', error);
+            throw error;
+        }
+    }, [currentUser]);
+
+    // Listar leads
+    const fetchLeads = useCallback(async (options = {}) => {
+        if (!currentUser) throw new Error('Utilizador não autenticado');
+
+        setLoading('list');
+        clearError('list');
+
+        try {
+            const queryOptions = {
+                ...state.filters,
+                searchTerm: state.searchTerm,
+                sortBy: state.sortBy,
+                sortOrder: state.sortOrder,
+                pageSize: state.pagination.pageSize,
+                lastDoc: state.pagination.lastDoc,
+                ...options
+            };
+
+            const result = await leadService.getLeads(currentUser.uid, queryOptions);
+
+            dispatch({ type: ACTIONS.SET_LEADS, leads: result.leads });
+            dispatch({
+                type: ACTIONS.SET_PAGINATION,
+                pagination: {
+                    hasMore: result.hasMore,
+                    lastDoc: result.lastDoc
+                }
+            });
+
+            return result;
+        } catch (error) {
+            setError('list', error);
+            throw error;
+        }
+    }, [currentUser, state.filters, state.searchTerm, state.sortBy, state.sortOrder, state.pagination]);
+
+    // Atualizar lead
+    const updateLead = useCallback(async (leadId, updateData) => {
+        if (!currentUser) throw new Error('Utilizador não autenticado');
+
+        setLoading('update');
+        clearError('update');
+
+        try {
+            const updatedLead = await leadService.updateLead(
+                currentUser.uid,
+                leadId,
+                updateData
+            );
+            dispatch({ type: ACTIONS.UPDATE_LEAD, lead: updatedLead });
+
+            // Atualizar estatísticas
+            await fetchStats();
+
+            return updatedLead;
+        } catch (error) {
+            setError('update', error);
+            throw error;
+        }
+    }, [currentUser]);
+
+    // Eliminar lead
+    const deleteLead = useCallback(async (leadId) => {
+        if (!currentUser) throw new Error('Utilizador não autenticado');
+
+        setLoading('delete');
+        clearError('delete');
+
+        try {
+            await leadService.deleteLead(currentUser.uid, leadId);
+            dispatch({ type: ACTIONS.DELETE_LEAD, leadId });
+
+            // Atualizar estatísticas
+            await fetchStats();
+
+            return true;
+        } catch (error) {
+            setError('delete', error);
+            throw error;
+        }
+    }, [currentUser]);
+
+    // ===== TASK OPERATIONS =====
+
+    // Criar tarefa
+    const createTask = useCallback(async (leadId, taskData) => {
+        if (!currentUser) throw new Error('Utilizador não autenticado');
+
+        setLoading('tasks');
+        clearError('tasks');
+
+        try {
+            const newTask = await leadService.createTask(
+                currentUser.uid,
+                leadId,
+                taskData
+            );
+            dispatch({ type: ACTIONS.ADD_TASK, task: newTask });
+
+            // Atualizar lead
+            await fetchLead(leadId);
+
+            return newTask;
+        } catch (error) {
+            setError('tasks', error);
+            throw error;
+        }
+    }, [currentUser, fetchLead]);
+
+    // Buscar tarefas da lead
+    const fetchLeadTasks = useCallback(async (leadId) => {
+        if (!currentUser) throw new Error('Utilizador não autenticado');
+
+        setLoading('tasks');
+        clearError('tasks');
+
+        try {
+            const tasks = await leadService.getLeadTasks(currentUser.uid, leadId);
+            dispatch({ type: ACTIONS.SET_LEAD_TASKS, tasks });
+            return tasks;
+        } catch (error) {
+            setError('tasks', error);
+            throw error;
+        }
+    }, [currentUser]);
+
+    // Completar tarefa
+    const completeTask = useCallback(async (leadId, taskId, resultData) => {
+        if (!currentUser) throw new Error('Utilizador não autenticado');
+
+        setLoading('tasks');
+        clearError('tasks');
+
+        try {
+            await leadService.completeTask(
+                currentUser.uid,
+                leadId,
+                taskId,
+                resultData
+            );
+
+            // Atualizar tarefas e lead
+            await fetchLeadTasks(leadId);
+            await fetchLead(leadId);
+
+            return true;
+        } catch (error) {
+            setError('tasks', error);
+            throw error;
+        }
+    }, [currentUser, fetchLeadTasks, fetchLead]);
+
+    // ===== CONTACT OPERATIONS =====
+
+    // Adicionar contacto
+    const addContact = useCallback(async (leadId, contactData) => {
+        if (!currentUser) throw new Error('Utilizador não autenticado');
+
+        setLoading('contacts');
+        clearError('contacts');
+
+        try {
+            const newContact = await leadService.addContact(
+                currentUser.uid,
+                leadId,
+                contactData
+            );
+            dispatch({ type: ACTIONS.ADD_CONTACT, contact: newContact });
+
+            // Atualizar lead
+            await fetchLead(leadId);
+
+            return newContact;
+        } catch (error) {
+            setError('contacts', error);
+            throw error;
+        }
+    }, [currentUser, fetchLead]);
+
+    // Buscar contactos da lead
+    const fetchLeadContacts = useCallback(async (leadId) => {
+        if (!currentUser) throw new Error('Utilizador não autenticado');
+
+        setLoading('contacts');
+        clearError('contacts');
+
+        try {
+            const contacts = await leadService.getLeadContacts(currentUser.uid, leadId);
+            dispatch({ type: ACTIONS.SET_LEAD_CONTACTS, contacts });
+            return contacts;
+        } catch (error) {
+            setError('contacts', error);
+            throw error;
+        }
+    }, [currentUser]);
+
+    // ===== CONVERSION OPERATIONS =====
+
+    // Converter lead em cliente
+    const convertLead = useCallback(async (leadId, clientData) => {
+        if (!currentUser) throw new Error('Utilizador não autenticado');
+
+        setLoading('convert');
+        clearError('convert');
+
+        try {
+            const result = await leadService.convertLeadToClient(
+                currentUser.uid,
+                leadId,
+                clientData
+            );
+
+            // Atualizar lead
+            await fetchLead(leadId);
+
+            // Atualizar estatísticas
+            await fetchStats();
+
+            return result;
+        } catch (error) {
+            setError('convert', error);
+            throw error;
+        }
+    }, [currentUser, fetchLead]);
+
+    // Marcar lead como perdida
+    const markAsLost = useCallback(async (leadId, motivoPerda) => {
+        if (!currentUser) throw new Error('Utilizador não autenticado');
+
+        setLoading('update');
+        clearError('update');
+
+        try {
+            await leadService.markLeadAsLost(currentUser.uid, leadId, motivoPerda);
+
+            // Atualizar lead e estatísticas
+            await fetchLead(leadId);
+            await fetchStats();
+
+            return true;
+        } catch (error) {
+            setError('update', error);
+            throw error;
+        }
+    }, [currentUser, fetchLead]);
+
+    // ===== STATS & ALERTS =====
+
+    // Buscar estatísticas
+    const fetchStats = useCallback(async () => {
+        if (!currentUser) return;
+
+        setLoading('stats');
+        clearError('stats');
+
+        try {
+            const stats = await leadService.getLeadsStats(currentUser.uid);
+            dispatch({ type: ACTIONS.SET_STATS, stats });
+            return stats;
+        } catch (error) {
+            setError('stats', error);
+            throw error;
+        }
+    }, [currentUser]);
+
+    // Buscar leads com alertas
+    const fetchAlertLeads = useCallback(async () => {
+        if (!currentUser) return;
+
+        setLoading('alerts');
+        clearError('alerts');
+
+        try {
+            const alertLeads = await leadService.getAlertLeads(currentUser.uid);
+            dispatch({ type: ACTIONS.SET_ALERT_LEADS, leads: alertLeads });
+            return alertLeads;
+        } catch (error) {
+            setError('alerts', error);
+            throw error;
+        }
+    }, [currentUser]);
+
+    // ===== SEARCH & FILTERS =====
+
+    // Pesquisar leads
+    const searchLeads = useCallback(async (searchTerm) => {
+        dispatch({ type: ACTIONS.SET_SEARCH_TERM, term: searchTerm });
+
+        if (!searchTerm) {
+            dispatch({ type: ACTIONS.CLEAR_SEARCH });
+            return;
+        }
+
+        await fetchLeads({ searchTerm });
+    }, [fetchLeads]);
+
+    // Definir filtros
+    const setFilters = useCallback((filters) => {
+        dispatch({ type: ACTIONS.SET_FILTERS, filters });
+        dispatch({ type: ACTIONS.RESET_PAGINATION });
+    }, []);
+
+    // Limpar filtros
+    const resetFilters = useCallback(() => {
+        dispatch({ type: ACTIONS.RESET_FILTERS });
+        dispatch({ type: ACTIONS.RESET_PAGINATION });
+    }, []);
+
+    // Limpar pesquisa
+    const clearSearch = useCallback(() => {
         dispatch({ type: ACTIONS.CLEAR_SEARCH });
-        return;
-    }
+    }, []);
 
-    await fetchLeads({ searchTerm });
-}, [fetchLeads]);
+    // Limpar lead atual
+    const clearCurrentLead = useCallback(() => {
+        dispatch({ type: ACTIONS.CLEAR_CURRENT_LEAD });
+    }, []);
 
-// Definir filtros
-const setFilters = useCallback((filters) => {
-    dispatch({ type: ACTIONS.SET_FILTERS, filters });
-    dispatch({ type: ACTIONS.RESET_PAGINATION });
-}, []);
+    // ===== EFFECTS =====
 
-// Limpar filtros
-const resetFilters = useCallback(() => {
-    dispatch({ type: ACTIONS.RESET_FILTERS });
-    dispatch({ type: ACTIONS.RESET_PAGINATION });
-}, []);
+    // Carregar estatísticas ao montar
+    useEffect(() => {
+        if (currentUser) {
+            fetchStats();
+            fetchAlertLeads();
+        }
+    }, [currentUser]);
 
-// Limpar pesquisa
-const clearSearch = useCallback(() => {
-    dispatch({ type: ACTIONS.CLEAR_SEARCH });
-}, []);
+    // ===== CONTEXT VALUE =====
+    const value = {
+        // Estado
+        ...state,
 
-// Limpar lead atual
-const clearCurrentLead = useCallback(() => {
-    dispatch({ type: ACTIONS.CLEAR_CURRENT_LEAD });
-}, []);
+        // Operações CRUD
+        createLead,
+        fetchLead,
+        fetchLeads,
+        updateLead,
+        deleteLead,
 
-// ===== EFFECTS =====
+        // Operações de tarefas
+        createTask,
+        fetchLeadTasks,
+        completeTask,
 
-// Carregar estatísticas ao montar
-useEffect(() => {
-    if (currentUser) {
-        fetchStats();
-        fetchAlertLeads();
-    }
-}, [currentUser]);
+        // Operações de contactos
+        addContact,
+        fetchLeadContacts,
 
-// ===== CONTEXT VALUE =====
-const value = {
-    // Estado
-    ...state,
+        // Operações de conversão
+        convertLead,
+        markAsLost,
 
-    // Operações CRUD
-    createLead,
-    fetchLead,
-    fetchLeads,
-    updateLead,
-    deleteLead,
+        // Estatísticas e alertas
+        fetchStats,
+        fetchAlertLeads,
 
-    // Operações de tarefas
-    createTask,
-    fetchLeadTasks,
-    completeTask,
+        // Pesquisa e filtros
+        searchLeads,
+        setFilters,
+        resetFilters,
+        clearSearch,
 
-    // Operações de contactos
-    addContact,
-    fetchLeadContacts,
+        // Utilitários
+        clearCurrentLead,
+        clearError,
+        setLoading,
+        clearLoading
+    };
 
-    // Operações de conversão
-    convertLead,
-    markAsLost,
-
-    // Estatísticas e alertas
-    fetchStats,
-    fetchAlertLeads,
-
-    // Pesquisa e filtros
-    searchLeads,
-    setFilters,
-    resetFilters,
-    clearSearch,
-
-    // Utilitários
-    clearCurrentLead,
-    clearError,
-    setLoading,
-    clearLoading
-};
-
-return (
-    <LeadContext.Provider value={value}>
-        {children}
-    </LeadContext.Provider>
-);
+    return (
+        <LeadContext.Provider value={value}>
+            {children}
+        </LeadContext.Provider>
+    );
 }

@@ -252,15 +252,9 @@ const LeadFormPage = () => {
             if (isEditMode) {
                 await updateLead(leadId, formData);
             } else {
-                // ✅ NOVA: Aguardar criação completa
-                const newLead = await createLead(formData);
-                console.log('✅ Lead criada com sucesso:', newLead.id);
-
-                // ✅ NOVA: Pequeno delay para garantir que o contexto atualize
-                await new Promise(resolve => setTimeout(resolve, 500));
+                await createLead(formData);
             }
 
-<<<<<<< HEAD
             setShowSuccess(true);
 
             // Redirecionar após 2 segundos
@@ -272,11 +266,6 @@ const LeadFormPage = () => {
                     }
                 });
             }, 2000);
-=======
-            // ✅ NOVA: Navegar com replace para garantir atualização
-            navigate('/leads', { replace: true });
-
->>>>>>> f3efccaad163bbef4007cd045cb93d4fc3461f6f
         } catch (error) {
             console.error('Erro ao guardar lead:', error);
             setValidationErrors({
