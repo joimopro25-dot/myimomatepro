@@ -163,7 +163,7 @@ export const createClientSchema = (clientData) => {
 export const validateClientData = (clientData) => {
     const errors = {};
 
-    // Campos obrigatórios
+    // Campos obrigatórios - APENAS NOME E TELEFONE
     if (!clientData.name || clientData.name.trim().length < 2) {
         errors.name = 'Nome é obrigatório (mínimo 2 caracteres)';
     }
@@ -172,8 +172,8 @@ export const validateClientData = (clientData) => {
         errors.phone = 'Telefone é obrigatório (mínimo 9 dígitos)';
     }
 
-    // Email (se preenchido)
-    if (clientData.email && !isValidEmail(clientData.email)) {
+    // Email (OPCIONAL - só valida se preenchido)
+    if (clientData.email && clientData.email.trim() && !isValidEmail(clientData.email)) {
         errors.email = 'Email inválido';
     }
 
@@ -187,7 +187,7 @@ export const validateClientData = (clientData) => {
         errors.postalCode = 'Código postal inválido (ex: 1234-567)';
     }
 
-    // ✅ GDPR OBRIGATÓRIO (corrigido)
+    // ✅ GDPR OBRIGATÓRIO
     if (!clientData.gdprConsent) {
         errors.gdprConsent = 'Consentimento GDPR é obrigatório';
     }
@@ -196,12 +196,6 @@ export const validateClientData = (clientData) => {
         isValid: Object.keys(errors).length === 0,
         errors
     };
-};
-
-// ===== HELPER FUNCTIONS =====
-const isValidEmail = (email) => {
-    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return re.test(email);
 };
 
 const isValidNIF = (nif) => {

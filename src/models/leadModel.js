@@ -1,68 +1,27 @@
 /**
- * LEAD MODEL - MyImoMatePro
- * Schema para Leads que estende o modelo de Cliente
- * Caminho: src/models/leadModel.js
+ * LEAD MODEL MELHORADO - MyImoMatePro
+ * Modelo de dados, validações e constantes para leads
  * 
- * Estrutura: consultores/{consultorId}/leads/{leadId}
- * Filosofia: Lead = Cliente + campos específicos de prospect
+ * Caminho: src/models/leadModel.js
  */
 
 import { Timestamp } from 'firebase/firestore';
-import { createClientSchema, validateClientData } from './clientModel';
+import { validateClientData } from './clientModel';
 
-// ===== CONSTANTES ESPECÍFICAS DE LEADS =====
-
-export const LEAD_STATUS = {
-    NOVA: 'nova',
-    CONTACTADA: 'contactada',
-    QUALIFICADA: 'qualificada',
-    CONVERTIDA: 'convertida',
-    PERDIDA: 'perdida'
-};
-
+// ===== CONSTANTES =====
 export const LEAD_SOURCES = {
     WEBSITE: 'website',
     GOOGLE: 'google',
     FACEBOOK: 'facebook',
     INSTAGRAM: 'instagram',
     RECOMENDACAO: 'recomendacao',
-    PORTAL_IMOBILIARIO: 'portal_imobiliario',
+    PORTAL: 'portal',
     PUBLICIDADE: 'publicidade',
     RADIO: 'radio',
     JORNAL: 'jornal',
     COLD_CALL: 'cold_call',
+    NETWORKING: 'networking',
     OUTRO: 'outro'
-};
-
-export const LEAD_INTERESTS = {
-    COMPRAR: 'comprar',
-    VENDER: 'vender',
-    ARRENDAR: 'arrendar',          // Senhorio que quer arrendar
-    PROCURAR_ARRENDAMENTO: 'procurar_arrendamento', // Inquilino que procura
-    INVESTIR: 'investir'
-};
-
-export const TASK_TYPES = {
-    CALL: 'call',
-    EMAIL: 'email',
-    WHATSAPP: 'whatsapp',
-    MEETING: 'meeting',
-    FOLLOW_UP: 'follow_up'
-};
-
-export const TASK_STATUS = {
-    PENDENTE: 'pendente',
-    CONCLUIDA: 'concluida',
-    CANCELADA: 'cancelada'
-};
-
-// ===== LABELS PARA UI =====
-export const LEAD_STATUS_LABELS = {
-    [LEAD_STATUS.NOVA]: 'Nova',
-    [LEAD_STATUS.CONTACTADA]: 'Contactada',
-    [LEAD_STATUS.QUALIFICADA]: 'Qualificada',
-    [LEAD_STATUS.CONVERTIDA]: 'Convertida',
-    [LEAD_STATUS.PERDIDA]: 'Perdida'
 };
 
 export const LEAD_SOURCE_LABELS = {
@@ -71,109 +30,175 @@ export const LEAD_SOURCE_LABELS = {
     [LEAD_SOURCES.FACEBOOK]: 'Facebook',
     [LEAD_SOURCES.INSTAGRAM]: 'Instagram',
     [LEAD_SOURCES.RECOMENDACAO]: 'Recomendação',
-    [LEAD_SOURCES.PORTAL_IMOBILIARIO]: 'Portal Imobiliário',
-    [LEAD_SOURCES.PUBLICIDADE]: 'Publicidade',
+    [LEAD_SOURCES.PORTAL]: 'Portal Imobiliário',
+    [LEAD_SOURCES.PUBLICIDADE]: 'Publicidade Exterior',
     [LEAD_SOURCES.RADIO]: 'Rádio',
     [LEAD_SOURCES.JORNAL]: 'Jornal',
     [LEAD_SOURCES.COLD_CALL]: 'Cold Call',
+    [LEAD_SOURCES.NETWORKING]: 'Networking',
     [LEAD_SOURCES.OUTRO]: 'Outro'
+};
+
+export const LEAD_INTERESTS = {
+    COMPRAR: 'comprar',
+    VENDER: 'vender',
+    ARRENDAR: 'arrendar',
+    INVESTIR: 'investir',
+    AVALIAR: 'avaliar'
 };
 
 export const LEAD_INTEREST_LABELS = {
     [LEAD_INTERESTS.COMPRAR]: 'Comprar Imóvel',
     [LEAD_INTERESTS.VENDER]: 'Vender Imóvel',
-    [LEAD_INTERESTS.ARRENDAR]: 'Arrendar Imóvel (Senhorio)',
-    [LEAD_INTERESTS.PROCURAR_ARRENDAMENTO]: 'Procurar Arrendamento (Inquilino)',
-    [LEAD_INTERESTS.INVESTIR]: 'Investimento Imobiliário'
+    [LEAD_INTERESTS.ARRENDAR]: 'Arrendar Imóvel',
+    [LEAD_INTERESTS.INVESTIR]: 'Investimento Imobiliário',
+    [LEAD_INTERESTS.AVALIAR]: 'Avaliar Imóvel'
 };
 
-// ===== SCHEMA PRINCIPAL DA LEAD =====
+export const LEAD_STATUS = {
+    NOVO: 'novo',
+    CONTACTADO: 'contactado',
+    QUALIFICADO: 'qualificado',
+    EM_PROCESSO: 'em_processo',
+    CONVERTIDO: 'convertido',
+    PERDIDO: 'perdido',
+    DESQUALIFICADO: 'desqualificado'
+};
+
+export const LEAD_TEMPERATURES = {
+    QUENTE: 'quente',
+    MORNO: 'morno',
+    FRIO: 'frio'
+};
+
+// ===== NOVOS: TIPOS DE TASKS/INTERAÇÕES =====
+export const TASK_TYPES = {
+    CALL: 'call',
+    EMAIL: 'email',
+    WHATSAPP: 'whatsapp',
+    MEETING: 'meeting',
+    VISIT: 'visit',
+    FOLLOW_UP: 'follow_up',
+    CONFIRMATION: 'confirmation',
+    PRESENTATION: 'presentation',
+    DOCUMENTATION: 'documentation',
+    NEGOTIATION: 'negotiation'
+};
+
+export const TASK_TYPE_LABELS = {
+    [TASK_TYPES.CALL]: 'Chamada Telefónica',
+    [TASK_TYPES.EMAIL]: 'Email',
+    [TASK_TYPES.WHATSAPP]: 'WhatsApp',
+    [TASK_TYPES.MEETING]: 'Reunião',
+    [TASK_TYPES.VISIT]: 'Visita',
+    [TASK_TYPES.FOLLOW_UP]: 'Follow-up',
+    [TASK_TYPES.CONFIRMATION]: 'Confirmar Interesse',
+    [TASK_TYPES.PRESENTATION]: 'Apresentação',
+    [TASK_TYPES.DOCUMENTATION]: 'Documentação',
+    [TASK_TYPES.NEGOTIATION]: 'Negociação'
+};
+
+export const TASK_STATUS = {
+    PENDENTE: 'pendente',
+    EM_ANDAMENTO: 'em_andamento',
+    CONCLUIDA: 'concluida',
+    CANCELADA: 'cancelada',
+    REAGENDADA: 'reagendada'
+};
+
+// ===== SCHEMA PRINCIPAL DA LEAD MELHORADO =====
 export const createLeadSchema = (leadData) => {
-    // Reutilizar o schema de cliente como base
-    const baseClientData = createClientSchema(leadData);
-
     return {
-        ...baseClientData,
+        id: null,
+        consultorId: null,
 
-        // ===== METADADOS ESPECÍFICOS DE LEAD =====
-        leadStatus: 'prospect', // Badge para UI
+        // ===== DADOS PESSOAIS BÁSICOS =====
+        name: leadData.name?.trim() || '',
+        phone: leadData.phone?.trim() || '',
+        email: leadData.email?.trim() || '', // AGORA OPCIONAL
 
-        // ===== CAMPOS ESPECÍFICOS DE LEAD =====
+        // ===== CLASSIFICAÇÃO DA LEAD =====
         leadSource: leadData.leadSource || LEAD_SOURCES.WEBSITE,
         interesse: leadData.interesse || LEAD_INTERESTS.COMPRAR,
-        descricao: leadData.descricao || '',
 
-        // ===== DATAS E TRACKING =====
-        criadoEm: Timestamp.now(),
-        atualizadoEm: Timestamp.now(),
+        // ===== NOVOS CAMPOS DE QUALIFICAÇÃO =====
+        urgencia: leadData.urgencia || 'media',
+        orcamentoEstimado: leadData.orcamentoEstimado ? parseFloat(leadData.orcamentoEstimado) : null,
+        zonaInteresse: leadData.zonaInteresse?.trim() || '',
+        tipologiaInteresse: leadData.tipologiaInteresse || '',
+        melhorHorario: leadData.melhorHorario || '',
+        contactPreference: leadData.contactPreference || 'phone',
+        statusQualificacao: leadData.statusQualificacao || 'por_qualificar',
+
+        // ===== DESCRIÇÃO DETALHADA (AGORA OBRIGATÓRIA) =====
+        descricao: leadData.descricao?.trim() || '',
+        consultorObservations: leadData.consultorObservations?.trim() || '',
+
+        // ===== TIMESTAMPS COM HORA =====
+        criadaEm: Timestamp.now(),
+        atualizadaEm: Timestamp.now(),
         proximoContacto: leadData.proximoContacto ?
             Timestamp.fromDate(new Date(leadData.proximoContacto)) : null,
-        ultimoContacto: leadData.ultimoContacto ?
-            Timestamp.fromDate(new Date(leadData.ultimoContacto)) : null,
 
         // ===== STATUS E QUALIFICAÇÃO =====
-        status: leadData.status || LEAD_STATUS.NOVA,
-        score: leadData.score || 0, // 0-100 score de qualificação
-        temperatura: leadData.temperatura || 'quente', // quente, morna, fria
+        status: LEAD_STATUS.NOVO,
+        temperatura: LEAD_TEMPERATURES.MORNO,
+        score: 50, // Score inicial padrão
 
-        // ===== TAREFAS DE FOLLOW-UP =====
-        tarefas: leadData.tarefas || [],
+        // ===== HISTÓRICO DE ATIVIDADES =====
+        ultimoContacto: null,
+        totalContactos: 0,
+        totalTasks: 0,
+        tasksCompletas: 0,
 
-        // ===== HISTÓRICO DE CONTACTOS =====
-        contactos: leadData.contactos || [],
-
-        // ===== ALERTAS AUTOMÁTICOS =====
-        alertas: {
-            diasSemContacto: 0,
-            proximoAlerta: null,
-            alertasEnviados: []
-        },
+        // ===== CONSENTIMENTOS =====
+        gdprConsent: leadData.gdprConsent || false,
+        marketingConsent: leadData.marketingConsent || false,
 
         // ===== CONVERSÃO =====
-        conversao: {
-            convertida: false,
-            dataConversao: null,
-            clienteId: null,
-            oportunidadeId: null,
-            motivoConversao: ''
-        },
+        convertidaEm: null,
+        clienteId: null,
+        motivoPerda: '',
 
-        // ===== ESTATÍSTICAS =====
+        // ===== TAGS E CATEGORIZAÇÃO =====
+        tags: leadData.tags || [],
+        categoria: 'lead', // Sempre 'lead'
+
+        // ===== ESTATÍSTICAS CALCULADAS =====
         stats: {
-            totalContactos: 0,
-            totalTarefas: 0,
-            tarefasConcluidas: 0,
-            diasEntrePrimeiroEUltimoContacto: 0,
-            tempoMedioResposta: null
+            diasSemContacto: 0,
+            tempoMedioResposta: 0,
+            taxaResposta: 0,
+            ultimaAcao: null
         }
     };
 };
 
-// ===== SCHEMA PARA TAREFA =====
+// ===== SCHEMA PARA TASK/INTERAÇÃO =====
 export const createTaskSchema = (taskData) => {
     return {
-        id: null, // Será definido pelo Firestore
+        id: null,
         leadId: taskData.leadId,
         consultorId: taskData.consultorId,
 
-        // Dados da tarefa
+        // Dados da task
         tipo: taskData.tipo || TASK_TYPES.CALL,
-        titulo: taskData.titulo || '',
-        descricao: taskData.descricao || '',
+        titulo: taskData.titulo?.trim() || '',
+        descricao: taskData.descricao?.trim() || '',
 
-        // Agendamento
+        // ===== AGENDAMENTO COM HORA =====
         agendadaPara: taskData.agendadaPara ?
             Timestamp.fromDate(new Date(taskData.agendadaPara)) : null,
+        duracaoEstimada: taskData.duracaoEstimada || null, // Em minutos
 
-        // Status
+        // Status e execução
         status: TASK_STATUS.PENDENTE,
-
-        // Execução
         executadaEm: null,
+        duracaoReal: null, // Em minutos
         resultado: '',
         notas: '',
 
-        // Metadados
+        // ===== TIMESTAMPS =====
         criadaEm: Timestamp.now(),
         atualizadaEm: Timestamp.now(),
 
@@ -181,46 +206,15 @@ export const createTaskSchema = (taskData) => {
         proximaAcao: {
             sugerida: false,
             tipo: null,
-            prazo: null
+            prazo: null,
+            descricao: ''
         }
     };
 };
 
-// ===== SCHEMA PARA CONTACTO =====
-export const createContactoSchema = (contactoData) => {
-    return {
-        id: null,
-        leadId: contactoData.leadId,
-        consultorId: contactoData.consultorId,
-
-        // Dados do contacto
-        tipo: contactoData.tipo || TASK_TYPES.CALL,
-        dataContacto: Timestamp.now(),
-        duracao: contactoData.duracao || null, // Em minutos
-
-        // Conteúdo
-        resumo: contactoData.resumo || '',
-        notas: contactoData.notas || '',
-        resultado: contactoData.resultado || '', // positivo, neutro, negativo
-
-        // Follow-up
-        agendarProximo: contactoData.agendarProximo || false,
-        proximoContactoData: contactoData.proximoContactoData || null,
-        proximoContactoTipo: contactoData.proximoContactoTipo || null,
-
-        // Qualificação
-        interesseConfirmado: contactoData.interesseConfirmado || false,
-        orçamentoDiscutido: contactoData.orçamentoDiscutido || false,
-        tempoDecisao: contactoData.tempoDecisao || null,
-
-        // Metadados
-        criadoEm: Timestamp.now()
-    };
-};
-
-// ===== VALIDAÇÕES ESPECÍFICAS DE LEAD =====
+// ===== VALIDAÇÕES MELHORADAS =====
 export const validateLeadData = (leadData) => {
-    // Primeiro validar como cliente
+    // Validar dados básicos de cliente (Nome + Telefone obrigatórios)
     const clientValidation = validateClientData(leadData);
     const errors = { ...clientValidation.errors };
 
@@ -233,19 +227,27 @@ export const validateLeadData = (leadData) => {
         errors.interesse = 'Interesse é obrigatório e deve ser válido';
     }
 
+    // ===== DESCRIÇÃO AGORA OBRIGATÓRIA =====
+    if (!leadData.descricao || leadData.descricao.trim().length < 10) {
+        errors.descricao = 'Descrição é obrigatória (mínimo 10 caracteres)';
+    }
+
     if (leadData.descricao && leadData.descricao.length > 1000) {
         errors.descricao = 'Descrição não pode ter mais de 1000 caracteres';
     }
 
-    if (leadData.proximoContacto) {
-        const dataContacto = new Date(leadData.proximoContacto);
-        if (dataContacto < new Date()) {
-            errors.proximoContacto = 'Data do próximo contacto deve ser futura';
-        }
+    // Validar orçamento se preenchido
+    if (leadData.orcamentoEstimado && (leadData.orcamentoEstimado < 0 || leadData.orcamentoEstimado > 10000000)) {
+        errors.orcamentoEstimado = 'Orçamento deve estar entre 0 e 10.000.000€';
     }
 
-    if (leadData.score && (leadData.score < 0 || leadData.score > 100)) {
-        errors.score = 'Score deve estar entre 0 e 100';
+    // Validar data de próximo contacto
+    if (leadData.proximoContacto) {
+        const dataContacto = new Date(leadData.proximoContacto);
+        const agora = new Date();
+        if (dataContacto < agora) {
+            errors.proximoContacto = 'Data do próximo contacto deve ser futura';
+        }
     }
 
     return {
@@ -254,7 +256,7 @@ export const validateLeadData = (leadData) => {
     };
 };
 
-// ===== VALIDAÇÃO DE TAREFA =====
+// ===== VALIDAÇÃO DE TASK =====
 export const validateTaskData = (taskData) => {
     const errors = {};
 
@@ -272,9 +274,14 @@ export const validateTaskData = (taskData) => {
 
     if (taskData.agendadaPara) {
         const dataAgendamento = new Date(taskData.agendadaPara);
-        if (dataAgendamento < new Date()) {
+        const agora = new Date();
+        if (dataAgendamento < agora) {
             errors.agendadaPara = 'Data de agendamento deve ser futura';
         }
+    }
+
+    if (taskData.duracaoEstimada && (taskData.duracaoEstimada < 1 || taskData.duracaoEstimada > 480)) {
+        errors.duracaoEstimada = 'Duração deve estar entre 1 e 480 minutos';
     }
 
     return {
@@ -283,141 +290,92 @@ export const validateTaskData = (taskData) => {
     };
 };
 
-// ===== HELPER FUNCTIONS =====
-
-// Calcular temperatura da lead baseada na última atividade
+// ===== FUNÇÕES DE CÁLCULO =====
 export const calculateLeadTemperature = (ultimoContacto) => {
-    if (!ultimoContacto) return 'fria';
+    if (!ultimoContacto) return LEAD_TEMPERATURES.FRIO;
 
     const agora = new Date();
     const ultimaAtividade = ultimoContacto.toDate ? ultimoContacto.toDate() : new Date(ultimoContacto);
     const diasSemContacto = Math.floor((agora - ultimaAtividade) / (1000 * 60 * 60 * 24));
 
-    if (diasSemContacto <= 3) return 'quente';
-    if (diasSemContacto <= 7) return 'morna';
-    return 'fria';
+    if (diasSemContacto <= 2) return LEAD_TEMPERATURES.QUENTE;
+    if (diasSemContacto <= 7) return LEAD_TEMPERATURES.MORNO;
+    return LEAD_TEMPERATURES.FRIO;
 };
 
-// Calcular score automático baseado em vários fatores
 export const calculateLeadScore = (leadData) => {
     let score = 0;
 
-    // Score baseado na fonte (mais confiáveis = score maior)
-    const sourceScores = {
-        [LEAD_SOURCES.RECOMENDACAO]: 30,
-        [LEAD_SOURCES.WEBSITE]: 25,
-        [LEAD_SOURCES.GOOGLE]: 20,
-        [LEAD_SOURCES.PORTAL_IMOBILIARIO]: 20,
-        [LEAD_SOURCES.FACEBOOK]: 15,
-        [LEAD_SOURCES.INSTAGRAM]: 15,
-        [LEAD_SOURCES.PUBLICIDADE]: 10,
-        [LEAD_SOURCES.COLD_CALL]: 5
+    // Score base por interesse
+    const interesseScores = {
+        [LEAD_INTERESTS.COMPRAR]: 30,
+        [LEAD_INTERESTS.VENDER]: 35,
+        [LEAD_INTERESTS.INVESTIR]: 40,
+        [LEAD_INTERESTS.ARRENDAR]: 25,
+        [LEAD_INTERESTS.AVALIAR]: 15
     };
-    score += sourceScores[leadData.leadSource] || 0;
+    score += interesseScores[leadData.interesse] || 20;
 
-    // Score baseado na completude dos dados
-    if (leadData.phone) score += 10;
-    if (leadData.email) score += 10;
-    if (leadData.descricao && leadData.descricao.length > 50) score += 10;
-
-    // Score baseado no nível de interesse
-    const interestScores = {
-        [LEAD_INTERESTS.COMPRAR]: 25,
-        [LEAD_INTERESTS.VENDER]: 20,
-        [LEAD_INTERESTS.INVESTIR]: 20,
-        [LEAD_INTERESTS.ARRENDAR]: 15,
-        [LEAD_INTERESTS.PROCURAR_ARRENDAMENTO]: 15
+    // Score por urgência
+    const urgenciaScores = {
+        'imediata': 25,
+        'alta': 20,
+        'media': 15,
+        'baixa': 10
     };
-    score += interestScores[leadData.interesse] || 0;
+    score += urgenciaScores[leadData.urgencia] || 15;
 
-    // Score baseado na atividade recente
-    if (leadData.ultimoContacto) {
-        const temperatura = calculateLeadTemperature(leadData.ultimoContacto);
-        if (temperatura === 'quente') score += 15;
-        else if (temperatura === 'morna') score += 5;
+    // Score por orçamento
+    if (leadData.orcamentoEstimado) {
+        if (leadData.orcamentoEstimado >= 500000) score += 20;
+        else if (leadData.orcamentoEstimado >= 300000) score += 15;
+        else if (leadData.orcamentoEstimado >= 150000) score += 10;
+        else score += 5;
     }
 
-    return Math.min(score, 100); // Máximo 100
+    // Score por qualidade da descrição
+    if (leadData.descricao) {
+        if (leadData.descricao.length >= 200) score += 10;
+        else if (leadData.descricao.length >= 100) score += 7;
+        else if (leadData.descricao.length >= 50) score += 5;
+    }
+
+    // Score por dados de contacto
+    if (leadData.email && leadData.phone) score += 10;
+    else if (leadData.phone) score += 5;
+
+    return Math.min(score, 100); // Máximo de 100
 };
 
-// Determinar próxima ação recomendada
 export const getNextRecommendedAction = (leadData) => {
     const agora = new Date();
+    const criadaEm = leadData.criadaEm?.toDate() || agora;
+    const horasDesdeEm = (agora - criadaEm) / (1000 * 60 * 60);
 
-    // Se nunca foi contactada
-    if (!leadData.ultimoContacto) {
+    // Recommendations based on lead age and status
+    if (horasDesdeEm < 1) {
         return {
             tipo: TASK_TYPES.CALL,
-            prazo: new Date(agora.getTime() + 24 * 60 * 60 * 1000), // 24h
-            prioridade: 'alta',
-            motivo: 'Lead nova - contacto inicial urgente'
+            prazo: 'imediato',
+            descricao: 'Contacto inicial imediato - lead recente'
         };
     }
 
-    // Baseado na temperatura
-    const temperatura = calculateLeadTemperature(leadData.ultimoContacto);
-    const ultimaAtividade = leadData.ultimoContacto.toDate ?
-        leadData.ultimoContacto.toDate() : new Date(leadData.ultimoContacto);
-
-    switch (temperatura) {
-        case 'fria':
-            return {
-                tipo: TASK_TYPES.EMAIL,
-                prazo: new Date(agora.getTime() + 7 * 24 * 60 * 60 * 1000), // 7 dias
-                prioridade: 'baixa',
-                motivo: 'Lead fria - reativar com email'
-            };
-        case 'morna':
-            return {
-                tipo: TASK_TYPES.WHATSAPP,
-                prazo: new Date(agora.getTime() + 2 * 24 * 60 * 60 * 1000), // 2 dias
-                prioridade: 'media',
-                motivo: 'Lead morna - follow-up necessário'
-            };
-        case 'quente':
-            return {
-                tipo: TASK_TYPES.CALL,
-                prazo: new Date(agora.getTime() + 24 * 60 * 60 * 1000), // 24h
-                prioridade: 'alta',
-                motivo: 'Lead quente - manter momentum'
-            };
-        default:
-            return null;
-    }
-};
-
-// Verificar se lead precisa de alerta
-export const needsAlert = (leadData) => {
-    if (!leadData.ultimoContacto) {
-        // Lead nova há mais de 24h sem contacto
-        const criadaHa = (new Date() - leadData.criadoEm.toDate()) / (1000 * 60 * 60);
-        return criadaHa > 24;
+    if (horasDesdeEm < 24 && leadData.status === LEAD_STATUS.NOVO) {
+        return {
+            tipo: TASK_TYPES.CALL,
+            prazo: '2_horas',
+            descricao: 'Follow-up de primeiro contacto'
+        };
     }
 
-    const diasSemContacto = Math.floor(
-        (new Date() - leadData.ultimoContacto.toDate()) / (1000 * 60 * 60 * 24)
-    );
+    if (leadData.temperatura === LEAD_TEMPERATURES.FRIO) {
+        return {
+            tipo: TASK_TYPES.EMAIL,
+            prazo: '1_semana',
+            descricao: 'Reativar lead fria com conteúdo de valor'
+        };
+    }
 
-    // Alertas escalonados
-    return diasSemContacto >= 3; // Alerta após 3 dias
-};
-
-export default {
-    createLeadSchema,
-    createTaskSchema,
-    createContactoSchema,
-    validateLeadData,
-    validateTaskData,
-    calculateLeadTemperature,
-    calculateLeadScore,
-    getNextRecommendedAction,
-    needsAlert,
-    LEAD_STATUS,
-    LEAD_SOURCES,
-    LEAD_INTERESTS,
-    TASK_TYPES,
-    TASK_STATUS,
-    LEAD_STATUS_LABELS,
-    LEAD_SOURCE_LABELS,
-    LEAD_INTEREST_LABELS
+    return null;
 };
