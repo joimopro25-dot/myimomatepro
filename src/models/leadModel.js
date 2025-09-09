@@ -1,5 +1,5 @@
 /**
- * LEAD MODEL MELHORADO - MyImoMatePro
+ * LEAD MODEL COMPLETO - MyImoMatePro
  * Modelo de dados, validações e constantes para leads
  * 
  * Caminho: src/models/leadModel.js
@@ -71,7 +71,7 @@ export const LEAD_TEMPERATURES = {
     FRIO: 'frio'
 };
 
-// ===== NOVOS: TIPOS DE TASKS/INTERAÇÕES =====
+// ===== TIPOS DE TASKS/INTERAÇÕES =====
 export const TASK_TYPES = {
     CALL: 'call',
     EMAIL: 'email',
@@ -106,7 +106,7 @@ export const TASK_STATUS = {
     REAGENDADA: 'reagendada'
 };
 
-// ===== SCHEMA PRINCIPAL DA LEAD MELHORADO =====
+// ===== SCHEMA PRINCIPAL DA LEAD =====
 export const createLeadSchema = (leadData) => {
     return {
         id: null,
@@ -212,7 +212,39 @@ export const createTaskSchema = (taskData) => {
     };
 };
 
-// ===== VALIDAÇÕES MELHORADAS =====
+// ===== SCHEMA PARA CONTACTO/INTERAÇÃO =====
+export const createContactoSchema = (contactoData) => {
+    return {
+        id: null,
+        leadId: contactoData.leadId,
+        consultorId: contactoData.consultorId,
+
+        // Dados do contacto
+        tipo: contactoData.tipo || TASK_TYPES.CALL,
+        dataContacto: Timestamp.now(),
+        duracao: contactoData.duracao || null, // Em minutos
+
+        // Conteúdo
+        resumo: contactoData.resumo?.trim() || '',
+        notas: contactoData.notas?.trim() || '',
+        resultado: contactoData.resultado || '', // positivo, neutro, negativo
+
+        // Follow-up
+        agendarProximo: contactoData.agendarProximo || false,
+        proximoContactoData: contactoData.proximoContactoData || null,
+        proximoContactoTipo: contactoData.proximoContactoTipo || null,
+
+        // Qualificação
+        interesseConfirmado: contactoData.interesseConfirmado || false,
+        orcamentoDiscutido: contactoData.orcamentoDiscutido || false,
+        tempoDecisao: contactoData.tempoDecisao || null,
+
+        // Metadados
+        criadoEm: Timestamp.now()
+    };
+};
+
+// ===== VALIDAÇÕES =====
 export const validateLeadData = (leadData) => {
     // Validar dados básicos de cliente (Nome + Telefone obrigatórios)
     const clientValidation = validateClientData(leadData);
@@ -375,6 +407,55 @@ export const getNextRecommendedAction = (leadData) => {
             prazo: '1_semana',
             descricao: 'Reativar lead fria com conteúdo de valor'
         };
+    }
+
+    return null;
+};
+
+export const needsAlert = (leadData) => {
+    const agora = new Date();
+
+    // Verifica se há próximo contacto agendado que já passou
+    if (leadData.proximoContacto) {
+        const dataContacto = leadData.proximoContacto.toDate ?
+            leadData.proximoContacto.toDate() :
+            new Date(leadData.proximoContacto);
+
+        if (dataContacto < agora) {
+            return {
+                tipo: 'contacto_atrasado',
+                urgencia: 'alta',
+                mensagem: 'Contacto agendado em atraso'
+            };
+        }
+    }
+
+    // Verifica se a lead está fria há muito tempo
+    if (leadData.temperatura === LEAD_TEMPERATURES.FRIO) {
+        const ultimoContacto = leadData.ultimoContacto?.toDate() || leadData.criadaEm?.toDate() || agora;
+        const diasSemContacto = Math.floor((agora - ultimoContacto) / (1000 * 60 * 60 * 24));
+
+        if (diasSemContacto >= 7) {
+            return {
+                tipo: 'lead_fria',
+                urgencia: 'media',
+                mensagem: `${diasSemContacto} dias sem contacto`
+            };
+        }
+    }
+
+    // Verifica se é uma lead de alta urgência sem follow-up
+    if (leadData.urgencia === 'imediata' || leadData.urgencia === 'alta') {
+        const criadaEm = leadData.criadaEm?.toDate() || agora;
+        const horasSemContacto = (agora - criadaEm) / (1000 * 60 * 60);
+
+        if (horasSemContacto >= 24 && leadData.status === LEAD_STATUS.NOVO) {
+            return {
+                tipo: 'urgencia_alta',
+                urgencia: 'alta',
+                mensagem: 'Lead urgente sem follow-up há mais de 24h'
+            };
+        }
     }
 
     return null;
