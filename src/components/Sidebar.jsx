@@ -8,6 +8,7 @@ import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
+import { useLeads } from '../contexts/LeadContext';
 import {
     HomeIcon,
     UsersIcon,
@@ -16,12 +17,14 @@ import {
     UserCircleIcon,
     ChevronLeftIcon,
     ChevronRightIcon,
-    SparklesIcon
+    SparklesIcon,
+    FunnelIcon
 } from '@heroicons/react/24/outline';
 import {
     HomeIcon as HomeIconSolid,
     UsersIcon as UsersIconSolid,
-    CogIcon as CogIconSolid
+    CogIcon as CogIconSolid,
+    FunnelIcon as FunnelIconSolid
 } from '@heroicons/react/24/solid';
 
 const Sidebar = ({ isCollapsed = false, onToggleCollapse }) => {
@@ -29,6 +32,7 @@ const Sidebar = ({ isCollapsed = false, onToggleCollapse }) => {
     const navigate = useNavigate();
     const { currentUser, logout } = useAuth();
     const { subscription, stats } = useSubscription();
+    const { leads } = useLeads();
     const [showUserMenu, setShowUserMenu] = useState(false);
 
     const handleLogout = async () => {
@@ -40,7 +44,7 @@ const Sidebar = ({ isCollapsed = false, onToggleCollapse }) => {
         }
     };
 
-    // Itens de navegação - apenas funcionalidades existentes
+    // Itens de navegação - incluindo Leads
     const navigationItems = [
         {
             name: 'Dashboard',
@@ -56,6 +60,14 @@ const Sidebar = ({ isCollapsed = false, onToggleCollapse }) => {
             iconSolid: UsersIconSolid,
             description: 'Gerir carteira de clientes',
             badge: stats?.totalClientes || 0
+        },
+        {
+            name: 'Leads',
+            href: '/leads',
+            icon: FunnelIcon,
+            iconSolid: FunnelIconSolid,
+            description: 'Gerir prospects e oportunidades',
+            badge: leads?.length || 0
         }
     ];
 
@@ -112,36 +124,43 @@ const Sidebar = ({ isCollapsed = false, onToggleCollapse }) => {
                             key={item.name}
                             to={item.href}
                             className={`group flex items-center px-3 py-3 rounded-xl transition-all duration-200 ${isActive
-                                    ? 'bg-gradient-to-r from-blue-500/20 to-purple-500/20 border border-blue-500/30 shadow-lg shadow-blue-500/10'
-                                    : 'hover:bg-slate-700/30 hover:shadow-md'
+                                ? 'bg-gradient-to-r from-blue-500/20 to-purple-500/20 border border-blue-500/30 shadow-lg shadow-blue-500/10'
+                                : 'hover:bg-slate-700/30 hover:shadow-md'
                                 }`}
                             title={isCollapsed ? item.description : ''}
                         >
                             <div className="flex items-center justify-center w-6 h-6">
-                                <Icon className={`w-5 h-5 transition-colors ${isActive ? 'text-blue-400' : 'text-slate-400 group-hover:text-white'
+                                <Icon className={`w-5 h-5 transition-colors ${isActive
+                                    ? 'text-blue-300'
+                                    : 'text-slate-400 group-hover:text-slate-300'
                                     }`} />
                             </div>
 
                             {!isCollapsed && (
-                                <div className="ml-3 flex-1 flex items-center justify-between">
-                                    <div>
-                                        <p className={`font-medium ${isActive ? 'text-white' : 'text-slate-300 group-hover:text-white'
-                                            }`}>
-                                            {item.name}
-                                        </p>
-                                        <p className="text-xs text-slate-500 group-hover:text-slate-400">
-                                            {item.description}
-                                        </p>
-                                    </div>
+                                <>
+                                    <span className={`ml-3 font-medium transition-colors ${isActive ? 'text-white' : 'text-slate-300 group-hover:text-white'
+                                        }`}>
+                                        {item.name}
+                                    </span>
 
+                                    {/* Badge com contador */}
                                     {item.badge !== undefined && (
-                                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${isActive
-                                                ? 'bg-blue-500/20 text-blue-300'
-                                                : 'bg-slate-600 text-slate-300'
+                                        <span className={`ml-auto px-2 py-1 text-xs font-medium rounded-full transition-colors ${isActive
+                                            ? 'bg-blue-500/30 text-blue-200'
+                                            : 'bg-slate-700 text-slate-300 group-hover:bg-slate-600'
                                             }`}>
                                             {item.badge}
                                         </span>
                                     )}
+                                </>
+                            )}
+
+                            {/* Badge para versão colapsada */}
+                            {isCollapsed && item.badge !== undefined && item.badge > 0 && (
+                                <div className="absolute -top-1 -right-1 w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center">
+                                    <span className="text-xs font-medium text-white">
+                                        {item.badge > 99 ? '99+' : item.badge}
+                                    </span>
                                 </div>
                             )}
                         </Link>
@@ -150,14 +169,15 @@ const Sidebar = ({ isCollapsed = false, onToggleCollapse }) => {
             </nav>
 
             {/* Informações da Subscrição */}
-            {!isCollapsed && subscription && (
+            {subscription && !isCollapsed && (
                 <div className="p-4 border-t border-slate-700/50">
-                    <div className="bg-slate-800/50 rounded-lg p-3 border border-slate-700/30">
-                        <div className="flex items-center justify-between mb-2">
+                    <div className="bg-slate-800/50 rounded-lg p-3 space-y-3">
+                        <div className="flex items-center justify-between">
                             <span className="text-sm font-medium text-slate-300">Plano</span>
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${subscription.plano === 'Shark' ? 'bg-purple-500/20 text-purple-300' :
-                                    subscription.plano === 'Professional' ? 'bg-blue-500/20 text-blue-300' :
-                                        'bg-green-500/20 text-green-300'
+                            <span className={`px-2 py-1 text-xs font-medium rounded-full ${subscription.plano === 'Shark' ?
+                                'bg-purple-500/20 text-purple-300' :
+                                subscription.plano === 'Professional' ? 'bg-blue-500/20 text-blue-300' :
+                                    'bg-green-500/20 text-green-300'
                                 }`}>
                                 {subscription.plano}
                             </span>
@@ -172,8 +192,8 @@ const Sidebar = ({ isCollapsed = false, onToggleCollapse }) => {
                                 <div className="w-full bg-slate-700 rounded-full h-1.5">
                                     <div
                                         className={`h-1.5 rounded-full transition-all duration-300 ${((stats?.totalClientes || 0) / subscription.limiteClientes) > 0.8
-                                                ? 'bg-gradient-to-r from-red-500 to-orange-500'
-                                                : 'bg-gradient-to-r from-blue-500 to-purple-500'
+                                            ? 'bg-gradient-to-r from-red-500 to-orange-500'
+                                            : 'bg-gradient-to-r from-blue-500 to-purple-500'
                                             }`}
                                         style={{
                                             width: `${Math.min(((stats?.totalClientes || 0) / subscription.limiteClientes) * 100, 100)}%`

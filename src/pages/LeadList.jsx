@@ -15,27 +15,21 @@ import {
     LEAD_INTEREST_LABELS
 } from '../models/leadModel';
 import Layout from '../components/Layout';
-
 import {
-    ArrowLeftIcon,
-    PencilIcon,
-    UserPlusIcon,
+    PlusIcon,
+    FunnelIcon,
+    MagnifyingGlassIcon,
     PhoneIcon,
     EnvelopeIcon,
-    ChatBubbleLeftIcon,
-    CalendarIcon,
-    ClockIcon,
-    CheckCircleIcon,
     ExclamationTriangleIcon,
     FireIcon,
-    PlusIcon,
+    ClockIcon,
+    UserPlusIcon,
+    PencilIcon,
     EyeIcon,
-    DocumentTextIcon,
-    TagIcon,
-    BanknotesIcon,
-    HomeIcon,
-    IdentificationIcon,
-    XMarkIcon
+    XMarkIcon,
+    ArrowPathIcon,
+    BellAlertIcon
 } from '@heroicons/react/24/outline';
 import { Snowflake } from 'lucide-react';
 
@@ -133,7 +127,7 @@ const LeadListPage = () => {
             },
             fria: {
                 color: 'bg-blue-100 text-blue-700 border-blue-200',
-                icon: SnowflakeIcon,
+                icon: Snowflake,
                 label: 'Fria'
             }
         };
@@ -172,53 +166,35 @@ const LeadListPage = () => {
 
     return (
         <Layout>
-            <div className="p-6">
+            <div className="space-y-6">
                 {/* Header */}
-                <div className="flex items-center justify-between mb-6">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
                     <div>
                         <h1 className="text-2xl font-bold text-gray-900">Leads</h1>
-                        <p className="text-gray-600 mt-1">
-                            Gerir prospects e oportunidades de negócio
+                        <p className="mt-1 text-sm text-gray-600">
+                            {isSearching ? (
+                                `${searchResults.length} resultado${searchResults.length !== 1 ? 's' : ''} encontrado${searchResults.length !== 1 ? 's' : ''}`
+                            ) : (
+                                `${leads.length} lead${leads.length !== 1 ? 's' : ''} total`
+                            )}
                         </p>
                     </div>
-
-                    <div className="flex items-center space-x-3">
-                        {/* Botão Alertas */}
-                        {alertLeads && alertLeads.length > 0 && (
-                            <button
-                                onClick={() => setShowAlerts(!showAlerts)}
-                                className="relative inline-flex items-center px-3 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors"
-                            >
-                                <BellAlertIcon className="w-5 h-5 mr-2" />
-                                Alertas
-                                <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                                    {alertLeads.length}
-                                </span>
-                            </button>
-                        )}
-
-                        {/* Refresh */}
+                    <div className="mt-4 sm:mt-0 flex space-x-3">
                         <button
                             onClick={handleRefresh}
-                            disabled={loading.list}
-                            className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
+                            disabled={loading.list || loading.stats}
+                            className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                            <ArrowPathIcon className={`w-5 h-5 ${loading.list ? 'animate-spin' : ''}`} />
+                            <ArrowPathIcon className={`w-4 h-4 mr-2 ${(loading.list || loading.stats) ? 'animate-spin' : ''}`} />
+                            Atualizar
                         </button>
-
-                        {/* Filtros */}
                         <button
-                            onClick={() => setShowFilters(!showFilters)}
-                            className={`inline-flex items-center px-3 py-2 rounded-lg transition-colors ${showFilters
-                                ? 'bg-blue-100 text-blue-700'
-                                : 'text-gray-600 hover:text-gray-800 hover:bg-gray-100'
-                                }`}
+                            onClick={() => setShowAlerts(!showAlerts)}
+                            className="inline-flex items-center px-3 py-2 border border-orange-300 rounded-lg text-sm font-medium text-orange-700 bg-orange-50 hover:bg-orange-100"
                         >
-                            <FunnelIcon className="w-5 h-5 mr-2" />
-                            Filtros
+                            <BellAlertIcon className="w-4 h-4 mr-2" />
+                            Alertas ({alertLeads?.length || 0})
                         </button>
-
-                        {/* Nova Lead */}
                         <button
                             onClick={() => navigate('/leads/new')}
                             className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
@@ -229,198 +205,227 @@ const LeadListPage = () => {
                     </div>
                 </div>
 
-                {/* Alertas em destaque */}
+                {/* Stats Cards */}
+                {stats && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div className="bg-white rounded-lg p-4 border border-gray-200">
+                            <div className="flex items-center">
+                                <div className="p-2 bg-green-100 rounded-lg">
+                                    <UserPlusIcon className="w-5 h-5 text-green-600" />
+                                </div>
+                                <div className="ml-3">
+                                    <p className="text-sm font-medium text-gray-600">Novas</p>
+                                    <p className="text-lg font-semibold text-gray-900">{stats.nova || 0}</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="bg-white rounded-lg p-4 border border-gray-200">
+                            <div className="flex items-center">
+                                <div className="p-2 bg-blue-100 rounded-lg">
+                                    <PhoneIcon className="w-5 h-5 text-blue-600" />
+                                </div>
+                                <div className="ml-3">
+                                    <p className="text-sm font-medium text-gray-600">Contactadas</p>
+                                    <p className="text-lg font-semibold text-gray-900">{stats.contactada || 0}</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="bg-white rounded-lg p-4 border border-gray-200">
+                            <div className="flex items-center">
+                                <div className="p-2 bg-purple-100 rounded-lg">
+                                    <ExclamationTriangleIcon className="w-5 h-5 text-purple-600" />
+                                </div>
+                                <div className="ml-3">
+                                    <p className="text-sm font-medium text-gray-600">Qualificadas</p>
+                                    <p className="text-lg font-semibold text-gray-900">{stats.qualificada || 0}</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="bg-white rounded-lg p-4 border border-gray-200">
+                            <div className="flex items-center">
+                                <div className="p-2 bg-emerald-100 rounded-lg">
+                                    <FireIcon className="w-5 h-5 text-emerald-600" />
+                                </div>
+                                <div className="ml-3">
+                                    <p className="text-sm font-medium text-gray-600">Convertidas</p>
+                                    <p className="text-lg font-semibold text-gray-900">{stats.convertida || 0}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Alertas */}
                 {showAlerts && alertLeads && alertLeads.length > 0 && (
-                    <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+                    <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
                         <div className="flex items-center justify-between mb-3">
-                            <h3 className="text-lg font-semibold text-red-800">
-                                Leads que precisam de atenção
-                            </h3>
+                            <h3 className="text-sm font-medium text-orange-800">Leads que requerem atenção</h3>
                             <button
                                 onClick={() => setShowAlerts(false)}
-                                className="text-red-600 hover:text-red-800"
+                                className="text-orange-600 hover:text-orange-800"
                             >
-                                <XMarkIcon className="w-5 h-5" />
+                                <XMarkIcon className="w-4 h-4" />
                             </button>
                         </div>
                         <div className="space-y-2">
-                            {alertLeads.slice(0, 5).map((lead) => (
-                                <div key={lead.id} className="flex items-center justify-between p-3 bg-white border border-red-200 rounded-lg">
-                                    <div className="flex items-center space-x-3">
-                                        <ExclamationTriangleIcon className="w-5 h-5 text-red-500" />
-                                        <div>
-                                            <p className="font-medium text-gray-900">{lead.name}</p>
-                                            <p className="text-sm text-gray-600">
-                                                {lead.nextAction?.motivo || 'Sem contacto há vários dias'}
-                                            </p>
-                                        </div>
+                            {alertLeads.map((lead) => (
+                                <div key={lead.id} className="flex items-center justify-between py-2 px-3 bg-white rounded border border-orange-200">
+                                    <div>
+                                        <p className="text-sm font-medium text-gray-900">{lead.nome}</p>
+                                        <p className="text-xs text-gray-600">
+                                            {lead.alertReason === 'no_contact' && 'Sem contacto há mais de 7 dias'}
+                                            {lead.alertReason === 'overdue_task' && 'Tarefa em atraso'}
+                                            {lead.alertReason === 'scheduled_contact' && 'Contacto agendado para hoje'}
+                                        </p>
                                     </div>
-                                    <div className="flex items-center space-x-2">
-                                        {getTemperatureBadge(lead.temperatura)}
-                                        <button
-                                            onClick={() => navigate(`/leads/${lead.id}`)}
-                                            className="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700"
-                                        >
-                                            Ver Lead
-                                        </button>
-                                    </div>
+                                    <button
+                                        onClick={() => navigate(`/leads/${lead.id}`)}
+                                        className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                                    >
+                                        Ver
+                                    </button>
                                 </div>
                             ))}
                         </div>
                     </div>
                 )}
 
-                {/* Estatísticas */}
-                {stats && (
-                    <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
-                        <div className="bg-white rounded-lg border border-gray-200 p-4">
-                            <div className="text-2xl font-bold text-blue-600">{stats.total}</div>
-                            <div className="text-sm text-gray-600">Total Leads</div>
-                        </div>
-                        <div className="bg-white rounded-lg border border-gray-200 p-4">
-                            <div className="text-2xl font-bold text-green-600">{stats.qualificadas}</div>
-                            <div className="text-sm text-gray-600">Qualificadas</div>
-                        </div>
-                        <div className="bg-white rounded-lg border border-gray-200 p-4">
-                            <div className="text-2xl font-bold text-purple-600">{stats.convertidas}</div>
-                            <div className="text-sm text-gray-600">Convertidas</div>
-                        </div>
-                        <div className="bg-white rounded-lg border border-gray-200 p-4">
-                            <div className="text-2xl font-bold text-red-600">{stats.quentes}</div>
-                            <div className="text-sm text-gray-600">Quentes</div>
-                        </div>
-                        <div className="bg-white rounded-lg border border-gray-200 p-4">
-                            <div className="text-2xl font-bold text-orange-600">
-                                {stats.conversaoRate ? `${stats.conversaoRate.toFixed(1)}%` : '0%'}
+                {/* Barra de Pesquisa e Filtros */}
+                <div className="bg-white rounded-lg border border-gray-200 p-4">
+                    <div className="flex flex-col sm:flex-row gap-4">
+                        {/* Pesquisa */}
+                        <div className="flex-1">
+                            <div className="relative">
+                                <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                                <input
+                                    type="text"
+                                    placeholder="Pesquisar por nome, email, telefone..."
+                                    value={localSearchTerm}
+                                    onChange={(e) => setLocalSearchTerm(e.target.value)}
+                                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                />
+                                {(searchTerm || localSearchTerm) && (
+                                    <button
+                                        onClick={() => {
+                                            setLocalSearchTerm('');
+                                            clearSearch();
+                                        }}
+                                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                    >
+                                        <XMarkIcon className="w-4 h-4" />
+                                    </button>
+                                )}
                             </div>
-                            <div className="text-sm text-gray-600">Taxa Conversão</div>
                         </div>
-                    </div>
-                )}
 
-                {/* Barra de Pesquisa */}
-                <div className="mb-6">
-                    <div className="relative max-w-md">
-                        <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                        <input
-                            type="text"
-                            placeholder="Pesquisar leads..."
-                            value={localSearchTerm}
-                            onChange={(e) => setLocalSearchTerm(e.target.value)}
-                            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        />
-                        {(searchTerm || localSearchTerm) && (
-                            <button
-                                onClick={() => {
-                                    setLocalSearchTerm('');
-                                    clearSearch();
-                                }}
-                                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                            >
-                                <XMarkIcon className="w-5 h-5" />
-                            </button>
-                        )}
+                        {/* Botão de Filtros */}
+                        <button
+                            onClick={() => setShowFilters(!showFilters)}
+                            className={`inline-flex items-center px-4 py-2 border rounded-lg text-sm font-medium transition-colors ${showFilters
+                                    ? 'bg-blue-50 border-blue-300 text-blue-700'
+                                    : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                                }`}
+                        >
+                            <FunnelIcon className="w-4 h-4 mr-2" />
+                            Filtros
+                        </button>
                     </div>
 
-                    {isSearching && (
-                        <p className="mt-2 text-sm text-gray-600">
-                            {loading.search ? 'Pesquisando...' : `${searchResults.length} resultados encontrados`}
-                        </p>
+                    {/* Painel de Filtros */}
+                    {showFilters && (
+                        <div className="mt-4 pt-4 border-t border-gray-200">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                {/* Status */}
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-700 mb-1">Status</label>
+                                    <select
+                                        value={filters.status || ''}
+                                        onChange={(e) => handleFilterChange('status', e.target.value || null)}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    >
+                                        <option value="">Todos</option>
+                                        <option value="nova">Nova</option>
+                                        <option value="contactada">Contactada</option>
+                                        <option value="qualificada">Qualificada</option>
+                                        <option value="convertida">Convertida</option>
+                                        <option value="perdida">Perdida</option>
+                                    </select>
+                                </div>
+
+                                {/* Temperatura */}
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-700 mb-1">Temperatura</label>
+                                    <select
+                                        value={filters.temperatura || ''}
+                                        onChange={(e) => handleFilterChange('temperatura', e.target.value || null)}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    >
+                                        <option value="">Todas</option>
+                                        <option value="quente">Quente</option>
+                                        <option value="morna">Morna</option>
+                                        <option value="fria">Fria</option>
+                                    </select>
+                                </div>
+
+                                {/* Fonte */}
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-700 mb-1">Fonte</label>
+                                    <select
+                                        value={filters.leadSource || ''}
+                                        onChange={(e) => handleFilterChange('leadSource', e.target.value || null)}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    >
+                                        <option value="">Todas</option>
+                                        <option value="website">Website</option>
+                                        <option value="referral">Referência</option>
+                                        <option value="social_media">Redes Sociais</option>
+                                        <option value="advertising">Publicidade</option>
+                                        <option value="cold_call">Cold Call</option>
+                                        <option value="event">Evento</option>
+                                        <option value="other">Outro</option>
+                                    </select>
+                                </div>
+
+                                {/* Interesse */}
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-700 mb-1">Interesse</label>
+                                    <select
+                                        value={filters.interesse || ''}
+                                        onChange={(e) => handleFilterChange('interesse', e.target.value || null)}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    >
+                                        <option value="">Todos</option>
+                                        <option value="comprar">Comprar</option>
+                                        <option value="vender">Vender</option>
+                                        <option value="investir">Investir</option>
+                                        <option value="arrendar">Arrendar</option>
+                                        <option value="avaliar">Avaliar</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            {/* Ações dos Filtros */}
+                            <div className="mt-4 flex justify-end space-x-3">
+                                <button
+                                    onClick={handleResetFilters}
+                                    className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800"
+                                >
+                                    Limpar
+                                </button>
+                                <button
+                                    onClick={() => setShowFilters(false)}
+                                    className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"
+                                >
+                                    Aplicar
+                                </button>
+                            </div>
+                        </div>
                     )}
                 </div>
 
-                {/* Painel de Filtros */}
-                {showFilters && (
-                    <div className="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                            {/* Status */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Status
-                                </label>
-                                <select
-                                    value={filters.status}
-                                    onChange={(e) => handleFilterChange('status', e.target.value)}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                                >
-                                    <option value="all">Todos</option>
-                                    <option value="nova">Nova</option>
-                                    <option value="contactada">Contactada</option>
-                                    <option value="qualificada">Qualificada</option>
-                                    <option value="convertida">Convertida</option>
-                                    <option value="perdida">Perdida</option>
-                                </select>
-                            </div>
-
-                            {/* Fonte */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Fonte
-                                </label>
-                                <select
-                                    value={filters.fonte}
-                                    onChange={(e) => handleFilterChange('fonte', e.target.value)}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                                >
-                                    <option value="all">Todas</option>
-                                    {Object.entries(LEAD_SOURCE_LABELS).map(([key, label]) => (
-                                        <option key={key} value={key}>{label}</option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            {/* Interesse */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Interesse
-                                </label>
-                                <select
-                                    value={filters.interesse}
-                                    onChange={(e) => handleFilterChange('interesse', e.target.value)}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                                >
-                                    <option value="all">Todos</option>
-                                    {Object.entries(LEAD_INTEREST_LABELS).map(([key, label]) => (
-                                        <option key={key} value={key}>{label}</option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            {/* Temperatura */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Temperatura
-                                </label>
-                                <select
-                                    value={filters.temperatura}
-                                    onChange={(e) => handleFilterChange('temperatura', e.target.value)}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                                >
-                                    <option value="all">Todas</option>
-                                    <option value="quente">Quente</option>
-                                    <option value="morna">Morna</option>
-                                    <option value="fria">Fria</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <div className="mt-4 flex items-center justify-between">
-                            <p className="text-sm text-gray-600">
-                                {displayLeads.length} leads encontradas
-                            </p>
-                            <button
-                                onClick={handleResetFilters}
-                                className="px-3 py-1 text-sm text-gray-600 hover:text-gray-800 border border-gray-300 rounded hover:bg-gray-50 transition-colors"
-                            >
-                                Limpar Filtros
-                            </button>
-                        </div>
-                    </div>
-                )}
-
                 {/* Lista de Leads */}
                 <div className="space-y-4">
-                    {loading.list && displayLeads.length === 0 ? (
+                    {loading.list ? (
                         <div className="text-center py-12">
                             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
                             <p className="text-gray-600">Carregando leads...</p>
@@ -457,26 +462,32 @@ const LeadListPage = () => {
                                             <div>
                                                 <div className="flex items-center space-x-3 mb-2">
                                                     <h3 className="text-lg font-semibold text-gray-900">
-                                                        {lead.name}
+                                                        {lead.nome}
                                                     </h3>
-                                                    <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full border border-blue-200">
-                                                        PROSPECT
-                                                    </span>
-                                                </div>
-                                                <div className="flex items-center space-x-4 text-sm text-gray-600">
-                                                    {lead.phone && (
-                                                        <div className="flex items-center">
-                                                            <PhoneIcon className="w-4 h-4 mr-1" />
-                                                            {lead.phone}
-                                                        </div>
-                                                    )}
                                                     {lead.email && (
-                                                        <div className="flex items-center">
-                                                            <EnvelopeIcon className="w-4 h-4 mr-1" />
-                                                            {lead.email}
-                                                        </div>
+                                                        <a
+                                                            href={`mailto:${lead.email}`}
+                                                            className="text-blue-600 hover:text-blue-800"
+                                                        >
+                                                            <EnvelopeIcon className="w-4 h-4" />
+                                                        </a>
+                                                    )}
+                                                    {lead.telefone && (
+                                                        <a
+                                                            href={`tel:${lead.telefone}`}
+                                                            className="text-green-600 hover:text-green-800"
+                                                        >
+                                                            <PhoneIcon className="w-4 h-4" />
+                                                        </a>
                                                     )}
                                                 </div>
+
+                                                {lead.email && (
+                                                    <p className="text-sm text-gray-600 mb-1">{lead.email}</p>
+                                                )}
+                                                {lead.telefone && (
+                                                    <p className="text-sm text-gray-600">{lead.telefone}</p>
+                                                )}
                                             </div>
 
                                             <div className="flex items-center space-x-2">
@@ -546,66 +557,53 @@ const LeadListPage = () => {
                                     </div>
 
                                     {/* Ações */}
-                                    <div className="flex items-center space-x-2 ml-4">
+                                    <div className="ml-6 flex flex-col space-y-2">
                                         <button
                                             onClick={() => navigate(`/leads/${lead.id}`)}
-                                            className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                            title="Ver detalhes"
+                                            className="inline-flex items-center px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
                                         >
-                                            <EyeIcon className="w-5 h-5" />
+                                            <EyeIcon className="w-4 h-4 mr-1" />
+                                            Ver
                                         </button>
                                         <button
                                             onClick={() => navigate(`/leads/${lead.id}/edit`)}
-                                            className="p-2 text-gray-600 hover:text-yellow-600 hover:bg-yellow-50 rounded-lg transition-colors"
-                                            title="Editar lead"
+                                            className="inline-flex items-center px-3 py-1.5 bg-gray-100 text-gray-700 text-sm rounded-lg hover:bg-gray-200 transition-colors"
                                         >
-                                            <PencilIcon className="w-5 h-5" />
+                                            <PencilIcon className="w-4 h-4 mr-1" />
+                                            Editar
                                         </button>
-                                        {lead.status === 'qualificada' && (
-                                            <button
-                                                onClick={() => navigate(`/leads/${lead.id}/convert`)}
-                                                className="p-2 text-gray-600 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                                                title="Converter para cliente"
-                                            >
-                                                <UserPlusIcon className="w-5 h-5" />
-                                            </button>
-                                        )}
                                     </div>
                                 </div>
                             </div>
                         ))
                     )}
 
-                    {/* Botão Carregar Mais */}
-                    {!isSearching && pagination.hasMore && (
-                        <div className="text-center py-6">
+                    {/* Load More */}
+                    {!loading.list && !isSearching && pagination.hasMore && (
+                        <div className="text-center pt-6">
                             <button
                                 onClick={handleLoadMore}
-                                disabled={loading.list}
-                                className="px-6 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
+                                className="inline-flex items-center px-6 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
                             >
-                                {loading.list ? 'A carregar...' : 'Carregar mais'}
+                                Carregar mais leads
                             </button>
                         </div>
                     )}
                 </div>
 
-                {/* Mensagens de erro */}
+                {/* Erros */}
                 {errors.list && (
-                    <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-                        <div className="flex items-center">
-                            <div className="flex-shrink-0">
-                                <XMarkIcon className="w-5 h-5 text-red-400" />
-                            </div>
-                            <div className="ml-3">
-                                <p className="text-red-800">{errors.list}</p>
-                            </div>
-                            <div className="ml-auto pl-3">
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                        <div className="flex">
+                            <ExclamationTriangleIcon className="w-5 h-5 text-red-600 mr-3 flex-shrink-0" />
+                            <div className="flex-1">
+                                <h3 className="text-sm font-medium text-red-800">Erro ao carregar leads</h3>
+                                <p className="text-sm text-red-700 mt-1">{errors.list}</p>
                                 <button
                                     onClick={() => clearError('list')}
-                                    className="text-red-400 hover:text-red-600"
+                                    className="text-sm text-red-600 hover:text-red-800 mt-2 font-medium"
                                 >
-                                    <XMarkIcon className="w-5 h-5" />
+                                    Dispensar
                                 </button>
                             </div>
                         </div>
