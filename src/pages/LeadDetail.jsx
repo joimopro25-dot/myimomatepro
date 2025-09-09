@@ -30,7 +30,6 @@ import {
     CheckCircleIcon,
     ExclamationTriangleIcon,
     FireIcon,
-    SnowflakeIcon,
     PlusIcon,
     EyeIcon,
     DocumentTextIcon,
@@ -40,6 +39,7 @@ import {
     IdentificationIcon,
     XMarkIcon
 } from '@heroicons/react/24/outline';
+import { Snowflake } from 'lucide-react';
 
 const LeadDetailPage = () => {
     const { leadId } = useParams();
@@ -175,7 +175,7 @@ const LeadDetailPage = () => {
             },
             fria: {
                 color: 'bg-blue-100 text-blue-700 border-blue-200',
-                icon: SnowflakeIcon,
+                icon: Snowflake,
                 label: 'Fria'
             }
         };
@@ -270,7 +270,7 @@ const LeadDetailPage = () => {
                         <div>
                             <div className="flex items-center space-x-3 mb-2">
                                 <h1 className="text-2xl font-bold text-gray-900">
-                                    {currentLead.name}
+                                    {currentLead.nome}
                                 </h1>
                                 <span className="px-3 py-1 bg-blue-100 text-blue-700 text-sm font-medium rounded-full border border-blue-200">
                                     PROSPECT
@@ -287,77 +287,43 @@ const LeadDetailPage = () => {
                         </div>
                     </div>
 
-                    <div className="flex items-center space-x-3">
-                        {/* Ações Rápidas */}
-                        <button
-                            onClick={() => setShowContactModal(true)}
-                            className="inline-flex items-center px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                        >
-                            <PhoneIcon className="w-4 h-4 mr-2" />
-                            Contactar
-                        </button>
-
-                        <button
-                            onClick={() => setShowTaskModal(true)}
-                            className="inline-flex items-center px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                        >
-                            <PlusIcon className="w-4 h-4 mr-2" />
-                            Tarefa
-                        </button>
-
+                    <div className="flex space-x-3">
                         <button
                             onClick={() => navigate(`/leads/${leadId}/edit`)}
-                            className="inline-flex items-center px-3 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors"
+                            className="inline-flex items-center px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
                         >
                             <PencilIcon className="w-4 h-4 mr-2" />
                             Editar
                         </button>
-
-                        {currentLead.status === 'qualificada' && (
-                            <button
-                                onClick={() => setShowConvertModal(true)}
-                                className="inline-flex items-center px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
-                            >
-                                <UserPlusIcon className="w-4 h-4 mr-2" />
-                                Converter
-                            </button>
-                        )}
+                        <button
+                            onClick={() => setShowConvertModal(true)}
+                            className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                        >
+                            <UserPlusIcon className="w-4 h-4 mr-2" />
+                            Converter em Cliente
+                        </button>
                     </div>
                 </div>
 
-                {/* Alertas e Sugestões */}
+                {/* Próxima ação recomendada */}
                 {nextAction && (
-                    <div className="mb-6 p-4 bg-orange-50 border border-orange-200 rounded-lg">
-                        <div className="flex items-center space-x-3">
-                            <ExclamationTriangleIcon className="w-5 h-5 text-orange-500" />
+                    <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-6">
+                        <div className="flex items-center">
+                            <ExclamationTriangleIcon className="w-5 h-5 text-orange-600 mr-3 flex-shrink-0" />
                             <div>
-                                <p className="font-medium text-orange-800">Ação Recomendada</p>
-                                <p className="text-sm text-orange-700">{nextAction.motivo}</p>
+                                <h3 className="text-sm font-medium text-orange-800">Ação Recomendada</h3>
+                                <p className="text-sm text-orange-700 mt-1">{nextAction}</p>
                             </div>
-                            <button
-                                onClick={() => {
-                                    setTaskForm({
-                                        tipo: nextAction.tipo,
-                                        titulo: 'Ação sugerida automaticamente',
-                                        descricao: nextAction.motivo,
-                                        agendadaPara: nextAction.prazo.toISOString().split('T')[0]
-                                    });
-                                    setShowTaskModal(true);
-                                }}
-                                className="ml-auto px-3 py-1 bg-orange-600 text-white text-sm rounded hover:bg-orange-700"
-                            >
-                                Agendar
-                            </button>
                         </div>
                     </div>
                 )}
 
                 {/* Tabs */}
-                <div className="mb-6">
-                    <nav className="flex space-x-8">
+                <div className="border-b border-gray-200 mb-6">
+                    <nav className="-mb-px flex space-x-8">
                         {[
-                            { id: 'info', label: 'Informações', icon: IdentificationIcon },
-                            { id: 'tasks', label: 'Tarefas', icon: CheckCircleIcon },
+                            { id: 'info', label: 'Informações', icon: EyeIcon },
+                            { id: 'tasks', label: 'Tarefas', icon: DocumentTextIcon },
                             { id: 'contacts', label: 'Contactos', icon: PhoneIcon },
                             { id: 'timeline', label: 'Timeline', icon: ClockIcon }
                         ].map((tab) => {
@@ -366,13 +332,13 @@ const LeadDetailPage = () => {
                                 <button
                                     key={tab.id}
                                     onClick={() => setActiveTab(tab.id)}
-                                    className={`flex items-center space-x-2 py-2 px-1 border-b-2 font-medium text-sm ${activeTab === tab.id
+                                    className={`py-2 px-1 border-b-2 font-medium text-sm flex items-center ${activeTab === tab.id
                                             ? 'border-blue-500 text-blue-600'
                                             : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                                         }`}
                                 >
-                                    <Icon className="w-4 h-4" />
-                                    <span>{tab.label}</span>
+                                    <Icon className="w-4 h-4 mr-2" />
+                                    {tab.label}
                                 </button>
                             );
                         })}
@@ -384,17 +350,25 @@ const LeadDetailPage = () => {
                     {/* Tab: Informações */}
                     {activeTab === 'info' && (
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                            {/* Informações Básicas */}
+                            {/* Contactos */}
                             <div className="bg-white rounded-lg border border-gray-200 p-6">
-                                <h3 className="text-lg font-semibold text-gray-900 mb-4">Informações Básicas</h3>
+                                <h3 className="text-lg font-semibold text-gray-900 mb-4">Contactos</h3>
                                 <div className="space-y-3">
+                                    {currentLead.telefone && (
+                                        <div className="flex items-center space-x-3">
+                                            <PhoneIcon className="w-5 h-5 text-gray-400" />
+                                            <span className="text-gray-900">{currentLead.telefone}</span>
+                                        </div>
+                                    )}
+                                    {currentLead.email && (
+                                        <div className="flex items-center space-x-3">
+                                            <EnvelopeIcon className="w-5 h-5 text-gray-400" />
+                                            <span className="text-gray-900">{currentLead.email}</span>
+                                        </div>
+                                    )}
                                     <div className="flex items-center space-x-3">
-                                        <PhoneIcon className="w-5 h-5 text-gray-400" />
-                                        <span className="text-gray-900">{currentLead.phone || 'N/A'}</span>
-                                    </div>
-                                    <div className="flex items-center space-x-3">
-                                        <EnvelopeIcon className="w-5 h-5 text-gray-400" />
-                                        <span className="text-gray-900">{currentLead.email || 'N/A'}</span>
+                                        <IdentificationIcon className="w-5 h-5 text-gray-400" />
+                                        <span className="text-gray-900">{currentLead.age || 'N/A'}</span>
                                     </div>
                                     <div className="flex items-center space-x-3">
                                         <BanknotesIcon className="w-5 h-5 text-gray-400" />
@@ -466,254 +440,208 @@ const LeadDetailPage = () => {
                                     )}
                                 </div>
                             </div>
-
-                            {/* Observações */}
-                            {currentLead.consultorObservations && (
-                                <div className="bg-white rounded-lg border border-gray-200 p-6">
-                                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Observações do Consultor</h3>
-                                    <p className="text-gray-700 bg-gray-50 p-3 rounded-lg">
-                                        {currentLead.consultorObservations}
-                                    </p>
-                                </div>
-                            )}
                         </div>
                     )}
 
                     {/* Tab: Tarefas */}
                     {activeTab === 'tasks' && (
-                        <div className="bg-white rounded-lg border border-gray-200">
-                            <div className="p-6 border-b border-gray-200">
-                                <div className="flex items-center justify-between">
-                                    <h3 className="text-lg font-semibold text-gray-900">Tarefas</h3>
-                                    <button
-                                        onClick={() => setShowTaskModal(true)}
-                                        className="inline-flex items-center px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                                    >
-                                        <PlusIcon className="w-4 h-4 mr-2" />
-                                        Nova Tarefa
-                                    </button>
+                        <div className="space-y-4">
+                            <div className="flex justify-between items-center">
+                                <h3 className="text-lg font-semibold text-gray-900">Tarefas</h3>
+                                <button
+                                    onClick={() => setShowTaskModal(true)}
+                                    className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                                >
+                                    <PlusIcon className="w-4 h-4 mr-2" />
+                                    Nova Tarefa
+                                </button>
+                            </div>
+
+                            {leadTasks.length === 0 ? (
+                                <div className="text-center py-8 bg-white rounded-lg border border-gray-200">
+                                    <DocumentTextIcon className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                                    <p className="text-gray-600">Ainda não há tarefas para esta lead</p>
                                 </div>
-                            </div>
-
-                            <div className="p-6">
-                                {loading.tasks ? (
-                                    <div className="text-center py-8">
-                                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                                        <p className="text-gray-600">Carregando tarefas...</p>
-                                    </div>
-                                ) : leadTasks.length === 0 ? (
-                                    <div className="text-center py-8">
-                                        <CheckCircleIcon className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                                        <p className="text-gray-600">Nenhuma tarefa criada</p>
-                                    </div>
-                                ) : (
-                                    <div className="space-y-4">
-                                        {leadTasks.map((task) => {
-                                            const Icon = getTypeIcon(task.tipo);
-                                            const isOverdue = task.agendadaPara &&
-                                                task.agendadaPara.toDate() < new Date() &&
-                                                task.status === 'pendente';
-
-                                            return (
-                                                <div key={task.id} className={`p-4 rounded-lg border ${task.status === 'concluida'
-                                                        ? 'bg-green-50 border-green-200'
-                                                        : isOverdue
-                                                            ? 'bg-red-50 border-red-200'
-                                                            : 'bg-gray-50 border-gray-200'
-                                                    }`}>
-                                                    <div className="flex items-start justify-between">
-                                                        <div className="flex items-start space-x-3">
-                                                            <Icon className={`w-5 h-5 mt-1 ${task.status === 'concluida'
-                                                                    ? 'text-green-600'
-                                                                    : isOverdue
-                                                                        ? 'text-red-600'
-                                                                        : 'text-blue-600'
-                                                                }`} />
-                                                            <div>
-                                                                <h4 className="font-medium text-gray-900">{task.titulo}</h4>
-                                                                {task.descricao && (
-                                                                    <p className="text-sm text-gray-600 mt-1">{task.descricao}</p>
-                                                                )}
-                                                                <div className="flex items-center space-x-4 mt-2 text-xs text-gray-500">
-                                                                    {task.agendadaPara && (
-                                                                        <span>
-                                                                            Agendada: {task.agendadaPara.toDate().toLocaleDateString('pt-PT')}
-                                                                        </span>
-                                                                    )}
-                                                                    <span className={`px-2 py-1 rounded-full ${task.status === 'concluida'
-                                                                            ? 'bg-green-100 text-green-700'
-                                                                            : 'bg-yellow-100 text-yellow-700'
-                                                                        }`}>
-                                                                        {task.status === 'concluida' ? 'Concluída' : 'Pendente'}
-                                                                    </span>
-                                                                </div>
-                                                            </div>
+                            ) : (
+                                <div className="space-y-3">
+                                    {leadTasks.map((task) => {
+                                        const TypeIcon = getTypeIcon(task.tipo);
+                                        return (
+                                            <div key={task.id} className="bg-white border border-gray-200 rounded-lg p-4">
+                                                <div className="flex items-start justify-between">
+                                                    <div className="flex-1">
+                                                        <div className="flex items-center space-x-3 mb-2">
+                                                            <TypeIcon className="w-4 h-4 text-gray-400" />
+                                                            <h4 className="font-medium text-gray-900">{task.titulo}</h4>
+                                                            <span className={`px-2 py-1 text-xs rounded-full ${task.status === 'completed'
+                                                                    ? 'bg-green-100 text-green-700'
+                                                                    : task.status === 'overdue'
+                                                                        ? 'bg-red-100 text-red-700'
+                                                                        : 'bg-yellow-100 text-yellow-700'
+                                                                }`}>
+                                                                {task.status === 'completed' ? 'Concluída' :
+                                                                    task.status === 'overdue' ? 'Em atraso' : 'Pendente'}
+                                                            </span>
                                                         </div>
-
-                                                        {task.status === 'pendente' && (
-                                                            <button
-                                                                onClick={() => handleCompleteTask(task.id, 'Tarefa concluída')}
-                                                                className="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700"
-                                                            >
-                                                                Concluir
-                                                            </button>
+                                                        {task.descricao && (
+                                                            <p className="text-sm text-gray-600 mb-2">{task.descricao}</p>
                                                         )}
+                                                        <p className="text-xs text-gray-500">
+                                                            Agendada para: {task.agendadaPara?.toDate?.()?.toLocaleDateString('pt-PT')}
+                                                        </p>
                                                     </div>
+                                                    {task.status !== 'completed' && (
+                                                        <button
+                                                            onClick={() => handleCompleteTask(task.id, 'completed')}
+                                                            className="ml-4 text-green-600 hover:text-green-800"
+                                                        >
+                                                            <CheckCircleIcon className="w-5 h-5" />
+                                                        </button>
+                                                    )}
                                                 </div>
-                                            );
-                                        })}
-                                    </div>
-                                )}
-                            </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
                         </div>
                     )}
 
                     {/* Tab: Contactos */}
                     {activeTab === 'contacts' && (
-                        <div className="bg-white rounded-lg border border-gray-200">
-                            <div className="p-6 border-b border-gray-200">
-                                <div className="flex items-center justify-between">
-                                    <h3 className="text-lg font-semibold text-gray-900">Histórico de Contactos</h3>
-                                    <button
-                                        onClick={() => setShowContactModal(true)}
-                                        className="inline-flex items-center px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                                    >
-                                        <PlusIcon className="w-4 h-4 mr-2" />
-                                        Registar Contacto
-                                    </button>
-                                </div>
+                        <div className="space-y-4">
+                            <div className="flex justify-between items-center">
+                                <h3 className="text-lg font-semibold text-gray-900">Histórico de Contactos</h3>
+                                <button
+                                    onClick={() => setShowContactModal(true)}
+                                    className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                                >
+                                    <PlusIcon className="w-4 h-4 mr-2" />
+                                    Registar Contacto
+                                </button>
                             </div>
 
-                            <div className="p-6">
-                                {loading.contacts ? (
-                                    <div className="text-center py-8">
-                                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                                        <p className="text-gray-600">Carregando contactos...</p>
-                                    </div>
-                                ) : leadContacts.length === 0 ? (
-                                    <div className="text-center py-8">
-                                        <PhoneIcon className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                                        <p className="text-gray-600">Nenhum contacto registado</p>
-                                    </div>
-                                ) : (
-                                    <div className="space-y-4">
-                                        {leadContacts.map((contact) => {
-                                            const Icon = getTypeIcon(contact.tipo);
-
-                                            return (
-                                                <div key={contact.id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
-                                                    <div className="flex items-start space-x-3">
-                                                        <Icon className="w-5 h-5 mt-1 text-blue-600" />
-                                                        <div className="flex-1">
-                                                            <div className="flex items-center justify-between">
-                                                                <h4 className="font-medium text-gray-900">{contact.resumo}</h4>
-                                                                <span className="text-xs text-gray-500">
-                                                                    {contact.dataContacto.toDate().toLocaleDateString('pt-PT')}
-                                                                </span>
-                                                            </div>
-                                                            {contact.notas && (
-                                                                <p className="text-sm text-gray-600 mt-1">{contact.notas}</p>
-                                                            )}
-                                                            <div className="flex items-center space-x-2 mt-2">
-                                                                <span className={`px-2 py-1 text-xs rounded-full ${contact.resultado === 'positivo'
-                                                                        ? 'bg-green-100 text-green-700'
-                                                                        : contact.resultado === 'neutro'
-                                                                            ? 'bg-yellow-100 text-yellow-700'
-                                                                            : 'bg-red-100 text-red-700'
-                                                                    }`}>
-                                                                    {contact.resultado}
-                                                                </span>
-                                                                {contact.duracao && (
-                                                                    <span className="text-xs text-gray-500">
-                                                                        {contact.duracao} min
-                                                                    </span>
-                                                                )}
-                                                            </div>
+                            {leadContacts.length === 0 ? (
+                                <div className="text-center py-8 bg-white rounded-lg border border-gray-200">
+                                    <PhoneIcon className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                                    <p className="text-gray-600">Ainda não há contactos registados</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-3">
+                                    {leadContacts.map((contact) => {
+                                        const TypeIcon = getTypeIcon(contact.tipo);
+                                        return (
+                                            <div key={contact.id} className="bg-white border border-gray-200 rounded-lg p-4">
+                                                <div className="flex items-start space-x-3">
+                                                    <TypeIcon className="w-5 h-5 text-gray-400 mt-0.5" />
+                                                    <div className="flex-1">
+                                                        <div className="flex items-center justify-between mb-2">
+                                                            <h4 className="font-medium text-gray-900">{contact.resumo}</h4>
+                                                            <span className={`px-2 py-1 text-xs rounded-full ${contact.resultado === 'positivo'
+                                                                    ? 'bg-green-100 text-green-700'
+                                                                    : contact.resultado === 'negativo'
+                                                                        ? 'bg-red-100 text-red-700'
+                                                                        : 'bg-yellow-100 text-yellow-700'
+                                                                }`}>
+                                                                {contact.resultado}
+                                                            </span>
                                                         </div>
+                                                        {contact.notas && (
+                                                            <p className="text-sm text-gray-600 mb-2">{contact.notas}</p>
+                                                        )}
+                                                        <p className="text-xs text-gray-500">
+                                                            {contact.criadoEm?.toDate?.()?.toLocaleDateString('pt-PT')} às {contact.criadoEm?.toDate?.()?.toLocaleTimeString('pt-PT')}
+                                                        </p>
                                                     </div>
                                                 </div>
-                                            );
-                                        })}
-                                    </div>
-                                )}
-                            </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
                         </div>
                     )}
 
                     {/* Tab: Timeline */}
                     {activeTab === 'timeline' && (
                         <div className="bg-white rounded-lg border border-gray-200 p-6">
-                            <h3 className="text-lg font-semibold text-gray-900 mb-6">Timeline da Lead</h3>
+                            <h3 className="text-lg font-semibold text-gray-900 mb-6">Timeline de Atividades</h3>
 
-                            <div className="space-y-4">
-                                {/* Eventos combinados (tarefas + contactos) ordenados por data */}
-                                {[...leadTasks, ...leadContacts]
-                                    .sort((a, b) => {
-                                        const dateA = a.dataContacto || a.criadaEm || a.agendadaPara;
-                                        const dateB = b.dataContacto || b.criadaEm || b.agendadaPara;
-                                        return dateB.toDate() - dateA.toDate();
-                                    })
-                                    .map((item, index) => {
-                                        const isContact = !!item.dataContacto;
-                                        const Icon = getTypeIcon(item.tipo);
-                                        const date = item.dataContacto || item.criadaEm || item.agendadaPara;
+                            <div className="flow-root">
+                                <ul className="-mb-8">
+                                    {/* Eventos combinados de contactos e tarefas */}
+                                    {[...leadContacts, ...leadTasks]
+                                        .sort((a, b) => (b.criadoEm || b.agendadaPara) - (a.criadoEm || a.agendadaPara))
+                                        .map((item, index, array) => {
+                                            const isContact = !!item.resumo;
+                                            const TypeIcon = getTypeIcon(item.tipo);
+                                            const date = isContact ? item.criadoEm : item.agendadaPara;
 
-                                        return (
-                                            <div key={`${isContact ? 'contact' : 'task'}-${item.id}`} className="flex items-start space-x-4">
-                                                <div className="flex-shrink-0">
-                                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${isContact ? 'bg-green-100' : 'bg-blue-100'
-                                                        }`}>
-                                                        <Icon className={`w-4 h-4 ${isContact ? 'text-green-600' : 'text-blue-600'
-                                                            }`} />
+                                            return (
+                                                <li key={`${isContact ? 'contact' : 'task'}-${item.id}`}>
+                                                    <div className="relative pb-8">
+                                                        {index !== array.length - 1 && (
+                                                            <span className="absolute top-4 left-4 -ml-px h-full w-0.5 bg-gray-200" />
+                                                        )}
+                                                        <div className="relative flex items-start space-x-3">
+                                                            <div className="relative">
+                                                                <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center ring-8 ring-white">
+                                                                    <TypeIcon className="w-4 h-4 text-gray-600" />
+                                                                </div>
+                                                            </div>
+                                                            <div className="min-w-0 flex-1">
+                                                                <div className="text-sm text-gray-900">
+                                                                    <p className="font-medium">
+                                                                        {isContact ? item.resumo : item.titulo}
+                                                                    </p>
+                                                                    <p className="text-xs text-gray-500">
+                                                                        {date?.toDate().toLocaleDateString('pt-PT')}
+                                                                    </p>
+                                                                </div>
+                                                                <p className="text-sm text-gray-600">
+                                                                    {isContact ? 'Contacto registado' : 'Tarefa criada'}
+                                                                </p>
+                                                            </div>
+                                                        </div>
                                                     </div>
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="flex items-center justify-between">
-                                                        <p className="text-sm font-medium text-gray-900">
-                                                            {isContact ? item.resumo : item.titulo}
-                                                        </p>
-                                                        <p className="text-xs text-gray-500">
-                                                            {date.toDate().toLocaleDateString('pt-PT')}
-                                                        </p>
-                                                    </div>
-                                                    <p className="text-sm text-gray-600">
-                                                        {isContact ? 'Contacto registado' : 'Tarefa criada'}
-                                                    </p>
+                                                </li>
+                                            );
+                                        })}
+
+                                    {/* Evento de criação da lead */}
+                                    <li>
+                                        <div className="flex items-start space-x-4">
+                                            <div className="flex-shrink-0">
+                                                <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
+                                                    <UserPlusIcon className="w-4 h-4 text-gray-600" />
                                                 </div>
                                             </div>
-                                        );
-                                    })}
-
-                                {/* Evento de criação da lead */}
-                                <div className="flex items-start space-x-4">
-                                    <div className="flex-shrink-0">
-                                        <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
-                                            <UserPlusIcon className="w-4 h-4 text-gray-600" />
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center justify-between">
+                                                    <p className="text-sm font-medium text-gray-900">Lead criada</p>
+                                                    <p className="text-xs text-gray-500">
+                                                        {currentLead.criadoEm?.toDate?.()?.toLocaleDateString('pt-PT')}
+                                                    </p>
+                                                </div>
+                                                <p className="text-sm text-gray-600">
+                                                    Lead criada no sistema
+                                                </p>
+                                            </div>
                                         </div>
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex items-center justify-between">
-                                            <p className="text-sm font-medium text-gray-900">Lead criada</p>
-                                            <p className="text-xs text-gray-500">
-                                                {currentLead.criadoEm?.toDate?.()?.toLocaleDateString('pt-PT')}
-                                            </p>
-                                        </div>
-                                        <p className="text-sm text-gray-600">
-                                            Prospect registado no sistema
-                                        </p>
-                                    </div>
-                                </div>
+                                    </li>
+                                </ul>
                             </div>
                         </div>
                     )}
                 </div>
 
-                {/* Modal: Nova Tarefa */}
+                {/* Modais */}
+                {/* Modal de Criar Tarefa */}
                 {showTaskModal && (
-                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                        <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+                    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+                        <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
                             <div className="flex items-center justify-between mb-4">
-                                <h3 className="text-lg font-semibold text-gray-900">Nova Tarefa</h3>
+                                <h3 className="text-lg font-medium text-gray-900">Nova Tarefa</h3>
                                 <button
                                     onClick={() => setShowTaskModal(false)}
                                     className="text-gray-400 hover:text-gray-600"
@@ -722,79 +650,69 @@ const LeadDetailPage = () => {
                                 </button>
                             </div>
 
-                            <form onSubmit={handleCreateTask}>
-                                <div className="space-y-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                                            Tipo
-                                        </label>
-                                        <select
-                                            value={taskForm.tipo}
-                                            onChange={(e) => setTaskForm(prev => ({ ...prev, tipo: e.target.value }))}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                                        >
-                                            <option value="call">Chamada</option>
-                                            <option value="email">Email</option>
-                                            <option value="whatsapp">WhatsApp</option>
-                                            <option value="meeting">Reunião</option>
-                                            <option value="follow_up">Follow-up</option>
-                                        </select>
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                                            Título
-                                        </label>
-                                        <input
-                                            type="text"
-                                            value={taskForm.titulo}
-                                            onChange={(e) => setTaskForm(prev => ({ ...prev, titulo: e.target.value }))}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                                            placeholder="Ex: Ligar para prospect"
-                                            required
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                                            Descrição
-                                        </label>
-                                        <textarea
-                                            value={taskForm.descricao}
-                                            onChange={(e) => setTaskForm(prev => ({ ...prev, descricao: e.target.value }))}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                                            rows={3}
-                                            placeholder="Detalhes da tarefa..."
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                                            Agendar para
-                                        </label>
-                                        <input
-                                            type="datetime-local"
-                                            value={taskForm.agendadaPara}
-                                            onChange={(e) => setTaskForm(prev => ({ ...prev, agendadaPara: e.target.value }))}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                                        />
-                                    </div>
+                            <form onSubmit={handleCreateTask} className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
+                                    <select
+                                        value={taskForm.tipo}
+                                        onChange={(e) => setTaskForm({ ...taskForm, tipo: e.target.value })}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    >
+                                        <option value="call">Chamada</option>
+                                        <option value="email">Email</option>
+                                        <option value="whatsapp">WhatsApp</option>
+                                        <option value="meeting">Reunião</option>
+                                        <option value="follow_up">Follow-up</option>
+                                    </select>
                                 </div>
 
-                                <div className="flex items-center justify-end space-x-3 mt-6">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Título</label>
+                                    <input
+                                        type="text"
+                                        value={taskForm.titulo}
+                                        onChange={(e) => setTaskForm({ ...taskForm, titulo: e.target.value })}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                        placeholder="Título da tarefa"
+                                        required
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Descrição</label>
+                                    <textarea
+                                        value={taskForm.descricao}
+                                        onChange={(e) => setTaskForm({ ...taskForm, descricao: e.target.value })}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                        rows="3"
+                                        placeholder="Descrição da tarefa"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Agendada para</label>
+                                    <input
+                                        type="datetime-local"
+                                        value={taskForm.agendadaPara}
+                                        onChange={(e) => setTaskForm({ ...taskForm, agendadaPara: e.target.value })}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                        required
+                                    />
+                                </div>
+
+                                <div className="flex justify-end space-x-3 pt-4">
                                     <button
                                         type="button"
                                         onClick={() => setShowTaskModal(false)}
-                                        className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+                                        className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800"
                                     >
                                         Cancelar
                                     </button>
                                     <button
                                         type="submit"
-                                        disabled={loading.tasks}
-                                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                                        className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"
                                     >
-                                        {loading.tasks ? 'Criando...' : 'Criar Tarefa'}
+                                        Criar Tarefa
                                     </button>
                                 </div>
                             </form>
@@ -802,12 +720,12 @@ const LeadDetailPage = () => {
                     </div>
                 )}
 
-                {/* Modal: Registar Contacto */}
+                {/* Modal de Registar Contacto */}
                 {showContactModal && (
-                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                        <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+                    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+                        <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
                             <div className="flex items-center justify-between mb-4">
-                                <h3 className="text-lg font-semibold text-gray-900">Registar Contacto</h3>
+                                <h3 className="text-lg font-medium text-gray-900">Registar Contacto</h3>
                                 <button
                                     onClick={() => setShowContactModal(false)}
                                     className="text-gray-400 hover:text-gray-600"
@@ -816,109 +734,70 @@ const LeadDetailPage = () => {
                                 </button>
                             </div>
 
-                            <form onSubmit={handleAddContact}>
-                                <div className="space-y-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                                            Tipo de Contacto
-                                        </label>
-                                        <select
-                                            value={contactForm.tipo}
-                                            onChange={(e) => setContactForm(prev => ({ ...prev, tipo: e.target.value }))}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                                        >
-                                            <option value="call">Chamada</option>
-                                            <option value="email">Email</option>
-                                            <option value="whatsapp">WhatsApp</option>
-                                            <option value="meeting">Reunião</option>
-                                        </select>
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                                            Resumo
-                                        </label>
-                                        <input
-                                            type="text"
-                                            value={contactForm.resumo}
-                                            onChange={(e) => setContactForm(prev => ({ ...prev, resumo: e.target.value }))}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                                            placeholder="Ex: Contacto inicial - interesse confirmado"
-                                            required
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                                            Resultado
-                                        </label>
-                                        <select
-                                            value={contactForm.resultado}
-                                            onChange={(e) => setContactForm(prev => ({ ...prev, resultado: e.target.value }))}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                                        >
-                                            <option value="positivo">Positivo</option>
-                                            <option value="neutro">Neutro</option>
-                                            <option value="negativo">Negativo</option>
-                                        </select>
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                                            Notas
-                                        </label>
-                                        <textarea
-                                            value={contactForm.notas}
-                                            onChange={(e) => setContactForm(prev => ({ ...prev, notas: e.target.value }))}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                                            rows={3}
-                                            placeholder="Detalhes do contacto..."
-                                        />
-                                    </div>
-
-                                    <div className="flex items-center space-x-3">
-                                        <input
-                                            type="checkbox"
-                                            id="agendarProximo"
-                                            checked={contactForm.agendarProximo}
-                                            onChange={(e) => setContactForm(prev => ({ ...prev, agendarProximo: e.target.checked }))}
-                                            className="rounded border-gray-300 focus:ring-2 focus:ring-blue-500"
-                                        />
-                                        <label htmlFor="agendarProximo" className="text-sm text-gray-700">
-                                            Agendar próximo contacto
-                                        </label>
-                                    </div>
-
-                                    {contactForm.agendarProximo && (
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                                Data do próximo contacto
-                                            </label>
-                                            <input
-                                                type="date"
-                                                value={contactForm.proximoContactoData}
-                                                onChange={(e) => setContactForm(prev => ({ ...prev, proximoContactoData: e.target.value }))}
-                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                                                min={new Date().toISOString().split('T')[0]}
-                                            />
-                                        </div>
-                                    )}
+                            <form onSubmit={handleAddContact} className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
+                                    <select
+                                        value={contactForm.tipo}
+                                        onChange={(e) => setContactForm({ ...contactForm, tipo: e.target.value })}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    >
+                                        <option value="call">Chamada</option>
+                                        <option value="email">Email</option>
+                                        <option value="whatsapp">WhatsApp</option>
+                                        <option value="meeting">Reunião</option>
+                                    </select>
                                 </div>
 
-                                <div className="flex items-center justify-end space-x-3 mt-6">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Resumo</label>
+                                    <input
+                                        type="text"
+                                        value={contactForm.resumo}
+                                        onChange={(e) => setContactForm({ ...contactForm, resumo: e.target.value })}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                        placeholder="Resumo do contacto"
+                                        required
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Resultado</label>
+                                    <select
+                                        value={contactForm.resultado}
+                                        onChange={(e) => setContactForm({ ...contactForm, resultado: e.target.value })}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    >
+                                        <option value="positivo">Positivo</option>
+                                        <option value="neutro">Neutro</option>
+                                        <option value="negativo">Negativo</option>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Notas</label>
+                                    <textarea
+                                        value={contactForm.notas}
+                                        onChange={(e) => setContactForm({ ...contactForm, notas: e.target.value })}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                        rows="3"
+                                        placeholder="Notas do contacto"
+                                    />
+                                </div>
+
+                                <div className="flex justify-end space-x-3 pt-4">
                                     <button
                                         type="button"
                                         onClick={() => setShowContactModal(false)}
-                                        className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+                                        className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800"
                                     >
                                         Cancelar
                                     </button>
                                     <button
                                         type="submit"
-                                        disabled={loading.contacts}
-                                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+                                        className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"
                                     >
-                                        {loading.contacts ? 'Salvando...' : 'Registar'}
+                                        Registar
                                     </button>
                                 </div>
                             </form>
@@ -926,12 +805,12 @@ const LeadDetailPage = () => {
                     </div>
                 )}
 
-                {/* Modal: Converter Lead */}
+                {/* Modal de Converter Lead */}
                 {showConvertModal && (
-                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                        <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+                    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+                        <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
                             <div className="flex items-center justify-between mb-4">
-                                <h3 className="text-lg font-semibold text-gray-900">Converter Lead</h3>
+                                <h3 className="text-lg font-medium text-gray-900">Converter em Cliente</h3>
                                 <button
                                     onClick={() => setShowConvertModal(false)}
                                     className="text-gray-400 hover:text-gray-600"
@@ -942,65 +821,57 @@ const LeadDetailPage = () => {
 
                             <div className="mb-4">
                                 <p className="text-sm text-gray-600">
-                                    Esta ação irá converter a lead <strong>{currentLead.name}</strong> em cliente.
-                                    Todos os dados serão transferidos e a lead será marcada como convertida.
+                                    Converter esta lead em cliente irá criar um registo completo na secção de clientes.
                                 </p>
                             </div>
 
-                            <div className="mb-6">
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Notas da conversão (opcional)
-                                </label>
+                            <div className="mb-4">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Notas de Conversão</label>
                                 <textarea
                                     value={convertNotes}
                                     onChange={(e) => setConvertNotes(e.target.value)}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                                    rows={3}
-                                    placeholder="Motivo da conversão, condições especiais..."
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    rows="3"
+                                    placeholder="Notas sobre a conversão (opcional)"
                                 />
                             </div>
 
-                            <div className="flex items-center justify-end space-x-3">
+                            <div className="flex justify-end space-x-3">
                                 <button
-                                    type="button"
                                     onClick={() => setShowConvertModal(false)}
-                                    className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+                                    className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800"
                                 >
                                     Cancelar
                                 </button>
                                 <button
                                     onClick={handleConvertLead}
-                                    disabled={loading.convert}
-                                    className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
+                                    className="px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700"
                                 >
-                                    {loading.convert ? 'Convertendo...' : 'Converter para Cliente'}
+                                    Converter
                                 </button>
                             </div>
                         </div>
                     </div>
                 )}
 
-                {/* Mensagens de erro */}
-                {Object.keys(errors).map(key => errors[key] && (
-                    <div key={key} className="mt-4 bg-red-50 border border-red-200 rounded-lg p-4">
-                        <div className="flex items-center">
-                            <div className="flex-shrink-0">
-                                <ExclamationTriangleIcon className="w-5 h-5 text-red-400" />
-                            </div>
-                            <div className="ml-3">
-                                <p className="text-red-800">{errors[key]}</p>
-                            </div>
-                            <div className="ml-auto pl-3">
+                {/* Erros */}
+                {errors.current && (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                        <div className="flex">
+                            <ExclamationTriangleIcon className="w-5 h-5 text-red-600 mr-3 flex-shrink-0" />
+                            <div className="flex-1">
+                                <h3 className="text-sm font-medium text-red-800">Erro</h3>
+                                <p className="text-sm text-red-700 mt-1">{errors.current}</p>
                                 <button
-                                    onClick={() => clearError(key)}
-                                    className="text-red-400 hover:text-red-600"
+                                    onClick={() => clearError('current')}
+                                    className="text-sm text-red-600 hover:text-red-800 mt-2 font-medium"
                                 >
-                                    <XMarkIcon className="w-5 h-5" />
+                                    Dispensar
                                 </button>
                             </div>
                         </div>
                     </div>
-                ))}
+                )}
             </div>
         </Layout>
     );
