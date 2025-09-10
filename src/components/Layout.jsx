@@ -1,85 +1,46 @@
 /**
- * LAYOUT COMPONENT - MyImoMatePro
- * Layout principal com Sidebar para todas as páginas do CRM
- * Inclui responsive design e controlo de colapso da sidebar
+ * LAYOUT - MyImoMatePro
+ * Layout principal da aplicação limpo
+ * 
+ * Caminho: src/components/Layout.jsx
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
+import { useAuth } from '../contexts/AuthContext';
 import Sidebar from './Sidebar';
+import { Bars3Icon } from '@heroicons/react/24/outline';
 
-const Layout = ({ children, title, subtitle }) => {
-    const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-    const [isMobile, setIsMobile] = useState(false);
+const Layout = ({ children }) => {
+    const [sidebarOpen, setSidebarOpen] = useState(false);
+    const { currentUser } = useAuth();
 
-    // Detectar tamanho da tela
-    useEffect(() => {
-        const checkScreenSize = () => {
-            const mobile = window.innerWidth < 768;
-            setIsMobile(mobile);
-            if (mobile) {
-                setIsSidebarCollapsed(true);
-            }
-        };
-
-        checkScreenSize();
-        window.addEventListener('resize', checkScreenSize);
-        return () => window.removeEventListener('resize', checkScreenSize);
-    }, []);
-
-    const toggleSidebar = () => {
-        setIsSidebarCollapsed(!isSidebarCollapsed);
-    };
+    if (!currentUser) {
+        return null;
+    }
 
     return (
-        <div className="flex h-screen bg-gray-50">
+        <div className="flex h-screen bg-gray-100">
             {/* Sidebar */}
-            <div className={`fixed inset-y-0 left-0 z-50 transition-transform duration-300 ${isMobile && isSidebarCollapsed ? '-translate-x-full' : 'translate-x-0'
-                }`}>
-                <Sidebar
-                    isCollapsed={isSidebarCollapsed && !isMobile}
-                    onToggleCollapse={toggleSidebar}
-                />
-            </div>
+            <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-            {/* Overlay para mobile */}
-            {isMobile && !isSidebarCollapsed && (
-                <div
-                    className="fixed inset-0 bg-black bg-opacity-50 z-40"
-                    onClick={() => setIsSidebarCollapsed(true)}
-                />
-            )}
-
-            {/* Área de Conteúdo Principal */}
-            <div className={`flex-1 flex flex-col transition-all duration-300 ${isMobile ? 'ml-0' : isSidebarCollapsed ? 'ml-16' : 'ml-64'
-                }`}>
-                {/* Header da Página (opcional) */}
-                {(title || subtitle) && (
-                    <div className="bg-white shadow-sm border-b border-gray-200">
-                        <div className="px-6 py-4">
-                            {/* Botão mobile menu */}
-                            {isMobile && (
-                                <button
-                                    onClick={toggleSidebar}
-                                    className="mb-4 p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors"
-                                >
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                                    </svg>
-                                </button>
-                            )}
-
-                            {title && (
-                                <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
-                            )}
-                            {subtitle && (
-                                <p className="text-gray-600 mt-1">{subtitle}</p>
-                            )}
-                        </div>
+            {/* Main content */}
+            <div className="flex-1 flex flex-col overflow-hidden">
+                {/* Top header mobile */}
+                <div className="lg:hidden bg-white shadow-sm">
+                    <div className="px-4 py-3 flex items-center justify-between">
+                        <button
+                            onClick={() => setSidebarOpen(true)}
+                            className="text-gray-500 hover:text-gray-900"
+                        >
+                            <Bars3Icon className="h-6 w-6" />
+                        </button>
+                        <h1 className="text-lg font-semibold">MyImoMatePro</h1>
+                        <div className="w-6" /> {/* Spacer for balance */}
                     </div>
-                )}
+                </div>
 
-                {/* Conteúdo da Página */}
-                <main className="flex-1 overflow-auto">
+                {/* Page content */}
+                <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100">
                     {children}
                 </main>
             </div>

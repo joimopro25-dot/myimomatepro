@@ -1,326 +1,249 @@
 /**
- * DASHBOARD PAGE - MyImoMatePro
- * Página principal do dashboard com layout unificado
- * MODIFICAÇÃO: Integrado com Layout component e Sidebar
+ * DASHBOARD - MyImoMatePro
+ * Dashboard principal limpo
+ * 
+ * Caminho: src/pages/Dashboard.jsx
  */
 
-import React from 'react';
-import { Link } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
+import { useClients } from '../contexts/ClientContext';
 import Layout from '../components/Layout';
 import {
-    ChartBarIcon,
-    UsersIcon,
-    BriefcaseIcon,
+    UserGroupIcon,
     CurrencyEuroIcon,
-    PlusIcon,
-    ExclamationTriangleIcon,
-    ArrowTrendingUpIcon,
-    CheckCircleIcon,
-    ClockIcon
+    ChartBarIcon,
+    CalendarIcon,
+    PlusIcon
 } from '@heroicons/react/24/outline';
+import { useNavigate } from 'react-router-dom';
 
-export default function Dashboard() {
+const Dashboard = () => {
     const { currentUser } = useAuth();
-    const {
-        subscription,
-        stats,
-        getTrialDaysLeft,
-        isAnyLimitReached,
-        getClientUsagePercentage,
-        getVolumeUsagePercentage
-    } = useSubscription();
+    const { subscription } = useSubscription();
+    const { clients, fetchClients } = useClients();
+    const navigate = useNavigate();
+    const [loading, setLoading] = useState(true);
 
-    const trialDaysLeft = getTrialDaysLeft();
-    const isTrialActive = subscription?.trial && trialDaysLeft > 0;
-    const limitReached = isAnyLimitReached();
+    useEffect(() => {
+        loadDashboardData();
+    }, []);
 
-    // Estatísticas para os cards
-    const dashboardStats = [
+    const loadDashboardData = async () => {
+        setLoading(true);
+        try {
+            await fetchClients();
+        } catch (error) {
+            console.error('Erro ao carregar dados do dashboard:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const stats = [
         {
-            name: 'Total Clientes',
-            value: stats?.totalClientes || 0,
-            change: '+12%',
-            changeType: 'positive',
-            icon: UsersIcon,
-            color: 'blue',
-            limit: subscription?.limiteClientes,
-            percentage: getClientUsagePercentage(),
+            name: 'Total de Clientes',
+            value: clients?.length || 0,
+            icon: UserGroupIcon,
+            color: 'bg-blue-500',
             href: '/clients'
         },
         {
-            name: 'Oportunidades',
-            value: stats?.totalNegocios || 0,
-            change: '+5%',
-            changeType: 'positive',
-            icon: BriefcaseIcon,
-            color: 'green',
-            href: '/clients' // Quando implementarmos oportunidades, mudar para /opportunities
+            name: 'Negócios Ativos',
+            value: 0,
+            icon: ChartBarIcon,
+            color: 'bg-green-500',
+            href: '#'
         },
         {
-            name: 'Volume de Negócios',
-            value: `€${(stats?.valorNegocios || 0).toLocaleString()}`,
-            change: '+18%',
-            changeType: 'positive',
+            name: 'Faturação Mensal',
+            value: '€0',
             icon: CurrencyEuroIcon,
-            color: 'purple',
-            limit: subscription?.limiteVolumeNegocios,
-            percentage: getVolumeUsagePercentage()
+            color: 'bg-purple-500',
+            href: '#'
         },
         {
-            name: 'Taxa de Conversão',
-            value: '24%',
-            change: '+2%',
-            changeType: 'positive',
-            icon: ArrowTrendingUpIcon,
-            color: 'orange'
+            name: 'Agendamentos',
+            value: 0,
+            icon: CalendarIcon,
+            color: 'bg-yellow-500',
+            href: '#'
         }
     ];
 
-    const getStatCardStyle = (color) => {
-        const colors = {
-            blue: 'from-blue-500 to-blue-600',
-            green: 'from-green-500 to-green-600',
-            purple: 'from-purple-500 to-purple-600',
-            orange: 'from-orange-500 to-orange-600'
-        };
-        return colors[color] || colors.blue;
-    };
+    const quickActions = [
+        {
+            name: 'Novo Cliente',
+            description: 'Adicionar um novo cliente ao sistema',
+            icon: UserGroupIcon,
+            href: '/clients/new',
+            color: 'bg-blue-600'
+        }
+    ];
 
     return (
         <Layout>
-            <div className="p-6">
-                {/* Welcome Header */}
+            <div className="px-4 sm:px-6 lg:px-8 py-8">
+                {/* Header */}
                 <div className="mb-8">
                     <h1 className="text-3xl font-bold text-gray-900">
-                        Bem-vindo de volta, {currentUser?.displayName?.split(' ')[0] || 'Consultor'}! 👋
+                        Bem-vindo, {currentUser?.displayName || currentUser?.email?.split('@')[0]}!
                     </h1>
-                    <p className="text-gray-600 mt-2">
-                        Aqui está um resumo da sua atividade de hoje
+                    <p className="mt-2 text-gray-600">
+                        Aqui está um resumo da sua atividade
                     </p>
                 </div>
 
-                {/* Alertas */}
-                {isTrialActive && (
-                    <div className="mb-6 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4">
-                        <div className="flex items-center">
-                            <ExclamationTriangleIcon className="w-5 h-5 text-blue-600 mr-3" />
-                            <div>
-                                <h3 className="font-medium text-blue-900">
-                                    Período de Teste Ativo
-                                </h3>
-                                <p className="text-sm text-blue-700">
-                                    Restam {trialDaysLeft} dias do seu período de teste gratuito.
-                                    <Link to="/account" className="font-medium hover:underline ml-1">
-                                        Escolha o seu plano →
-                                    </Link>
-                                </p>
+                {/* Stats */}
+                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4 mb-8">
+                    {stats.map((stat) => (
+                        <div
+                            key={stat.name}
+                            onClick={() => stat.href !== '#' && navigate(stat.href)}
+                            className={`bg-white overflow-hidden shadow rounded-lg ${stat.href !== '#' ? 'cursor-pointer hover:shadow-lg transition-shadow' : ''
+                                }`}
+                        >
+                            <div className="p-5">
+                                <div className="flex items-center">
+                                    <div className={`flex-shrink-0 ${stat.color} rounded-md p-3`}>
+                                        <stat.icon className="h-6 w-6 text-white" />
+                                    </div>
+                                    <div className="ml-5 w-0 flex-1">
+                                        <dl>
+                                            <dt className="text-sm font-medium text-gray-500 truncate">
+                                                {stat.name}
+                                            </dt>
+                                            <dd className="text-2xl font-semibold text-gray-900">
+                                                {stat.value}
+                                            </dd>
+                                        </dl>
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                )}
+                    ))}
+                </div>
 
-                {limitReached && (
-                    <div className="mb-6 bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200 rounded-xl p-4">
-                        <div className="flex items-center">
-                            <ExclamationTriangleIcon className="w-5 h-5 text-yellow-600 mr-3" />
-                            <div>
-                                <h3 className="font-medium text-yellow-900">
-                                    Limite Atingido
-                                </h3>
-                                <p className="text-sm text-yellow-700">
-                                    Atingiu o limite do seu plano atual.
-                                    <Link to="/account" className="font-medium hover:underline ml-1">
-                                        Fazer upgrade →
-                                    </Link>
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {/* Estatísticas Principais */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                    {dashboardStats.map((stat) => {
-                        const Icon = stat.icon;
-                        const isClickable = stat.href;
-
-                        const CardComponent = isClickable ? Link : 'div';
-                        const cardProps = isClickable ? { to: stat.href } : {};
-
-                        return (
-                            <CardComponent
-                                key={stat.name}
-                                {...cardProps}
-                                className={`bg-white rounded-xl p-6 shadow-sm border border-gray-100 ${isClickable ? 'hover:shadow-lg hover:scale-105 cursor-pointer' : ''
-                                    } transition-all duration-200`}
+                {/* Quick Actions */}
+                <div className="mb-8">
+                    <h2 className="text-lg font-medium text-gray-900 mb-4">Ações Rápidas</h2>
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                        {quickActions.map((action) => (
+                            <button
+                                key={action.name}
+                                onClick={() => navigate(action.href)}
+                                className="relative rounded-lg border border-gray-300 bg-white px-6 py-5 shadow-sm flex items-center space-x-3 hover:border-gray-400 focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-blue-500 transition-all"
                             >
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center">
-                                        <div className={`w-12 h-12 bg-gradient-to-r ${getStatCardStyle(stat.color)} rounded-lg flex items-center justify-center`}>
-                                            <Icon className="w-6 h-6 text-white" />
-                                        </div>
-                                        <div className="ml-4">
-                                            <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
-                                            <p className="text-sm text-gray-500">{stat.name}</p>
-                                        </div>
-                                    </div>
+                                <div className={`flex-shrink-0 ${action.color} rounded-lg p-3`}>
+                                    <action.icon className="h-6 w-6 text-white" />
                                 </div>
-
-                                {/* Barra de progresso para limites */}
-                                {stat.limit && stat.limit !== 'unlimited' && stat.percentage !== undefined && (
-                                    <div className="mt-4">
-                                        <div className="flex justify-between text-xs text-gray-500 mb-1">
-                                            <span>Utilização</span>
-                                            <span>{stat.percentage.toFixed(0)}%</span>
-                                        </div>
-                                        <div className="w-full bg-gray-200 rounded-full h-2">
-                                            <div
-                                                className={`h-2 rounded-full transition-all duration-300 bg-gradient-to-r ${getStatCardStyle(stat.color)}`}
-                                                style={{ width: `${Math.min(stat.percentage, 100)}%` }}
-                                            ></div>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Indicador de mudança */}
-                                {stat.change && (
-                                    <div className="mt-2 flex items-center">
-                                        <span className={`text-sm font-medium ${stat.changeType === 'positive' ? 'text-green-600' : 'text-red-600'
-                                            }`}>
-                                            {stat.change}
-                                        </span>
-                                        <span className="text-xs text-gray-500 ml-1">vs mês anterior</span>
-                                    </div>
-                                )}
-                            </CardComponent>
-                        );
-                    })}
+                                <div className="flex-1 min-w-0 text-left">
+                                    <span className="absolute inset-0" aria-hidden="true" />
+                                    <p className="text-sm font-medium text-gray-900">{action.name}</p>
+                                    <p className="text-sm text-gray-500">{action.description}</p>
+                                </div>
+                            </button>
+                        ))}
+                    </div>
                 </div>
 
-                {/* Ações Rápidas */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-                    {/* Getting Started */}
-                    <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl p-6 text-white">
-                        <h2 className="text-xl font-semibold mb-2">Começar a usar o MyImoMatePro</h2>
-                        <p className="text-blue-100 mb-4">
-                            Complete a configuração inicial para aproveitar ao máximo o seu CRM
-                        </p>
-
-                        <div className="space-y-2">
-                            <div className="flex items-center space-x-2">
-                                <div className="w-5 h-5 bg-blue-400 rounded-full flex items-center justify-center">
-                                    <CheckCircleIcon className="w-3 h-3 font-bold text-white" />
-                                </div>
-                                <span className="text-sm">Conta criada e configurada</span>
+                {/* Recent Activity */}
+                <div className="bg-white shadow rounded-lg">
+                    <div className="px-4 py-5 sm:p-6">
+                        <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
+                            Atividade Recente
+                        </h3>
+                        {loading ? (
+                            <div className="text-center py-4">
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
                             </div>
-                            <div className="flex items-center space-x-2">
-                                <div className="w-5 h-5 bg-white/20 rounded-full flex items-center justify-center">
-                                    <span className="text-xs font-bold">2</span>
-                                </div>
-                                <span className="text-sm">Adicione o seu primeiro cliente</span>
+                        ) : clients?.length > 0 ? (
+                            <div className="flow-root">
+                                <ul className="-mb-8">
+                                    {clients.slice(0, 5).map((client, idx) => (
+                                        <li key={client.id}>
+                                            <div className="relative pb-8">
+                                                {idx !== Math.min(4, clients.length - 1) && (
+                                                    <span
+                                                        className="absolute top-4 left-4 -ml-px h-full w-0.5 bg-gray-200"
+                                                        aria-hidden="true"
+                                                    />
+                                                )}
+                                                <div className="relative flex space-x-3">
+                                                    <div>
+                                                        <span className="h-8 w-8 rounded-full bg-blue-500 flex items-center justify-center ring-8 ring-white">
+                                                            <UserGroupIcon className="h-5 w-5 text-white" />
+                                                        </span>
+                                                    </div>
+                                                    <div className="min-w-0 flex-1 pt-1.5 flex justify-between space-x-4">
+                                                        <div>
+                                                            <p className="text-sm text-gray-500">
+                                                                Novo cliente adicionado:{' '}
+                                                                <button
+                                                                    onClick={() => navigate(`/clients/${client.id}`)}
+                                                                    className="font-medium text-gray-900 hover:text-blue-600"
+                                                                >
+                                                                    {client.name}
+                                                                </button>
+                                                            </p>
+                                                        </div>
+                                                        <div className="text-right text-sm whitespace-nowrap text-gray-500">
+                                                            {new Date(client.createdAt).toLocaleDateString('pt-PT')}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </li>
+                                    ))}
+                                </ul>
                             </div>
-                            <div className="flex items-center space-x-2">
-                                <div className="w-5 h-5 bg-white/20 rounded-full flex items-center justify-center">
-                                    <span className="text-xs font-bold">3</span>
-                                </div>
-                                <span className="text-sm">Explore as funcionalidades</span>
-                            </div>
-                        </div>
-
-                        <Link
-                            to="/clients/new"
-                            className="mt-4 inline-flex items-center gap-2 bg-white text-blue-600 px-6 py-2 rounded-lg font-medium hover:bg-blue-50 transition-colors shadow-lg"
-                        >
-                            <PlusIcon className="w-4 h-4" />
-                            Adicionar Primeiro Cliente
-                        </Link>
-                    </div>
-
-                    {/* Atividade Recente */}
-                    <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-                        <h2 className="text-xl font-semibold text-gray-900 mb-4">Atividade Recente</h2>
-
-                        <div className="space-y-4">
-                            <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-                                <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                                    <UsersIcon className="w-4 h-4 text-blue-600" />
-                                </div>
-                                <div className="flex-1">
-                                    <p className="text-sm font-medium text-gray-900">Sistema iniciado</p>
-                                    <p className="text-xs text-gray-500">Bem-vindo ao MyImoMatePro</p>
-                                </div>
-                                <div className="flex items-center text-xs text-gray-400">
-                                    <ClockIcon className="w-3 h-3 mr-1" />
-                                    Agora
-                                </div>
-                            </div>
-
-                            {stats?.totalClientes === 0 && (
-                                <div className="text-center py-4">
-                                    <p className="text-sm text-gray-500 mb-3">
-                                        Adicione o seu primeiro cliente para começar a ver atividade aqui
-                                    </p>
-                                    <Link
-                                        to="/clients/new"
-                                        className="inline-flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 font-medium"
+                        ) : (
+                            <div className="text-center py-8">
+                                <UserGroupIcon className="mx-auto h-12 w-12 text-gray-400" />
+                                <h3 className="mt-2 text-sm font-medium text-gray-900">Sem atividade</h3>
+                                <p className="mt-1 text-sm text-gray-500">
+                                    Comece por adicionar o seu primeiro cliente
+                                </p>
+                                <div className="mt-6">
+                                    <button
+                                        onClick={() => navigate('/clients/new')}
+                                        className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
                                     >
-                                        <PlusIcon className="w-4 h-4" />
-                                        Adicionar Cliente
-                                    </Link>
+                                        <PlusIcon className="-ml-1 mr-2 h-5 w-5" />
+                                        Novo Cliente
+                                    </button>
                                 </div>
-                            )}
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* Subscription Alert */}
+                {subscription?.status === 'trial' && subscription?.daysRemaining <= 7 && (
+                    <div className="mt-8 bg-yellow-50 border-l-4 border-yellow-400 p-4">
+                        <div className="flex">
+                            <div className="flex-shrink-0">
+                                <CalendarIcon className="h-5 w-5 text-yellow-400" />
+                            </div>
+                            <div className="ml-3">
+                                <p className="text-sm text-yellow-700">
+                                    O seu período de teste termina em{' '}
+                                    <span className="font-medium">{subscription.daysRemaining} dias</span>.{' '}
+                                    <button
+                                        onClick={() => navigate('/account')}
+                                        className="font-medium underline text-yellow-700 hover:text-yellow-600"
+                                    >
+                                        Atualizar plano
+                                    </button>
+                                </p>
+                            </div>
                         </div>
                     </div>
-                </div>
-
-                {/* Ações Rápidas - Links */}
-                <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-                    <h2 className="text-xl font-semibold text-gray-900 mb-4">Ações Rápidas</h2>
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <Link
-                            to="/clients/new"
-                            className="flex items-center space-x-3 p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors group"
-                        >
-                            <div className="w-10 h-10 bg-blue-100 group-hover:bg-blue-200 rounded-lg flex items-center justify-center transition-colors">
-                                <PlusIcon className="w-5 h-5 text-blue-600" />
-                            </div>
-                            <div>
-                                <p className="font-medium text-gray-900">Novo Cliente</p>
-                                <p className="text-sm text-gray-500">Adicionar à carteira</p>
-                            </div>
-                        </Link>
-
-                        <Link
-                            to="/clients"
-                            className="flex items-center space-x-3 p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-green-500 hover:bg-green-50 transition-colors group"
-                        >
-                            <div className="w-10 h-10 bg-green-100 group-hover:bg-green-200 rounded-lg flex items-center justify-center transition-colors">
-                                <UsersIcon className="w-5 h-5 text-green-600" />
-                            </div>
-                            <div>
-                                <p className="font-medium text-gray-900">Ver Clientes</p>
-                                <p className="text-sm text-gray-500">Gerir carteira</p>
-                            </div>
-                        </Link>
-
-                        <Link
-                            to="/account"
-                            className="flex items-center space-x-3 p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-purple-500 hover:bg-purple-50 transition-colors group"
-                        >
-                            <div className="w-10 h-10 bg-purple-100 group-hover:bg-purple-200 rounded-lg flex items-center justify-center transition-colors">
-                                <ChartBarIcon className="w-5 h-5 text-purple-600" />
-                            </div>
-                            <div>
-                                <p className="font-medium text-gray-900">Configurações</p>
-                                <p className="text-sm text-gray-500">Gerir conta</p>
-                            </div>
-                        </Link>
-                    </div>
-                </div>
+                )}
             </div>
         </Layout>
     );
-}
+};
+
+export default Dashboard;

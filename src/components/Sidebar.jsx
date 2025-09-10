@@ -1,310 +1,231 @@
 /**
- * SIDEBAR COMPONENT - MyImoMatePro
- * Navegação lateral com sistema de Leads integrado
- * Mostra estatísticas em tempo real
+ * SIDEBAR - MyImoMatePro
+ * Componente de navegação lateral limpo
  * 
  * Caminho: src/components/Sidebar.jsx
  */
 
-import React, { useState, useEffect } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import React from 'react';
+import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
-import { useLeads } from '../contexts/LeadContext';
 import { useClients } from '../contexts/ClientContext';
 import {
     HomeIcon,
-    UsersIcon,
-    FunnelIcon,
+    UserGroupIcon,
     CogIcon,
     ArrowRightOnRectangleIcon,
-    UserCircleIcon,
-    ChevronLeftIcon,
-    ChevronRightIcon,
-    SparklesIcon,
+    XMarkIcon,
     CreditCardIcon,
-    ChartBarIcon
+    ChartBarIcon,
+    DocumentDuplicateIcon
 } from '@heroicons/react/24/outline';
-import {
-    HomeIcon as HomeIconSolid,
-    UsersIcon as UsersIconSolid,
-    FunnelIcon as FunnelIconSolid,
-    CogIcon as CogIconSolid
-} from '@heroicons/react/24/solid';
 
-const Sidebar = ({ isCollapsed = false, onToggleCollapse }) => {
-    const location = useLocation();
+const Sidebar = ({ isOpen, onClose }) => {
     const navigate = useNavigate();
     const { currentUser, logout } = useAuth();
     const { subscription } = useSubscription();
-    const { stats: leadStats } = useLeads();
     const { clients } = useClients();
-    const [showUserMenu, setShowUserMenu] = useState(false);
-
-    // Calcular estatísticas
-    const totalClients = clients?.length || 0;
-    const totalLeads = leadStats?.total || 0;
-    const leadsInProgress = leadStats?.byFunnelState?.qualificando || 0;
 
     const handleLogout = async () => {
         try {
             await logout();
-            navigate('/');
+            navigate('/login');
         } catch (error) {
             console.error('Erro ao fazer logout:', error);
         }
     };
 
-    // Itens de navegação principal
-    const navigationItems = [
+    const navigation = [
         {
             name: 'Dashboard',
             href: '/dashboard',
             icon: HomeIcon,
-            iconSolid: HomeIconSolid,
-            description: 'Visão geral do negócio'
+            current: window.location.pathname === '/dashboard'
         },
         {
             name: 'Clientes',
             href: '/clients',
-            icon: UsersIcon,
-            iconSolid: UsersIconSolid,
-            description: 'Gestão de clientes',
-            badge: totalClients,
-            badgeColor: 'bg-blue-500'
+            icon: UserGroupIcon,
+            current: window.location.pathname.includes('/clients'),
+            badge: clients?.length || 0
         },
         {
-            name: 'Leads',
-            href: '/leads',
-            icon: FunnelIcon,
-            iconSolid: FunnelIconSolid,
-            description: 'Prospects e qualificações',
-            badge: totalLeads,
-            badgeColor: 'bg-orange-500',
-            subBadge: leadsInProgress > 0 ? `${leadsInProgress} em qualificação` : null
+            name: 'Relatórios',
+            href: '/reports',
+            icon: ChartBarIcon,
+            current: window.location.pathname.includes('/reports'),
+            disabled: true
+        },
+        {
+            name: 'Documentos',
+            href: '/documents',
+            icon: DocumentDuplicateIcon,
+            current: window.location.pathname.includes('/documents'),
+            disabled: true
         }
     ];
 
-    // Verificar rota ativa
-    const isActiveRoute = (href) => {
-        if (href === '/dashboard') {
-            return location.pathname === '/dashboard';
+    const bottomNavigation = [
+        {
+            name: 'Configurações',
+            href: '/account',
+            icon: CogIcon,
+            current: window.location.pathname === '/account'
         }
-        return location.pathname.startsWith(href);
-    };
-
-    // Obter cor do plano
-    const getPlanColor = () => {
-        switch (subscription?.plano) {
-            case 'Shark':
-                return 'from-purple-600 to-pink-600';
-            case 'Professional':
-                return 'from-blue-600 to-indigo-600';
-            case 'Rookie':
-            default:
-                return 'from-green-600 to-teal-600';
-        }
-    };
+    ];
 
     return (
-        <div className={`bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 text-white transition-all duration-300 flex flex-col ${isCollapsed ? 'w-20' : 'w-64'
-            } h-full`}>
-
-            {/* Header com Logo */}
-            <div className="p-4 border-b border-slate-700/50">
-                <div className="flex items-center justify-between">
-                    <Link to="/dashboard" className="flex items-center space-x-2">
-                        {!isCollapsed && (
-                            <>
-                                <SparklesIcon className="w-8 h-8 text-yellow-400" />
-                                <div>
-                                    <h1 className="text-xl font-bold bg-gradient-to-r from-yellow-400 to-orange-400 bg-clip-text text-transparent">
-                                        MyImoMate
-                                    </h1>
-                                    <p className="text-xs text-slate-400">Pro CRM</p>
-                                </div>
-                            </>
-                        )}
-                        {isCollapsed && (
-                            <SparklesIcon className="w-8 h-8 text-yellow-400 mx-auto" />
-                        )}
-                    </Link>
-
-                    {/* Botão de colapsar */}
-                    <button
-                        onClick={onToggleCollapse}
-                        className="p-2 hover:bg-slate-700/50 rounded-lg transition-colors"
-                        title={isCollapsed ? 'Expandir' : 'Colapsar'}
-                    >
-                        {isCollapsed ? (
-                            <ChevronRightIcon className="w-5 h-5" />
-                        ) : (
-                            <ChevronLeftIcon className="w-5 h-5" />
-                        )}
-                    </button>
-                </div>
-            </div>
-
-            {/* Menu de Navegação */}
-            <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-                {navigationItems.map((item) => {
-                    const isActive = isActiveRoute(item.href);
-                    const Icon = isActive ? item.iconSolid : item.icon;
-
-                    return (
-                        <Link
-                            key={item.name}
-                            to={item.href}
-                            className={`flex items-center justify-between p-3 rounded-xl transition-all duration-200 group ${isActive
-                                    ? 'bg-gradient-to-r from-blue-600/30 to-purple-600/30 border border-blue-500/30'
-                                    : 'hover:bg-slate-700/30 border border-transparent'
-                                }`}
-                            title={isCollapsed ? item.name : ''}
-                        >
-                            <div className="flex items-center space-x-3">
-                                <Icon className={`w-6 h-6 ${isActive ? 'text-blue-400' : 'text-slate-400 group-hover:text-white'
-                                    }`} />
-                                {!isCollapsed && (
-                                    <div className="flex-1">
-                                        <p className={`font-medium ${isActive ? 'text-white' : 'text-slate-300'
-                                            }`}>
-                                            {item.name}
-                                        </p>
-                                        {item.description && (
-                                            <p className="text-xs text-slate-500">
-                                                {item.description}
-                                            </p>
-                                        )}
-                                        {item.subBadge && (
-                                            <p className="text-xs text-orange-400 mt-1">
-                                                {item.subBadge}
-                                            </p>
-                                        )}
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Badge com contagem */}
-                            {item.badge !== undefined && (
-                                <span className={`${isCollapsed ? 'absolute -top-1 -right-1' : ''
-                                    } px-2 py-1 text-xs font-bold text-white rounded-full ${item.badgeColor || 'bg-slate-600'
-                                    }`}>
-                                    {item.badge}
-                                </span>
-                            )}
-                        </Link>
-                    );
-                })}
-
-                {/* Separador */}
-                <div className="my-4 border-t border-slate-700/50"></div>
-
-                {/* Link para Configurações */}
-                <Link
-                    to="/account"
-                    className={`flex items-center p-3 rounded-xl transition-all duration-200 group ${location.pathname === '/account'
-                            ? 'bg-gradient-to-r from-blue-600/30 to-purple-600/30'
-                            : 'hover:bg-slate-700/30'
-                        }`}
-                    title={isCollapsed ? 'Configurações' : ''}
-                >
-                    <CogIcon className="w-6 h-6 text-slate-400 group-hover:text-white" />
-                    {!isCollapsed && (
-                        <span className="ml-3 text-slate-300 group-hover:text-white">
-                            Configurações
-                        </span>
-                    )}
-                </Link>
-            </nav>
-
-            {/* Informações do Plano */}
-            {!isCollapsed && subscription && (
-                <div className="p-4 border-t border-slate-700/50">
-                    <div className="bg-slate-800/50 rounded-xl p-3">
-                        <div className="flex items-center justify-between mb-2">
-                            <span className="text-xs text-slate-400">Plano Atual</span>
-                            <span className={`text-xs font-bold px-2 py-1 rounded-full bg-gradient-to-r ${getPlanColor()} text-white`}>
-                                {subscription.plano}
-                            </span>
-                        </div>
-
-                        {/* Barra de uso de clientes */}
-                        <div className="mb-2">
-                            <div className="flex justify-between text-xs mb-1">
-                                <span className="text-slate-500">Clientes</span>
-                                <span className="text-slate-400">
-                                    {totalClients}/{subscription.limiteClientes === 'unlimited' ? '∞' : subscription.limiteClientes}
-                                </span>
-                            </div>
-                            {subscription.limiteClientes !== 'unlimited' && (
-                                <div className="w-full bg-slate-700 rounded-full h-2">
-                                    <div
-                                        className={`h-2 rounded-full transition-all duration-300 bg-gradient-to-r ${totalClients >= subscription.limiteClientes * 0.8
-                                                ? 'from-orange-500 to-red-500'
-                                                : 'from-blue-500 to-purple-500'
-                                            }`}
-                                        style={{
-                                            width: `${Math.min((totalClients / subscription.limiteClientes) * 100, 100)}%`
-                                        }}
-                                    />
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Link para upgrade */}
-                        {subscription.plano !== 'Shark' && (
-                            <Link
-                                to="/account"
-                                className="text-xs text-blue-400 hover:text-blue-300 flex items-center mt-2"
-                            >
-                                <SparklesIcon className="w-3 h-3 mr-1" />
-                                Fazer upgrade
-                            </Link>
-                        )}
-                    </div>
-                </div>
+        <>
+            {/* Overlay para mobile */}
+            {isOpen && (
+                <div
+                    className="fixed inset-0 bg-gray-600 bg-opacity-75 z-40 lg:hidden"
+                    onClick={onClose}
+                />
             )}
 
-            {/* Menu do Utilizador */}
-            <div className="p-4 border-t border-slate-700/50">
-                <div className="relative">
-                    <button
-                        onClick={() => setShowUserMenu(!showUserMenu)}
-                        className={`w-full flex items-center space-x-3 p-3 rounded-xl hover:bg-slate-700/30 transition-colors ${isCollapsed ? 'justify-center' : ''
-                            }`}
-                        title={isCollapsed ? currentUser?.email : ''}
-                    >
-                        <UserCircleIcon className="w-8 h-8 text-slate-400" />
-                        {!isCollapsed && (
-                            <div className="flex-1 text-left">
+            {/* Sidebar */}
+            <div className={`
+        fixed inset-y-0 left-0 z-50 w-64 bg-gray-900 transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0
+        ${isOpen ? 'translate-x-0' : '-translate-x-full'}
+      `}>
+                <div className="flex flex-col h-full">
+                    {/* Header */}
+                    <div className="flex items-center justify-between px-4 py-5 border-b border-gray-800">
+                        <div>
+                            <h2 className="text-xl font-bold text-white">MyImoMatePro</h2>
+                            {subscription && (
+                                <p className="text-xs text-gray-400 mt-1">
+                                    Plano: {subscription.plan}
+                                </p>
+                            )}
+                        </div>
+                        <button
+                            onClick={onClose}
+                            className="lg:hidden text-gray-400 hover:text-white"
+                        >
+                            <XMarkIcon className="h-6 w-6" />
+                        </button>
+                    </div>
+
+                    {/* User info */}
+                    <div className="px-4 py-4 border-b border-gray-800">
+                        <div className="flex items-center">
+                            <div className="flex-shrink-0">
+                                <div className="h-10 w-10 rounded-full bg-blue-600 flex items-center justify-center">
+                                    <span className="text-white font-medium">
+                                        {currentUser?.email?.charAt(0).toUpperCase()}
+                                    </span>
+                                </div>
+                            </div>
+                            <div className="ml-3">
                                 <p className="text-sm font-medium text-white">
                                     {currentUser?.displayName || 'Utilizador'}
                                 </p>
-                                <p className="text-xs text-slate-500 truncate">
+                                <p className="text-xs text-gray-400">
                                     {currentUser?.email}
                                 </p>
                             </div>
-                        )}
-                    </button>
+                        </div>
+                    </div>
 
-                    {/* Dropdown do menu */}
-                    {showUserMenu && (
-                        <div className={`absolute bottom-full mb-2 ${isCollapsed ? 'left-0' : 'left-0 right-0'
-                            } bg-slate-800 rounded-xl shadow-xl border border-slate-700 overflow-hidden`}>
+                    {/* Navigation */}
+                    <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto">
+                        {navigation.map((item) => (
+                            <NavLink
+                                key={item.name}
+                                to={item.href}
+                                onClick={item.disabled ? (e) => e.preventDefault() : onClose}
+                                className={({ isActive }) => `
+                  group flex items-center px-2 py-2 text-sm font-medium rounded-md transition-colors
+                  ${item.disabled
+                                        ? 'text-gray-500 cursor-not-allowed'
+                                        : isActive
+                                            ? 'bg-gray-800 text-white'
+                                            : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                                    }
+                `}
+                            >
+                                <item.icon
+                                    className={`mr-3 flex-shrink-0 h-6 w-6 ${item.disabled ? 'text-gray-500' : ''
+                                        }`}
+                                    aria-hidden="true"
+                                />
+                                {item.name}
+                                {item.badge !== undefined && item.badge > 0 && (
+                                    <span className="ml-auto bg-gray-800 text-gray-300 py-0.5 px-2.5 rounded-full text-xs">
+                                        {item.badge}
+                                    </span>
+                                )}
+                                {item.disabled && (
+                                    <span className="ml-auto text-xs text-gray-500">Em breve</span>
+                                )}
+                            </NavLink>
+                        ))}
+                    </nav>
+
+                    {/* Bottom section */}
+                    <div className="border-t border-gray-800">
+                        <nav className="px-2 py-4 space-y-1">
+                            {bottomNavigation.map((item) => (
+                                <NavLink
+                                    key={item.name}
+                                    to={item.href}
+                                    onClick={onClose}
+                                    className={({ isActive }) => `
+                    group flex items-center px-2 py-2 text-sm font-medium rounded-md transition-colors
+                    ${isActive
+                                            ? 'bg-gray-800 text-white'
+                                            : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                                        }
+                  `}
+                                >
+                                    <item.icon
+                                        className="mr-3 flex-shrink-0 h-6 w-6"
+                                        aria-hidden="true"
+                                    />
+                                    {item.name}
+                                </NavLink>
+                            ))}
+
                             <button
                                 onClick={handleLogout}
-                                className="w-full flex items-center px-4 py-3 hover:bg-slate-700 transition-colors text-left"
+                                className="w-full group flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
                             >
-                                <ArrowRightOnRectangleIcon className="w-5 h-5 text-red-400 mr-3" />
-                                {!isCollapsed && (
-                                    <span className="text-sm text-white">Terminar Sessão</span>
-                                )}
+                                <ArrowRightOnRectangleIcon
+                                    className="mr-3 flex-shrink-0 h-6 w-6"
+                                    aria-hidden="true"
+                                />
+                                Sair
                             </button>
-                        </div>
-                    )}
+                        </nav>
+
+                        {/* Subscription alert */}
+                        {subscription?.status === 'trial' && subscription?.daysRemaining <= 7 && (
+                            <div className="px-4 pb-4">
+                                <div className="bg-yellow-900 bg-opacity-50 rounded-lg p-3">
+                                    <div className="flex">
+                                        <CreditCardIcon className="h-5 w-5 text-yellow-400" />
+                                        <div className="ml-3">
+                                            <p className="text-sm text-yellow-400">
+                                                {subscription.daysRemaining} dias restantes
+                                            </p>
+                                            <button
+                                                onClick={() => navigate('/account')}
+                                                className="text-xs text-yellow-300 hover:text-yellow-200 underline"
+                                            >
+                                                Atualizar plano
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
-        </div>
+        </>
     );
 };
 
