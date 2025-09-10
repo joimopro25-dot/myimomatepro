@@ -11,6 +11,7 @@ import {
     doc,
     getDoc,
     getDocs,
+    setDoc,
     addDoc,
     updateDoc,
     deleteDoc,
@@ -23,31 +24,26 @@ import {
     writeBatch,
     Timestamp
 } from 'firebase/firestore';
-import { db } from '../config/firebase';
+import { db } from '../firebase/config';
 import { Lead, LEAD_FUNNEL_STATES } from '../models/leadModel';
 
 const COLLECTION_NAME = 'leads';
 const CLIENTS_COLLECTION = 'clients';
+const CONSULTOR_COLLECTION = 'consultores';
 
 // ===== OPERAÇÕES CRUD =====
 
 /**
  * Criar nova lead
- * Também atualiza o cliente para badge PROSPECT
  */
 export async function createLead(leadData, userId) {
     try {
-        // Validar se cliente existe
-        const clientRef = doc(db, CLIENTS_COLLECTION, leadData.clientId);
-        const clientSnap = await getDoc(clientRef);
-
-        if (!clientSnap.exists()) {
-            throw new Error('Cliente não encontrado');
+        // Validar dados básicos
+        if (!leadData.clientId) {
+            throw new Error('ID do cliente é obrigatório');
         }
 
-        const batch = writeBatch(db);
-
-        // 1. Criar a lead
+        // Criar a lead diretamente (sem verificar se cliente existe)
         const leadRef = doc(collection(db, COLLECTION_NAME));
         const newLead = {
             ...leadData,
@@ -56,21 +52,23 @@ export async function createLead(leadData, userId) {
             updatedAt: serverTimestamp(),
             createdBy: userId,
             assignedTo: userId,
-            funnelState: LEAD_FUNNEL_STATES.ENTRADA
+            funnelState: leadData.funnelState || LEAD_FUNNEL_STATES.ENTRADA
         };
 
-        batch.set(leadRef, newLead);
+        await setDoc(leadRef, newLead);
 
-        // 2. Atualizar cliente com badge PROSPECT
-        batch.update(clientRef, {
-            isProspect: true,
-            hasLead: true,
-            leadId: leadRef.id,
-            updatedAt: serverTimestamp()
-        });
-
-        // Executar transação
-        await batch.commit();
+        // Tentar atualizar o cliente (opcional)
+        try {
+            const clientRef = doc(db, CONSULTOR_COLLECTION, userId, CLIENTS_COLLECTION, leadData.clientId);
+            await updateDoc(clientRef, {
+                isProspect: true,
+                hasLead: true,
+                leadId: leadRef.id,
+                updatedAt: serverTimestamp()
+            });
+        } catch (err) {
+            console.warn('Aviso: Cliente não atualizado, mas lead criada:', err);
+        }
 
         return {
             id: leadRef.id,
@@ -116,75 +114,66 @@ export async function getLeadById(leadId) {
 }
 
 /**
- * Listar leads com filtros
+ * Listar todas as leads
  */
-export async function getLeads(userId, filters = {}) {
+export async function getLeads(filters = {}) {
     try {
-        let q = query(
-            collection(db, COLLECTION_NAME),
-            where('createdBy', '==', userId)
-        );
+        let q = collection(db, COLLECTION_NAME);
 
-        // Aplicar filtros
-        if (filters.type) {
-            q = query(q, where('type', '==', filters.type));
-        }
+        // Aplicar filtros se fornecidos
+        const constraints = [];
 
-        if (filters.source) {
-            q = query(q, where('source', '==', filters.source));
+        if (filters.assignedTo) {
+            constraints.push(where('assignedTo', '==', filters.assignedTo));
         }
 
         if (filters.funnelState) {
-            q = query(q, where('funnelState', '==', filters.funnelState));
+            constraints.push(where('funnelState', '==', filters.funnelState));
         }
 
-        // Ordenação
-        q = query(q, orderBy('createdAt', 'desc'));
+        if (filters.status) {
+            constraints.push(where('status', '==', filters.status));
+        }
 
-        // Paginação
+        // Ordenar por data de criação
+        constraints.push(orderBy('createdAt', 'desc'));
+
+        // Aplicar limite se fornecido
         if (filters.limit) {
-            q = query(q, limit(filters.limit));
+            constraints.push(limit(filters.limit));
         }
 
-        if (filters.startAfter) {
-            q = query(q, startAfter(filters.startAfter));
+        // Aplicar paginação se fornecido
+        if (filters.lastDoc) {
+            constraints.push(startAfter(filters.lastDoc));
         }
 
+        q = query(q, ...constraints);
         const snapshot = await getDocs(q);
+
         const leads = [];
+        for (const docSnap of snapshot.docs) {
+            const leadData = docSnap.data();
 
-        // Buscar dados dos clientes associados
-        const clientIds = [...new Set(snapshot.docs.map(doc => doc.data().clientId))];
-        const clientsData = {};
-
-        // Buscar clientes em batch
-        for (const clientId of clientIds) {
-            const clientRef = doc(db, CLIENTS_COLLECTION, clientId);
+            // Buscar dados do cliente
+            const clientRef = doc(db, CLIENTS_COLLECTION, leadData.clientId);
             const clientSnap = await getDoc(clientRef);
-            if (clientSnap.exists()) {
-                clientsData[clientId] = { id: clientSnap.id, ...clientSnap.data() };
-            }
-        }
 
-        // Montar lista de leads com dados dos clientes
-        snapshot.forEach(doc => {
-            const leadData = doc.data();
             leads.push({
-                id: doc.id,
+                id: docSnap.id,
                 ...leadData,
-                client: clientsData[leadData.clientId] || null,
+                client: clientSnap.exists() ? { id: clientSnap.id, ...clientSnap.data() } : null,
                 createdAt: leadData.createdAt?.toDate?.()?.toISOString() || leadData.createdAt,
                 updatedAt: leadData.updatedAt?.toDate?.()?.toISOString() || leadData.updatedAt
             });
-        });
+        }
 
         return {
             leads,
-            lastDoc: snapshot.docs[snapshot.docs.length - 1] || null,
-            hasMore: snapshot.docs.length === (filters.limit || 20)
+            lastDoc: snapshot.docs[snapshot.docs.length - 1] || null
         };
     } catch (error) {
-        console.error('Erro ao buscar leads:', error);
+        console.error('Erro ao listar leads:', error);
         throw error;
     }
 }
@@ -196,27 +185,24 @@ export async function updateLead(leadId, updates) {
     try {
         const leadRef = doc(db, COLLECTION_NAME, leadId);
 
-        await updateDoc(leadRef, {
-            ...updates,
-            updatedAt: serverTimestamp()
-        });
-
-        // Se mudou o estado do funil para CONVERTIDO
-        if (updates.funnelState === LEAD_FUNNEL_STATES.CONVERTIDO) {
-            const leadSnap = await getDoc(leadRef);
-            const leadData = leadSnap.data();
-
-            // Atualizar cliente removendo badge PROSPECT
-            const clientRef = doc(db, CLIENTS_COLLECTION, leadData.clientId);
-            await updateDoc(clientRef, {
-                isProspect: false,
-                hasLead: false,
-                leadConverted: true,
-                leadConvertedAt: serverTimestamp()
-            });
+        // Verificar se lead existe
+        const leadSnap = await getDoc(leadRef);
+        if (!leadSnap.exists()) {
+            throw new Error('Lead não encontrada');
         }
 
-        return { id: leadId, ...updates };
+        const updateData = {
+            ...updates,
+            updatedAt: serverTimestamp()
+        };
+
+        await updateDoc(leadRef, updateData);
+
+        return {
+            id: leadId,
+            ...updateData,
+            updatedAt: new Date().toISOString()
+        };
     } catch (error) {
         console.error('Erro ao atualizar lead:', error);
         throw error;
@@ -224,14 +210,59 @@ export async function updateLead(leadId, updates) {
 }
 
 /**
- * Deletar lead
+ * Mover lead no funil
+ */
+export async function moveLeadInFunnel(leadId, newState) {
+    try {
+        // Validar estado do funil
+        if (!Object.values(LEAD_FUNNEL_STATES).includes(newState)) {
+            throw new Error('Estado do funil inválido');
+        }
+
+        const leadRef = doc(db, COLLECTION_NAME, leadId);
+
+        // Verificar se lead existe
+        const leadSnap = await getDoc(leadRef);
+        if (!leadSnap.exists()) {
+            throw new Error('Lead não encontrada');
+        }
+
+        const updateData = {
+            funnelState: newState,
+            updatedAt: serverTimestamp()
+        };
+
+        // Se movendo para GANHO ou PERDIDO, atualizar status
+        if (newState === LEAD_FUNNEL_STATES.GANHO) {
+            updateData.status = 'won';
+            updateData.wonAt = serverTimestamp();
+        } else if (newState === LEAD_FUNNEL_STATES.PERDIDO) {
+            updateData.status = 'lost';
+            updateData.lostAt = serverTimestamp();
+        }
+
+        await updateDoc(leadRef, updateData);
+
+        return {
+            id: leadId,
+            ...updateData,
+            updatedAt: new Date().toISOString()
+        };
+    } catch (error) {
+        console.error('Erro ao mover lead no funil:', error);
+        throw error;
+    }
+}
+
+/**
+ * Eliminar lead
+ * Também remove badge PROSPECT do cliente
  */
 export async function deleteLead(leadId) {
     try {
         const leadRef = doc(db, COLLECTION_NAME, leadId);
-
-        // Buscar lead para obter clientId
         const leadSnap = await getDoc(leadRef);
+
         if (!leadSnap.exists()) {
             throw new Error('Lead não encontrada');
         }
@@ -239,109 +270,49 @@ export async function deleteLead(leadId) {
         const leadData = leadSnap.data();
         const batch = writeBatch(db);
 
-        // 1. Deletar lead
+        // 1. Eliminar a lead
         batch.delete(leadRef);
 
-        // 2. Atualizar cliente removendo badge PROSPECT
-        const clientRef = doc(db, CLIENTS_COLLECTION, leadData.clientId);
-        batch.update(clientRef, {
-            isProspect: false,
-            hasLead: false,
-            leadId: null,
-            updatedAt: serverTimestamp()
-        });
-
-        await batch.commit();
-
-        return leadId;
-    } catch (error) {
-        console.error('Erro ao deletar lead:', error);
-        throw error;
-    }
-}
-
-// ===== OPERAÇÕES DE CONVERSÃO =====
-
-/**
- * Converter lead em oportunidade
- */
-export async function convertLead(leadId, opportunityData, userId) {
-    try {
-        const batch = writeBatch(db);
-
-        // 1. Atualizar lead para CONVERTIDO
-        const leadRef = doc(db, COLLECTION_NAME, leadId);
-        batch.update(leadRef, {
-            funnelState: LEAD_FUNNEL_STATES.CONVERTIDO,
-            convertedAt: serverTimestamp(),
-            opportunityId: opportunityData.id || null,
-            updatedAt: serverTimestamp()
-        });
-
-        // 2. Buscar lead para obter clientId
-        const leadSnap = await getDoc(leadRef);
-        const leadData = leadSnap.data();
-
-        // 3. Atualizar cliente
-        const clientRef = doc(db, CLIENTS_COLLECTION, leadData.clientId);
-        batch.update(clientRef, {
-            isProspect: false,
-            hasLead: false,
-            isActive: true,
-            leadConverted: true,
-            leadConvertedAt: serverTimestamp(),
-            updatedAt: serverTimestamp()
-        });
-
-        // 4. Criar oportunidade (se fornecida)
-        if (opportunityData) {
-            const opportunityRef = doc(collection(db, 'opportunities'));
-            batch.set(opportunityRef, {
-                ...opportunityData,
-                clientId: leadData.clientId,
-                leadId: leadId,
-                createdAt: serverTimestamp(),
-                createdBy: userId
+        // 2. Remover badge PROSPECT do cliente
+        if (leadData.clientId) {
+            const clientRef = doc(db, CLIENTS_COLLECTION, leadData.clientId);
+            batch.update(clientRef, {
+                isProspect: false,
+                hasLead: false,
+                leadId: null,
+                updatedAt: serverTimestamp()
             });
         }
 
         await batch.commit();
 
-        return {
-            leadId,
-            clientId: leadData.clientId,
-            opportunityId: opportunityData?.id || null
-        };
+        return true;
     } catch (error) {
-        console.error('Erro ao converter lead:', error);
+        console.error('Erro ao eliminar lead:', error);
         throw error;
     }
 }
 
-// ===== ESTATÍSTICAS =====
-
 /**
- * Obter estatísticas de leads
+ * Buscar estatísticas das leads
  */
 export async function getLeadStats(userId) {
     try {
         const q = query(
             collection(db, COLLECTION_NAME),
-            where('createdBy', '==', userId)
+            where('assignedTo', '==', userId)
         );
 
         const snapshot = await getDocs(q);
 
         const stats = {
             total: 0,
-            byFunnelState: {
-                entrada: 0,
-                qualificando: 0,
-                convertido: 0
-            },
-            byType: {},
-            bySource: {},
-            conversionRate: 0
+            byFunnelState: {},
+            byStatus: {
+                active: 0,
+                won: 0,
+                lost: 0
+            }
         };
 
         snapshot.forEach(doc => {
@@ -350,24 +321,16 @@ export async function getLeadStats(userId) {
 
             // Por estado do funil
             if (lead.funnelState) {
-                stats.byFunnelState[lead.funnelState] = (stats.byFunnelState[lead.funnelState] || 0) + 1;
+                stats.byFunnelState[lead.funnelState] =
+                    (stats.byFunnelState[lead.funnelState] || 0) + 1;
             }
 
-            // Por tipo
-            if (lead.type) {
-                stats.byType[lead.type] = (stats.byType[lead.type] || 0) + 1;
-            }
-
-            // Por fonte
-            if (lead.source) {
-                stats.bySource[lead.source] = (stats.bySource[lead.source] || 0) + 1;
+            // Por status
+            if (lead.status) {
+                stats.byStatus[lead.status] =
+                    (stats.byStatus[lead.status] || 0) + 1;
             }
         });
-
-        // Calcular taxa de conversão
-        if (stats.total > 0) {
-            stats.conversionRate = (stats.byFunnelState.convertido / stats.total) * 100;
-        }
 
         return stats;
     } catch (error) {
@@ -376,60 +339,38 @@ export async function getLeadStats(userId) {
     }
 }
 
-// ===== PESQUISA =====
-
 /**
- * Pesquisar leads
+ * Converter cliente em lead
  */
-export async function searchLeads(userId, searchTerm) {
+export async function convertClientToLead(clientId, leadData, userId) {
     try {
-        // Buscar todas as leads do usuário
-        const q = query(
-            collection(db, COLLECTION_NAME),
-            where('createdBy', '==', userId),
-            orderBy('createdAt', 'desc')
-        );
+        // Verificar se cliente existe - usando estrutura correta
+        const clientRef = doc(db, CONSULTOR_COLLECTION, userId, CLIENTS_COLLECTION, clientId);
+        const clientSnap = await getDoc(clientRef);
 
-        const snapshot = await getDocs(q);
-        const allLeads = [];
-
-        // Buscar dados dos clientes
-        const clientIds = [...new Set(snapshot.docs.map(doc => doc.data().clientId))];
-        const clientsData = {};
-
-        for (const clientId of clientIds) {
-            const clientRef = doc(db, CLIENTS_COLLECTION, clientId);
-            const clientSnap = await getDoc(clientRef);
-            if (clientSnap.exists()) {
-                clientsData[clientId] = clientSnap.data();
-            }
+        if (!clientSnap.exists()) {
+            throw new Error('Cliente não encontrado');
         }
 
-        // Montar lista completa
-        snapshot.forEach(doc => {
-            const leadData = doc.data();
-            const client = clientsData[leadData.clientId];
+        const clientData = clientSnap.data();
 
-            allLeads.push({
-                id: doc.id,
-                ...leadData,
-                client,
-                searchableText: `${client?.name || ''} ${client?.email || ''} ${client?.phone || ''} ${leadData.qualification?.qualificationNotes || ''}`.toLowerCase()
-            });
-        });
+        // Verificar se cliente já tem lead
+        if (clientData.hasLead) {
+            throw new Error('Cliente já possui uma lead ativa');
+        }
 
-        // Filtrar por termo de pesquisa
-        const searchLower = searchTerm.toLowerCase();
-        const filteredLeads = allLeads.filter(lead =>
-            lead.searchableText.includes(searchLower)
-        );
+        // Criar lead com dados do cliente
+        const newLeadData = {
+            ...leadData,
+            clientId: clientId,
+            clientName: clientData.name,
+            clientEmail: clientData.email,
+            clientPhone: clientData.phone
+        };
 
-        return filteredLeads.map(lead => {
-            const { searchableText, ...leadWithoutSearch } = lead;
-            return leadWithoutSearch;
-        });
+        return await createLead(newLeadData, userId);
     } catch (error) {
-        console.error('Erro ao pesquisar leads:', error);
+        console.error('Erro ao converter cliente em lead:', error);
         throw error;
     }
 }

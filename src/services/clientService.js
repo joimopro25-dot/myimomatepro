@@ -45,6 +45,12 @@ const getClientDoc = (consultorId, clientId) => {
 /**
  * Criar novo cliente
  */
+// Localizar e substituir a função createClient no arquivo src/services/clientService.js
+// Encontre esta função e substitua toda ela:
+
+/**
+ * Criar novo cliente
+ */
 export const createClient = async (consultorId, clientData) => {
     try {
         // Validar dados antes de criar
@@ -57,9 +63,11 @@ export const createClient = async (consultorId, clientData) => {
         const clientSchema = createClientSchema(clientData);
         clientSchema.consultorId = consultorId;
         clientSchema.isActive = true;
+        clientSchema.createdAt = Timestamp.now();
+        clientSchema.updatedAt = Timestamp.now();
 
         // Calcular rendimento total do agregado se tiver rendimentos
-        if (clientSchema.financial.monthlyIncome || clientSchema.financial.spouseMonthlyIncome) {
+        if (clientSchema.financial?.monthlyIncome || clientSchema.financial?.spouseMonthlyIncome) {
             const monthly = parseFloat(clientSchema.financial.monthlyIncome) || 0;
             const spouseMonthly = parseFloat(clientSchema.financial.spouseMonthlyIncome) || 0;
             clientSchema.financial.totalHouseholdIncome = (monthly + spouseMonthly).toString();
@@ -68,14 +76,14 @@ export const createClient = async (consultorId, clientData) => {
         // Adicionar ao Firestore na estrutura correta
         const clientRef = await addDoc(getClientCollection(consultorId), clientSchema);
 
-        // Buscar cliente criado para retornar dados completos
-        const createdClient = await getDoc(clientRef);
-        const clientWithId = {
-            id: createdClient.id,
-            ...createdClient.data()
+        // IMPORTANTE: Retornar o objeto com o ID correto
+        const newClient = {
+            id: clientRef.id,  // O ID vem diretamente do clientRef
+            ...clientSchema
         };
 
-        return clientWithId;
+        console.log('Cliente criado com sucesso, ID:', clientRef.id);
+        return newClient;
 
     } catch (error) {
         console.error('ClientService: Erro ao criar cliente:', error);
