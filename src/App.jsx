@@ -1,6 +1,6 @@
 /**
  * APP.JSX - MyImoMatePro
- * Router principal da aplicação
+ * Router principal da aplicação com Sistema de Leads
  * 
  * Caminho: src/App.jsx
  */
@@ -10,6 +10,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { SubscriptionProvider } from './contexts/SubscriptionContext';
 import { ClientProvider } from './contexts/ClientContext';
+import { LeadProvider } from './contexts/LeadContext';
 
 // Páginas públicas
 import LandingPage from './pages/LandingPage';
@@ -23,6 +24,11 @@ import AccountSettings from './pages/AccountSettings';
 import ClientList from './pages/ClientList';
 import ClientForm from './pages/ClientForm';
 import ClientDetail from './pages/ClientDetail';
+
+// Sistema de Leads
+import LeadList from './pages/LeadList';
+import LeadForm from './pages/LeadForm';
+import LeadDetail from './pages/LeadDetail';
 
 import './index.css';
 
@@ -93,6 +99,31 @@ function AppRoutes() {
           </ProtectedRoute>
         } />
 
+        {/* ===== ROTAS PROTEGIDAS - SISTEMA DE LEADS ===== */}
+        <Route path="/leads" element={
+          <ProtectedRoute>
+            <LeadList />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/leads/new" element={
+          <ProtectedRoute>
+            <LeadForm />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/leads/:leadId" element={
+          <ProtectedRoute>
+            <LeadDetail />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/leads/:leadId/edit" element={
+          <ProtectedRoute>
+            <LeadForm />
+          </ProtectedRoute>
+        } />
+
         {/* ===== ROTA FALLBACK ===== */}
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
@@ -106,7 +137,9 @@ function App() {
     <AuthProvider>
       <SubscriptionProvider>
         <ClientProvider>
-          <AppRoutes />
+          <LeadProvider>
+            <AppRoutes />
+          </LeadProvider>
         </ClientProvider>
       </SubscriptionProvider>
     </AuthProvider>
