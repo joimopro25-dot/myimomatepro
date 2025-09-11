@@ -1,572 +1,1259 @@
 /**
- * LEAD FORM PAGE - MyImoMatePro
- * Formulário para criar/editar leads
- * ✅ VERSÃO CORRIGIDA - Erro controlled/uncontrolled resolvido
- * 
- * Caminho: src/pages/LeadForm.jsx
+ * CLIENT FORM PAGE - MyImoMatePro - VERSÃO COMPLETA SEM PREFERÊNCIAS
+ * Formulário completo para criar/editar clientes
+ * MANTÉM: Toda a funcionalidade React + Context + Validação existente
+ * REMOVE: Seção Preferências de Imóvel
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useClients } from '../contexts/ClientContext';
+import { validateClientData, CLIENT_CONTACT_PREFERENCES, CLIENT_MARITAL_STATUS, CLIENT_MARRIAGE_REGIMES, CLIENT_CREDIT_TYPES, CLIENT_LEAD_SOURCES, CLIENT_AVAILABLE_TAGS } from '../models/clientModel';
 import Layout from '../components/Layout';
-import { useLeads } from '../contexts/LeadContext';
-import { useAuth } from '../contexts/AuthContext';
-import {
-    LEAD_STATUS,
-    QUALIFICATION_TYPES,
-    LEAD_SOURCES,
-    URGENCY_LEVELS,
-    PROPERTY_TYPES,
-    INVESTMENT_TYPES,
-    TENANT_DURATION
-} from '../models/leadModel';
 import {
     ArrowLeftIcon,
-    UserIcon,
-    PhoneIcon,
-    EnvelopeIcon,
-    HomeIcon,
-    CurrencyEuroIcon,
-    KeyIcon,
-    BuildingOfficeIcon,
-    ChartBarIcon,
-    DocumentTextIcon,
-    CheckCircleIcon
+    CheckCircleIcon,
+    ExclamationTriangleIcon,
+    DocumentArrowUpIcon,
+    InformationCircleIcon
 } from '@heroicons/react/24/outline';
 
-export default function LeadForm() {
-    const { leadId } = useParams();
+const ClientFormPage = () => {
+    const { clientId } = useParams();
     const navigate = useNavigate();
-    const { currentUser } = useAuth();
+    const isEditMode = Boolean(clientId);
+
+    // Context do cliente
     const {
-        createLead,
-        updateLead,
-        fetchLead,
-        fetchLeads,
-        currentLead,
-        loading
-    } = useLeads();
+        currentClient,
+        loading,
+        errors: contextErrors,
+        createClient,
+        fetchClient,
+        updateClient,
+        clearCurrentClient,
+        clearError
+    } = useClients();
 
-    const isEditMode = !!leadId;
+    // Estados locais
+    const [currentStep, setCurrentStep] = useState(1);
+    const totalSteps = 4;
+    const [formData, setFormData] = useState(getInitialFormData());
+    const [validationErrors, setValidationErrors] = useState({});
+    const [touched, setTouched] = useState({});
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
-    // Estado inicial do formulário com TODOS os campos definidos
-    const getInitialFormData = () => ({
-        prospect: {
+    // Inicializar dados do formulário COMPLETO (SEM PREFERÊNCIAS)
+    function getInitialFormData() {
+        return {
+            // ===== DADOS PESSOAIS (Obrigatórios) =====
             name: '',
             phone: '',
-            email: ''
-        },
-        qualification: {
-            type: 'comprador',
-            buyer: {
-                budget: '',
-                urgency: 'normal',
-                zones: [],
-                propertyType: 'apartamento',
-                bedrooms: '',
-                financing: false,
-                firstBuyer: false,
-                notes: ''
+
+            // ===== DADOS PESSOAIS (Opcionais) =====
+            email: '',
+            contactPreference: 'phone',
+            bestContactTime: '',
+            cc: '',
+            ccValidity: '',
+            nif: '',
+            birthDate: '',
+            birthPlace: '',
+            parish: '',
+            municipality: '',
+            district: '',
+            profession: '',
+            maritalStatus: 'single',
+            marriageRegime: '',
+
+            // ===== DADOS DO CÔNJUGE (condicional) =====
+            spouse: {
+                name: '',
+                phone: '',
+                email: '',
+                cc: '',
+                ccValidity: '',
+                profession: '',
+                nif: '',
+                birthDate: '',
+                birthPlace: '',
+                parish: '',
+                municipality: '',
+                district: ''
             },
-            seller: {
-                propertyAddress: '',
-                propertyType: 'apartamento',
-                askingPrice: '',
-                urgency: 'normal',
-                reason: '',
-                hasDebts: false,
-                debtAmount: '',
-                notes: ''
+
+            // ===== MORADA COMPLETA =====
+            address: {
+                street: '',
+                number: '',
+                floor: '',
+                postalCode: '',
+                city: '',
+                parish: '',
+                municipality: '',
+                district: '',
+                country: 'Portugal'
             },
-            landlord: {
-                properties: '',
-                currentRent: '',
-                vacancy: false,
-                managementNeeded: false,
-                location: '',
-                notes: ''
+
+            // ===== INFORMAÇÕES FINANCEIRAS COMPLETAS =====
+            financial: {
+                monthlyIncome: '',
+                spouseMonthlyIncome: '',
+                totalHouseholdIncome: '',
+                availableCapital: '',
+
+                // Situação de crédito detalhada
+                credits: {
+                    mortgage: { active: false, amount: '', entity: '', monthlyPayment: '' },
+                    personal: { active: false, amount: '', entity: '', monthlyPayment: '' },
+                    auto: { active: false, amount: '', entity: '', monthlyPayment: '' },
+                    credit_card: { active: false, amount: '', entity: '', monthlyPayment: '' },
+                    other: { active: false, amount: '', entity: '', monthlyPayment: '', description: '' }
+                },
+
+                relationshipBank: '',
+                hasPreApproval: false,
+                bankApprovalWhere: '',
+                bankApprovalAmount: '',
+                bankApprovalConditions: '',
+                bankApprovalValidity: ''
             },
-            tenant: {
-                budget: '',
-                urgency: 'normal',
-                zones: [],
-                propertyType: 'apartamento',
-                bedrooms: '',
-                duration: '12',
-                guarantor: false,
-                notes: ''
+
+            // ===== DOCUMENTAÇÃO COMPLETA =====
+            documents: {
+                ccFront: false,
+                ccBack: false,
+                ibanProof: false,
+                irsDeclaration: false,
+                salaryReceipts: false,
+                birthCertificate: false,
+                marriageCertificate: false,
+                propertyRegistry: false,
+                residenceCertificate: false,
+                workContract: false,
+                bankStatement: false,
+                divorceDecree: false,
+                pensionProof: false
             },
-            investor: {
-                budget: '',
-                strategy: 'buyToRent',
-                experience: 'iniciante',
-                zones: [],
-                roi: '',
-                financing: false,
-                notes: ''
+
+            // ===== GESTÃO DE RELACIONAMENTO =====
+            tags: [],
+            leadSource: 'website',
+            referralSource: '',
+            consultorObservations: '',
+            nextContactDate: '',
+
+            // ===== GDPR E CONSENTIMENTOS =====
+            gdprConsent: false,
+            marketingConsent: false,
+            dataProcessingConsent: false,
+            thirdPartyConsent: false
+        };
+    }
+
+    // Constantes para os novos campos
+    const creditTypes = [
+        { key: 'mortgage', label: 'Crédito Habitação', icon: '🏠' },
+        { key: 'personal', label: 'Crédito Pessoal', icon: '💤' },
+        { key: 'auto', label: 'Crédito Automóvel', icon: '🚗' },
+        { key: 'credit_card', label: 'Cartão de Crédito', icon: '💳' },
+        { key: 'other', label: 'Outro Crédito', icon: '📋' }
+    ];
+
+    // Função para calcular rendimento total
+    const calculateTotalHouseholdIncome = useCallback(() => {
+        const monthly = parseFloat(formData.financial.monthlyIncome) || 0;
+        const spouseMonthly = parseFloat(formData.financial.spouseMonthlyIncome) || 0;
+        const total = monthly + spouseMonthly;
+
+        setFormData(prev => ({
+            ...prev,
+            financial: {
+                ...prev.financial,
+                totalHouseholdIncome: total > 0 ? total.toString() : ''
             }
-        },
-        source: {
-            origin: 'website',
-            campaign: '',
-            referrer: ''
-        },
-        status: 'nova',
-        notes: ''
-    });
+        }));
+    }, [formData.financial.monthlyIncome, formData.financial.spouseMonthlyIncome]);
 
-    const [formData, setFormData] = useState(getInitialFormData());
-    const [errors, setErrors] = useState({});
-
-    // Carregar dados da lead em modo de edição
+    // Carregar dados do cliente se estiver em modo edição
     useEffect(() => {
-        if (isEditMode && leadId) {
-            fetchLead(leadId).then(lead => {
-                if (lead) {
-                    // Merge com dados iniciais para garantir que todos os campos existam
-                    const mergedData = {
+        if (isEditMode && clientId) {
+            fetchClient(clientId).then(client => {
+                if (client) {
+                    setFormData({
                         ...getInitialFormData(),
-                        ...lead,
-                        prospect: {
-                            ...getInitialFormData().prospect,
-                            ...(lead.prospect || {})
-                        },
-                        qualification: {
-                            ...getInitialFormData().qualification,
-                            ...(lead.qualification || {}),
-                            [lead.qualification?.type || 'buyer']: {
-                                ...getInitialFormData().qualification[lead.qualification?.type || 'buyer'],
-                                ...(lead.qualification?.[lead.qualification?.type] || {})
-                            }
-                        },
-                        source: {
-                            ...getInitialFormData().source,
-                            ...(lead.source || {})
-                        }
-                    };
-                    setFormData(mergedData);
+                        ...client
+                    });
                 }
+            }).catch(error => {
+                console.error('Erro ao carregar cliente:', error);
             });
         }
-    }, [isEditMode, leadId, fetchLead]);
 
-    // Handler para mudanças nos campos - com proteção contra undefined
-    const handleChange = (path, value) => {
-        setFormData(prev => {
-            const newData = { ...prev };
-            const keys = path.split('.');
-            let current = newData;
-
-            // Navegar até o penúltimo nível
-            for (let i = 0; i < keys.length - 1; i++) {
-                if (!current[keys[i]]) {
-                    current[keys[i]] = {};
-                }
-                current = current[keys[i]];
-            }
-
-            // Definir o valor (garantindo que nunca seja undefined)
-            current[keys[keys.length - 1]] = value === undefined ? '' : value;
-
-            return newData;
-        });
-    };
-
-    // Validação do formulário
-    const validateForm = () => {
-        const newErrors = {};
-
-        if (!formData.prospect?.name?.trim()) {
-            newErrors.name = 'Nome é obrigatório';
-        }
-
-        if (!formData.prospect?.phone?.trim()) {
-            newErrors.phone = 'Telefone é obrigatório';
-        }
-
-        if (formData.prospect?.email && !formData.prospect.email.includes('@')) {
-            newErrors.email = 'Email inválido';
-        }
-
-        setErrors(newErrors);
-        return Object.keys(newErrors).length === 0;
-    };
-
-    // Submit do formulário
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-
-        if (!validateForm()) {
-            return;
-        }
-
-        try {
+        return () => {
             if (isEditMode) {
-                await updateLead(leadId, formData);
-            } else {
-                const newLead = await createLead(formData);
+                clearCurrentClient();
+            }
+        };
+    }, [isEditMode, clientId, fetchClient, clearCurrentClient]);
 
-                // Garantir que a lista é atualizada
-                if (newLead && newLead.id) {
-                    await fetchLeads();
+    // Calcular rendimento quando os valores mudam
+    useEffect(() => {
+        calculateTotalHouseholdIncome();
+    }, [calculateTotalHouseholdIncome]);
+
+    // Validar formulário
+    const validateForm = useCallback(() => {
+        const validation = validateClientData(formData);
+        setValidationErrors(validation.errors || {});
+        return validation.isValid;
+    }, [formData]);
+
+    // Handlers
+    const handleFieldChange = (field, value) => {
+        if (field.includes('.')) {
+            const [parent, child] = field.split('.');
+            setFormData(prev => ({
+                ...prev,
+                [parent]: {
+                    ...prev[parent],
+                    [child]: value
                 }
+            }));
+        } else {
+            setFormData(prev => ({
+                ...prev,
+                [field]: value
+            }));
+        }
+
+        // Marcar campo como touched
+        setTouched(prev => ({
+            ...prev,
+            [field]: true
+        }));
+
+        // Limpar erro do campo específico
+        if (validationErrors[field]) {
+            setValidationErrors(prev => ({
+                ...prev,
+                [field]: undefined
+            }));
+        }
+    };
+
+    const nextStep = () => {
+        if (currentStep < totalSteps) {
+            setCurrentStep(currentStep + 1);
+        }
+    };
+
+    const prevStep = () => {
+        if (currentStep > 1) {
+            setCurrentStep(currentStep - 1);
+        }
+    };
+
+    const handleSubmit = async () => {
+        try {
+            setIsSubmitting(true);
+            clearError(isEditMode ? 'update' : 'create');
+
+            // Validar formulário
+            if (!validateForm()) {
+                setCurrentStep(1); // Voltar ao primeiro step se houver erros
+                return;
             }
 
-            navigate('/leads');
+            if (isEditMode) {
+                await updateClient(clientId, formData);
+            } else {
+                await createClient(formData);
+            }
+
+            // Sucesso - redirecionar
+            navigate('/clients');
+
         } catch (error) {
-            console.error('Erro ao salvar lead:', error);
-            setErrors({ submit: 'Erro ao salvar lead. Tente novamente.' });
+            console.error('Erro ao submeter formulário:', error);
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
-    // Renderizar campos específicos por tipo de qualificação
-    const renderQualificationFields = () => {
-        const type = formData.qualification?.type || 'comprador';
+    // ===== RENDERIZAÇÃO DOS STEPS =====
 
-        switch (type) {
-            case 'comprador':
-                return (
-                    <div className="space-y-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">Orçamento (€)</label>
-                                <input
-                                    type="number"
-                                    value={formData.qualification.buyer?.budget || ''}
-                                    onChange={(e) => handleChange('qualification.buyer.budget', e.target.value)}
-                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                    placeholder="250000"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">Urgência</label>
-                                <select
-                                    value={formData.qualification.buyer?.urgency || 'normal'}
-                                    onChange={(e) => handleChange('qualification.buyer.urgency', e.target.value)}
-                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                >
-                                    {URGENCY_LEVELS.map(level => (
-                                        <option key={level.value} value={level.value}>
-                                            {level.label}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">Tipo de Imóvel</label>
-                                <select
-                                    value={formData.qualification.buyer?.propertyType || 'apartamento'}
-                                    onChange={(e) => handleChange('qualification.buyer.propertyType', e.target.value)}
-                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                >
-                                    {PROPERTY_TYPES.map(type => (
-                                        <option key={type.value} value={type.value}>
-                                            {type.label}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">Quartos</label>
-                                <input
-                                    type="text"
-                                    value={formData.qualification.buyer?.bedrooms || ''}
-                                    onChange={(e) => handleChange('qualification.buyer.bedrooms', e.target.value)}
-                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                    placeholder="T2, T3..."
-                                />
-                            </div>
+    const renderPersonalData = () => (
+        <div className="space-y-8">
+            <div className="text-center mb-8">
+                <h2 className="text-2xl font-bold text-gray-900">Dados Pessoais</h2>
+                <p className="text-gray-600 mt-2">Informações básicas e documentação do cliente</p>
+            </div>
+
+            {/* Campos Obrigatórios */}
+            <div className="bg-blue-50 p-6 rounded-xl border border-blue-200">
+                <div className="flex items-center mb-4">
+                    <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
+                        <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        </svg>
+                    </div>
+                    <h3 className="text-lg font-semibold text-blue-900 ml-3">Informações Obrigatórias</h3>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Nome Completo *
+                        </label>
+                        <input
+                            type="text"
+                            value={formData.name}
+                            onChange={(e) => handleFieldChange('name', e.target.value)}
+                            className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${validationErrors.name ? 'border-red-500' : 'border-gray-300'}`}
+                            placeholder="João Silva Santos"
+                        />
+                        {validationErrors.name && (
+                            <p className="mt-1 text-sm text-red-600">{validationErrors.name}</p>
+                        )}
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Telefone *
+                        </label>
+                        <input
+                            type="tel"
+                            value={formData.phone}
+                            onChange={(e) => handleFieldChange('phone', e.target.value)}
+                            className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${validationErrors.phone ? 'border-red-500' : 'border-gray-300'}`}
+                            placeholder="+351 912 345 678"
+                        />
+                        {validationErrors.phone && (
+                            <p className="mt-1 text-sm text-red-600">{validationErrors.phone}</p>
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            {/* Contactos e Preferências */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div className="space-y-6">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                        <input
+                            type="email"
+                            value={formData.email}
+                            onChange={(e) => handleFieldChange('email', e.target.value)}
+                            className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${validationErrors.email ? 'border-red-500' : 'border-gray-300'}`}
+                            placeholder="joao@email.com"
+                        />
+                        {validationErrors.email && (
+                            <p className="mt-1 text-sm text-red-600">{validationErrors.email}</p>
+                        )}
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Preferência de Contacto</label>
+                        <select
+                            value={formData.contactPreference}
+                            onChange={(e) => handleFieldChange('contactPreference', e.target.value)}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        >
+                            {CLIENT_CONTACT_PREFERENCES.map(option => (
+                                <option key={option.value} value={option.value}>
+                                    {option.label}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Melhor Horário de Contacto</label>
+                        <input
+                            type="text"
+                            value={formData.bestContactTime}
+                            onChange={(e) => handleFieldChange('bestContactTime', e.target.value)}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            placeholder="Ex: 9h-12h, 14h-18h, Fins de semana"
+                        />
+                    </div>
+                </div>
+
+                <div className="space-y-6">
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Cartão Cidadão</label>
+                            <input
+                                type="text"
+                                value={formData.cc}
+                                onChange={(e) => handleFieldChange('cc', e.target.value)}
+                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                placeholder="12345678 9 ZZ0"
+                            />
                         </div>
-                        <div className="space-y-2">
-                            <label className="flex items-center">
-                                <input
-                                    type="checkbox"
-                                    checked={formData.qualification.buyer?.financing || false}
-                                    onChange={(e) => handleChange('qualification.buyer.financing', e.target.checked)}
-                                    className="rounded border-gray-300 text-indigo-600 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                />
-                                <span className="ml-2 text-sm text-gray-700">Necessita financiamento</span>
-                            </label>
-                            <label className="flex items-center">
-                                <input
-                                    type="checkbox"
-                                    checked={formData.qualification.buyer?.firstBuyer || false}
-                                    onChange={(e) => handleChange('qualification.buyer.firstBuyer', e.target.checked)}
-                                    className="rounded border-gray-300 text-indigo-600 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                />
-                                <span className="ml-2 text-sm text-gray-700">Primeiro comprador</span>
-                            </label>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Validade CC</label>
+                            <input
+                                type="date"
+                                value={formData.ccValidity}
+                                onChange={(e) => handleFieldChange('ccValidity', e.target.value)}
+                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            />
                         </div>
                     </div>
-                );
 
-            case 'vendedor':
-                return (
-                    <div className="space-y-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="md:col-span-2">
-                                <label className="block text-sm font-medium text-gray-700">Endereço do Imóvel</label>
-                                <input
-                                    type="text"
-                                    value={formData.qualification.seller?.propertyAddress || ''}
-                                    onChange={(e) => handleChange('qualification.seller.propertyAddress', e.target.value)}
-                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                    placeholder="Rua das Flores, 123"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">Tipo de Imóvel</label>
-                                <select
-                                    value={formData.qualification.seller?.propertyType || 'apartamento'}
-                                    onChange={(e) => handleChange('qualification.seller.propertyType', e.target.value)}
-                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                >
-                                    {PROPERTY_TYPES.map(type => (
-                                        <option key={type.value} value={type.value}>
-                                            {type.label}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">Preço Pretendido (€)</label>
-                                <input
-                                    type="number"
-                                    value={formData.qualification.seller?.askingPrice || ''}
-                                    onChange={(e) => handleChange('qualification.seller.askingPrice', e.target.value)}
-                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                    placeholder="350000"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">Urgência</label>
-                                <select
-                                    value={formData.qualification.seller?.urgency || 'normal'}
-                                    onChange={(e) => handleChange('qualification.seller.urgency', e.target.value)}
-                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                >
-                                    {URGENCY_LEVELS.map(level => (
-                                        <option key={level.value} value={level.value}>
-                                            {level.label}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">Motivo da Venda</label>
-                                <input
-                                    type="text"
-                                    value={formData.qualification.seller?.reason || ''}
-                                    onChange={(e) => handleChange('qualification.seller.reason', e.target.value)}
-                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                    placeholder="Mudança, upgrade, etc"
-                                />
-                            </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">NIF</label>
+                        <input
+                            type="text"
+                            value={formData.nif}
+                            onChange={(e) => handleFieldChange('nif', e.target.value)}
+                            maxLength="9"
+                            className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${validationErrors.nif ? 'border-red-500' : 'border-gray-300'}`}
+                            placeholder="123456789"
+                        />
+                        {validationErrors.nif && (
+                            <p className="mt-1 text-sm text-red-600">{validationErrors.nif}</p>
+                        )}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Data de Nascimento</label>
+                            <input
+                                type="date"
+                                value={formData.birthDate}
+                                onChange={(e) => handleFieldChange('birthDate', e.target.value)}
+                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Naturalidade</label>
+                            <input
+                                type="text"
+                                value={formData.birthPlace}
+                                onChange={(e) => handleFieldChange('birthPlace', e.target.value)}
+                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                placeholder="Lisboa"
+                            />
                         </div>
                     </div>
-                );
+                </div>
+            </div>
 
-            case 'senhorio':
-                return (
-                    <div className="space-y-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">Número de Propriedades</label>
-                                <input
-                                    type="number"
-                                    value={formData.qualification.landlord?.properties || ''}
-                                    onChange={(e) => handleChange('qualification.landlord.properties', e.target.value)}
-                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                    placeholder="1"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">Renda Atual (€)</label>
-                                <input
-                                    type="number"
-                                    value={formData.qualification.landlord?.currentRent || ''}
-                                    onChange={(e) => handleChange('qualification.landlord.currentRent', e.target.value)}
-                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                    placeholder="800"
-                                />
-                            </div>
-                            <div className="md:col-span-2">
-                                <label className="block text-sm font-medium text-gray-700">Localização</label>
-                                <input
-                                    type="text"
-                                    value={formData.qualification.landlord?.location || ''}
-                                    onChange={(e) => handleChange('qualification.landlord.location', e.target.value)}
-                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                    placeholder="Porto, Centro"
-                                />
-                            </div>
+            {/* Estado Civil e Profissão */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Estado Civil</label>
+                    <select
+                        value={formData.maritalStatus}
+                        onChange={(e) => handleFieldChange('maritalStatus', e.target.value)}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                        {CLIENT_MARITAL_STATUS.map(option => (
+                            <option key={option.value} value={option.value}>
+                                {option.label}
+                            </option>
+                        ))}
+                    </select>
+                </div>
+
+                {(formData.maritalStatus === 'married' || formData.maritalStatus === 'union') && (
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Regime de Casamento</label>
+                        <select
+                            value={formData.marriageRegime}
+                            onChange={(e) => handleFieldChange('marriageRegime', e.target.value)}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        >
+                            <option value="">Selecione o regime...</option>
+                            {CLIENT_MARRIAGE_REGIMES.map(option => (
+                                <option key={option.value} value={option.value}>
+                                    {option.label}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                )}
+
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Profissão</label>
+                    <input
+                        type="text"
+                        value={formData.profession}
+                        onChange={(e) => handleFieldChange('profession', e.target.value)}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="Engenheiro Civil"
+                    />
+                </div>
+            </div>
+
+            {/* Dados do Cônjuge (condicional) */}
+            {(formData.maritalStatus === 'married' || formData.maritalStatus === 'union') && (
+                <div className="bg-yellow-50 p-6 rounded-xl border border-yellow-200">
+                    <div className="flex items-center mb-6">
+                        <div className="w-10 h-10 bg-yellow-600 rounded-lg flex items-center justify-center">
+                            <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+                            </svg>
                         </div>
-                        <div className="space-y-2">
-                            <label className="flex items-center">
-                                <input
-                                    type="checkbox"
-                                    checked={formData.qualification.landlord?.vacancy || false}
-                                    onChange={(e) => handleChange('qualification.landlord.vacancy', e.target.checked)}
-                                    className="rounded border-gray-300 text-indigo-600 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                />
-                                <span className="ml-2 text-sm text-gray-700">Tem imóvel vago</span>
-                            </label>
-                            <label className="flex items-center">
-                                <input
-                                    type="checkbox"
-                                    checked={formData.qualification.landlord?.managementNeeded || false}
-                                    onChange={(e) => handleChange('qualification.landlord.managementNeeded', e.target.checked)}
-                                    className="rounded border-gray-300 text-indigo-600 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                />
-                                <span className="ml-2 text-sm text-gray-700">Procura gestão profissional</span>
-                            </label>
+                        <h3 className="text-lg font-semibold text-yellow-800 ml-3">Dados do Cônjuge</h3>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Nome do Cônjuge</label>
+                            <input
+                                type="text"
+                                value={formData.spouse.name}
+                                onChange={(e) => handleFieldChange('spouse.name', e.target.value)}
+                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                placeholder="Maria Silva Santos"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Telefone do Cônjuge</label>
+                            <input
+                                type="tel"
+                                value={formData.spouse.phone}
+                                onChange={(e) => handleFieldChange('spouse.phone', e.target.value)}
+                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                placeholder="+351 913 456 789"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Email do Cônjuge</label>
+                            <input
+                                type="email"
+                                value={formData.spouse.email}
+                                onChange={(e) => handleFieldChange('spouse.email', e.target.value)}
+                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                placeholder="maria@email.com"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Profissão do Cônjuge</label>
+                            <input
+                                type="text"
+                                value={formData.spouse.profession}
+                                onChange={(e) => handleFieldChange('spouse.profession', e.target.value)}
+                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                placeholder="Professora"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">CC do Cônjuge</label>
+                            <input
+                                type="text"
+                                value={formData.spouse.cc}
+                                onChange={(e) => handleFieldChange('spouse.cc', e.target.value)}
+                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                placeholder="87654321 0 YY1"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">NIF do Cônjuge</label>
+                            <input
+                                type="text"
+                                value={formData.spouse.nif}
+                                onChange={(e) => handleFieldChange('spouse.nif', e.target.value)}
+                                maxLength="9"
+                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                placeholder="987654321"
+                            />
+                        </div>
+
+                        {/* ✅ NOVOS CAMPOS: Data de Nascimento e Naturalidade do Cônjuge */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Data de Nascimento do Cônjuge</label>
+                            <input
+                                type="date"
+                                value={formData.spouse.birthDate}
+                                onChange={(e) => handleFieldChange('spouse.birthDate', e.target.value)}
+                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Naturalidade do Cônjuge</label>
+                            <input
+                                type="text"
+                                value={formData.spouse.birthPlace}
+                                onChange={(e) => handleFieldChange('spouse.birthPlace', e.target.value)}
+                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                placeholder="Porto"
+                            />
                         </div>
                     </div>
-                );
+                </div>
+            )}
 
-            case 'inquilino':
-                return (
-                    <div className="space-y-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Morada de Residência */}
+            <div className="bg-gray-50 p-6 rounded-xl">
+                <div className="flex items-center mb-6">
+                    <div className="w-10 h-10 bg-gray-600 rounded-lg flex items-center justify-center">
+                        <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="m12 3 8 8v10H4V11l8-8z" />
+                        </svg>
+                    </div>
+                    <h3 className="text-lg font-semibold text-gray-800 ml-3">Morada de Residência</h3>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Rua/Avenida</label>
+                        <input
+                            type="text"
+                            value={formData.address.street}
+                            onChange={(e) => handleFieldChange('address.street', e.target.value)}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            placeholder="Rua das Flores"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Número/Andar</label>
+                        <input
+                            type="text"
+                            value={formData.address.number}
+                            onChange={(e) => handleFieldChange('address.number', e.target.value)}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            placeholder="123, 2º Dto"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Código Postal</label>
+                        <input
+                            type="text"
+                            value={formData.address.postalCode}
+                            onChange={(e) => handleFieldChange('address.postalCode', e.target.value)}
+                            maxLength="8"
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            placeholder="1234-567"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Cidade</label>
+                        <input
+                            type="text"
+                            value={formData.address.city}
+                            onChange={(e) => handleFieldChange('address.city', e.target.value)}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            placeholder="Lisboa"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">País</label>
+                        <select
+                            value={formData.address.country}
+                            onChange={(e) => handleFieldChange('address.country', e.target.value)}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        >
+                            <option value="Portugal">Portugal</option>
+                            <option value="Brasil">Brasil</option>
+                            <option value="Angola">Angola</option>
+                            <option value="Outro">Outro</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+
+    const renderFinancialInfo = () => {
+        const hasSpouse = ['married', 'union'].includes(formData.maritalStatus);
+
+        return (
+            <div className="space-y-8">
+                <div className="text-center mb-8">
+                    <h2 className="text-2xl font-bold text-gray-900">Informações Financeiras</h2>
+                    <p className="text-gray-600 mt-2">Rendimentos, situação creditícia e capacidade financeira</p>
+                </div>
+
+                {/* Rendimentos */}
+                <div className="bg-green-50 p-6 rounded-xl border border-green-200">
+                    <div className="flex items-center mb-6">
+                        <div className="w-10 h-10 bg-green-600 rounded-lg flex items-center justify-center">
+                            <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+                            </svg>
+                        </div>
+                        <h3 className="text-lg font-semibold text-green-800 ml-3">Rendimentos Mensais</h3>
+                    </div>
+
+                    <div className={`grid grid-cols-1 md:grid-cols-${hasSpouse ? '3' : '2'} gap-6`}>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Rendimento Mensal (€)</label>
+                            <input
+                                type="number"
+                                value={formData.financial.monthlyIncome}
+                                onChange={(e) => handleFieldChange('financial.monthlyIncome', e.target.value)}
+                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                                placeholder="2500"
+                            />
+                        </div>
+
+                        {hasSpouse && (
                             <div>
-                                <label className="block text-sm font-medium text-gray-700">Orçamento Mensal (€)</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Rendimento do Cônjuge (€)</label>
                                 <input
                                     type="number"
-                                    value={formData.qualification.tenant?.budget || ''}
-                                    onChange={(e) => handleChange('qualification.tenant.budget', e.target.value)}
-                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                    placeholder="600"
+                                    value={formData.financial.spouseMonthlyIncome}
+                                    onChange={(e) => handleFieldChange('financial.spouseMonthlyIncome', e.target.value)}
+                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                                    placeholder="2000"
                                 />
                             </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">Urgência</label>
-                                <select
-                                    value={formData.qualification.tenant?.urgency || 'normal'}
-                                    onChange={(e) => handleChange('qualification.tenant.urgency', e.target.value)}
-                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                >
-                                    {URGENCY_LEVELS.map(level => (
-                                        <option key={level.value} value={level.value}>
-                                            {level.label}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">Tipo de Imóvel</label>
-                                <select
-                                    value={formData.qualification.tenant?.propertyType || 'apartamento'}
-                                    onChange={(e) => handleChange('qualification.tenant.propertyType', e.target.value)}
-                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                >
-                                    {PROPERTY_TYPES.map(type => (
-                                        <option key={type.value} value={type.value}>
-                                            {type.label}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">Duração (meses)</label>
-                                <select
-                                    value={formData.qualification.tenant?.duration || '12'}
-                                    onChange={(e) => handleChange('qualification.tenant.duration', e.target.value)}
-                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                >
-                                    {TENANT_DURATION.map(duration => (
-                                        <option key={duration.value} value={duration.value}>
-                                            {duration.label}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
+                        )}
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                <span className="flex items-center">
+                                    <span>Rendimento do Agregado (€)</span>
+                                    <span className="ml-2 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">Auto</span>
+                                </span>
+                            </label>
+                            <input
+                                type="number"
+                                value={formData.financial.totalHouseholdIncome}
+                                className="w-full px-4 py-3 bg-blue-50 border border-blue-200 rounded-lg text-blue-900 font-medium cursor-not-allowed"
+                                readOnly
+                            />
                         </div>
-                        <label className="flex items-center">
+                    </div>
+
+                    <div className="mt-6">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Capital Disponível (€)</label>
+                        <input
+                            type="number"
+                            value={formData.financial.availableCapital}
+                            onChange={(e) => handleFieldChange('financial.availableCapital', e.target.value)}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                            placeholder="50000"
+                        />
+                    </div>
+                </div>
+
+                {/* Situação de Crédito */}
+                <div className="bg-orange-50 p-6 rounded-xl border border-orange-200">
+                    <div className="flex items-center mb-6">
+                        <div className="w-10 h-10 bg-orange-600 rounded-lg flex items-center justify-center">
+                            <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2 2z" />
+                            </svg>
+                        </div>
+                        <h3 className="text-lg font-semibold text-orange-800 ml-3">Situação de Crédito</h3>
+                    </div>
+
+                    <div className="space-y-6">
+                        {creditTypes.map(credit => (
+                            <div key={credit.key} className={`credit-section bg-white p-4 rounded-lg border ${formData.financial.credits[credit.key].active ? 'border-orange-300 bg-orange-50' : 'border-gray-200'}`}>
+                                <div className="flex items-center mb-3">
+                                    <label className="flex items-center space-x-3 cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            className="w-5 h-5 text-orange-600 rounded focus:ring-orange-500"
+                                            checked={formData.financial.credits[credit.key].active}
+                                            onChange={(e) => {
+                                                const newCredits = {
+                                                    ...formData.financial.credits,
+                                                    [credit.key]: {
+                                                        ...formData.financial.credits[credit.key],
+                                                        active: e.target.checked
+                                                    }
+                                                };
+                                                handleFieldChange('financial.credits', newCredits);
+                                            }}
+                                        />
+                                        <span className="text-xl">{credit.icon}</span>
+                                        <span className="text-sm font-medium text-gray-900">{credit.label}</span>
+                                    </label>
+                                </div>
+
+                                {formData.financial.credits[credit.key].active && (
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+                                        <div>
+                                            <label className="block text-xs font-medium text-gray-600 mb-1">Valor em Dívida (€)</label>
+                                            <input
+                                                type="number"
+                                                value={formData.financial.credits[credit.key].amount}
+                                                onChange={(e) => {
+                                                    const newCredits = {
+                                                        ...formData.financial.credits,
+                                                        [credit.key]: {
+                                                            ...formData.financial.credits[credit.key],
+                                                            amount: e.target.value
+                                                        }
+                                                    };
+                                                    handleFieldChange('financial.credits', newCredits);
+                                                }}
+                                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                                                placeholder="150000"
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-xs font-medium text-gray-600 mb-1">Prestação Mensal (€)</label>
+                                            <input
+                                                type="number"
+                                                value={formData.financial.credits[credit.key].monthlyPayment}
+                                                onChange={(e) => {
+                                                    const newCredits = {
+                                                        ...formData.financial.credits,
+                                                        [credit.key]: {
+                                                            ...formData.financial.credits[credit.key],
+                                                            monthlyPayment: e.target.value
+                                                        }
+                                                    };
+                                                    handleFieldChange('financial.credits', newCredits);
+                                                }}
+                                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                                                placeholder="800"
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-xs font-medium text-gray-600 mb-1">Entidade Credora</label>
+                                            <input
+                                                type="text"
+                                                value={formData.financial.credits[credit.key].entity}
+                                                onChange={(e) => {
+                                                    const newCredits = {
+                                                        ...formData.financial.credits,
+                                                        [credit.key]: {
+                                                            ...formData.financial.credits[credit.key],
+                                                            entity: e.target.value
+                                                        }
+                                                    };
+                                                    handleFieldChange('financial.credits', newCredits);
+                                                }}
+                                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                                                placeholder="Banco CGD"
+                                            />
+                                        </div>
+
+                                        {credit.key === 'other' && (
+                                            <div className="md:col-span-3">
+                                                <label className="block text-xs font-medium text-gray-600 mb-1">Descrição</label>
+                                                <input
+                                                    type="text"
+                                                    value={formData.financial.credits[credit.key].description || ''}
+                                                    onChange={(e) => {
+                                                        const newCredits = {
+                                                            ...formData.financial.credits,
+                                                            [credit.key]: {
+                                                                ...formData.financial.credits[credit.key],
+                                                                description: e.target.value
+                                                            }
+                                                        };
+                                                        handleFieldChange('financial.credits', newCredits);
+                                                    }}
+                                                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                                                    placeholder="Crédito para obras da casa"
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="mt-6">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Banco de Relacionamento</label>
+                        <input
+                            type="text"
+                            value={formData.financial.relationshipBank}
+                            onChange={(e) => handleFieldChange('financial.relationshipBank', e.target.value)}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                            placeholder="Banco Millennium BCP"
+                        />
+                    </div>
+                </div>
+
+                {/* Pré-aprovação Bancária */}
+                <div className="bg-purple-50 p-6 rounded-xl border border-purple-200">
+                    <div className="flex items-center mb-6">
+                        <div className="w-10 h-10 bg-purple-600 rounded-lg flex items-center justify-center">
+                            <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                        </div>
+                        <h3 className="text-lg font-semibold text-purple-800 ml-3">Pré-aprovação Bancária</h3>
+                    </div>
+
+                    <div className="space-y-4">
+                        <div>
+                            <label className="flex items-center space-x-3 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    className="w-5 h-5 text-purple-600 rounded focus:ring-purple-500"
+                                    checked={formData.financial.hasPreApproval}
+                                    onChange={(e) => handleFieldChange('financial.hasPreApproval', e.target.checked)}
+                                />
+                                <span className="text-sm font-medium text-gray-700">Tem pré-aprovação bancária</span>
+                            </label>
+                        </div>
+
+                        {formData.financial.hasPreApproval && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-white p-4 rounded-lg border border-purple-200">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Banco da Pré-aprovação</label>
+                                    <input
+                                        type="text"
+                                        value={formData.financial.bankApprovalWhere}
+                                        onChange={(e) => handleFieldChange('financial.bankApprovalWhere', e.target.value)}
+                                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                        placeholder="Banco Santander"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Montante Aprovado (€)</label>
+                                    <input
+                                        type="number"
+                                        value={formData.financial.bankApprovalAmount}
+                                        onChange={(e) => handleFieldChange('financial.bankApprovalAmount', e.target.value)}
+                                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                        placeholder="300000"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Condições</label>
+                                    <input
+                                        type="text"
+                                        value={formData.financial.bankApprovalConditions}
+                                        onChange={(e) => handleFieldChange('financial.bankApprovalConditions', e.target.value)}
+                                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                        placeholder="Taxa fixa 3.5%, 40 anos"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Validade</label>
+                                    <input
+                                        type="date"
+                                        value={formData.financial.bankApprovalValidity}
+                                        onChange={(e) => handleFieldChange('financial.bankApprovalValidity', e.target.value)}
+                                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                    />
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
+    const renderDocumentationAndTags = () => (
+        <div className="space-y-8">
+            <div className="text-center mb-8">
+                <h2 className="text-2xl font-bold text-gray-900">Documentação e Tags</h2>
+                <p className="text-gray-600 mt-2">Documentos disponíveis e categorização do cliente</p>
+            </div>
+
+            {/* Documentação Disponível */}
+            <div className="bg-gray-50 p-6 rounded-xl border border-gray-200">
+                <div className="flex items-center mb-6">
+                    <div className="w-10 h-10 bg-gray-600 rounded-lg flex items-center justify-center">
+                        <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                        </svg>
+                    </div>
+                    <h3 className="text-lg font-semibold text-gray-800 ml-3">Documentos Disponíveis</h3>
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    {Object.entries({
+                        ccFront: 'CC Frente',
+                        ccBack: 'CC Verso',
+                        ibanProof: 'Comprovativo IBAN',
+                        irsDeclaration: 'Declaração IRS',
+                        salaryReceipts: 'Recibos Vencimento',
+                        birthCertificate: 'Certidão Nascimento',
+                        marriageCertificate: 'Certidão Casamento',
+                        propertyRegistry: 'Caderneta Predial',
+                        residenceCertificate: 'Cert. Permanência',
+                        workContract: 'Contrato Trabalho',
+                        bankStatement: 'Extrato Bancário',
+                        divorceDecree: 'Certidão Divórcio',
+                        pensionProof: 'Comp. Pensão'
+                    }).map(([key, label]) => (
+                        <label key={key} className="flex items-center space-x-2 cursor-pointer p-2 hover:bg-white rounded-lg transition-colors">
                             <input
                                 type="checkbox"
-                                checked={formData.qualification.tenant?.guarantor || false}
-                                onChange={(e) => handleChange('qualification.tenant.guarantor', e.target.checked)}
-                                className="rounded border-gray-300 text-indigo-600 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                className="w-4 h-4 text-gray-600 rounded focus:ring-gray-500"
+                                checked={formData.documents[key]}
+                                onChange={(e) => handleFieldChange(`documents.${key}`, e.target.checked)}
                             />
-                            <span className="ml-2 text-sm text-gray-700">Tem fiador</span>
+                            <span className="text-sm text-gray-700">{label}</span>
                         </label>
-                    </div>
-                );
+                    ))}
+                </div>
+            </div>
 
-            case 'investidor':
-                return (
-                    <div className="space-y-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">Orçamento (€)</label>
-                                <input
-                                    type="number"
-                                    value={formData.qualification.investor?.budget || ''}
-                                    onChange={(e) => handleChange('qualification.investor.budget', e.target.value)}
-                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                    placeholder="500000"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">Estratégia</label>
-                                <select
-                                    value={formData.qualification.investor?.strategy || 'buyToRent'}
-                                    onChange={(e) => handleChange('qualification.investor.strategy', e.target.value)}
-                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                >
-                                    {INVESTMENT_TYPES.map(type => (
-                                        <option key={type.value} value={type.value}>
-                                            {type.label}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">ROI Esperado (%)</label>
-                                <input
-                                    type="number"
-                                    value={formData.qualification.investor?.roi || ''}
-                                    onChange={(e) => handleChange('qualification.investor.roi', e.target.value)}
-                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                    placeholder="6"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">Experiência</label>
-                                <select
-                                    value={formData.qualification.investor?.experience || 'iniciante'}
-                                    onChange={(e) => handleChange('qualification.investor.experience', e.target.value)}
-                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                >
-                                    <option value="iniciante">Iniciante</option>
-                                    <option value="intermediario">Intermediário</option>
-                                    <option value="experiente">Experiente</option>
-                                </select>
-                            </div>
-                        </div>
-                        <label className="flex items-center">
+            {/* Tags */}
+            <div className="bg-blue-50 p-6 rounded-xl border border-blue-200">
+                <div className="flex items-center mb-6">
+                    <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
+                        <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+                            <path fillRule="evenodd" d="M5.25 2.25a3 3 0 00-3 3v4.318a3 3 0 00.879 2.121l9.58 9.581c.92.92 2.39 1.186 3.548.428a18.849 18.849 0 005.441-5.44c.758-1.16.492-2.629-.428-3.548l-9.58-9.581a3 3 0 00-2.122-.879H5.25zM6.375 7.5a1.125 1.125 0 100-2.25 1.125 1.125 0 000 2.25z" clipRule="evenodd" />
+                        </svg>
+                    </div>
+                    <h3 className="text-lg font-semibold text-blue-800 ml-3">Tags do Cliente</h3>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                    {CLIENT_AVAILABLE_TAGS.map(tag => (
+                        <button
+                            key={tag}
+                            type="button"
+                            onClick={() => {
+                                const currentTags = formData.tags;
+                                const newTags = currentTags.includes(tag)
+                                    ? currentTags.filter(t => t !== tag)
+                                    : [...currentTags, tag];
+                                handleFieldChange('tags', newTags);
+                            }}
+                            className={`px-3 py-2 rounded-full text-sm transition-all duration-200 ${formData.tags.includes(tag)
+                                ? 'bg-blue-600 text-white shadow-md'
+                                : 'bg-white text-gray-700 border border-gray-300 hover:bg-blue-50 hover:border-blue-300'
+                                }`}
+                        >
+                            {tag}
+                        </button>
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
+
+    const renderRelationshipAndConsent = () => (
+        <div className="space-y-8">
+            <div className="text-center mb-8">
+                <h2 className="text-2xl font-bold text-gray-900">Gestão de Relacionamento</h2>
+                <p className="text-gray-600 mt-2">Origem do cliente, observações e consentimentos</p>
+            </div>
+
+            {/* Origem e Gestão */}
+            <div className="bg-yellow-50 p-6 rounded-xl border border-yellow-200">
+                <div className="flex items-center mb-6">
+                    <div className="w-10 h-10 bg-yellow-600 rounded-lg flex items-center justify-center">
+                        <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                        </svg>
+                    </div>
+                    <h3 className="text-lg font-semibold text-yellow-800 ml-3">Origem do Cliente</h3>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Como nos conheceu?</label>
+                        <select
+                            value={formData.leadSource}
+                            onChange={(e) => handleFieldChange('leadSource', e.target.value)}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+                        >
+                            {CLIENT_LEAD_SOURCES.map(option => (
+                                <option key={option.value} value={option.value}>
+                                    {option.label}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Fonte da Recomendação</label>
+                        <input
+                            type="text"
+                            value={formData.referralSource}
+                            onChange={(e) => handleFieldChange('referralSource', e.target.value)}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+                            placeholder="Nome do cliente que recomendou"
+                        />
+                    </div>
+
+                    <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Data do Próximo Contacto</label>
+                        <input
+                            type="datetime-local"
+                            value={formData.nextContactDate}
+                            onChange={(e) => handleFieldChange('nextContactDate', e.target.value)}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+                        />
+                    </div>
+                </div>
+            </div>
+
+            {/* Observações do Consultor */}
+            <div className="bg-gray-50 p-6 rounded-xl border border-gray-200">
+                <div className="flex items-center mb-6">
+                    <div className="w-10 h-10 bg-gray-600 rounded-lg flex items-center justify-center">
+                        <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                        </svg>
+                    </div>
+                    <h3 className="text-lg font-semibold text-gray-800 ml-3">Observações do Consultor</h3>
+                </div>
+
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Notas Privadas do Consultor</label>
+                    <textarea
+                        value={formData.consultorObservations}
+                        onChange={(e) => handleFieldChange('consultorObservations', e.target.value)}
+                        rows="5"
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-transparent"
+                        placeholder="Observações internas sobre o cliente, estratégia de abordagem, pontos importantes, histórico de contactos, preferências específicas..."
+                    />
+                </div>
+            </div>
+
+            {/* Consentimentos GDPR */}
+            <div className="bg-red-50 p-6 rounded-xl border border-red-200">
+                <div className="flex items-center mb-6">
+                    <div className="w-10 h-10 bg-red-600 rounded-lg flex items-center justify-center">
+                        <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+                            <path fillRule="evenodd" d="M12.516 2.17a.75.75 0 00-1.032 0 11.209 11.209 0 01-7.877 3.08.75.75 0 00-.722.515A12.74 12.74 0 002.25 9.75c0 5.814 3.051 10.77 7.608 13.566a.75.75 0 00.784 0C15.199 20.52 18.25 15.564 18.25 9.75a12.74 12.74 0 00-.635-4.055.75.75 0 00-.722-.515c-2.992 0-5.725-1.107-7.877-3.08zM15.75 9.75a3 3 0 11-6 0 3 3 0 016 0z" clipRule="evenodd" />
+                        </svg>
+                    </div>
+                    <h3 className="text-lg font-semibold text-red-800 ml-3">Consentimentos GDPR</h3>
+                </div>
+
+                <div className="space-y-6">
+                    <div className="bg-white rounded-lg p-4 border border-red-200">
+                        <label className="flex items-start space-x-3 cursor-pointer">
                             <input
                                 type="checkbox"
-                                checked={formData.qualification.investor?.financing || false}
-                                onChange={(e) => handleChange('qualification.investor.financing', e.target.checked)}
-                                className="rounded border-gray-300 text-indigo-600 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                className="w-5 h-5 mt-1 text-red-600 rounded focus:ring-red-500"
+                                checked={formData.gdprConsent}
+                                onChange={(e) => handleFieldChange('gdprConsent', e.target.checked)}
                             />
-                            <span className="ml-2 text-sm text-gray-700">Usa financiamento</span>
+                            <div>
+                                <span className="text-sm font-semibold text-gray-700 block">
+                                    Consentimento para Tratamento de Dados Pessoais *
+                                </span>
+                                <p className="text-xs text-gray-600 mt-1">
+                                    Consinto no tratamento dos meus dados pessoais para fins de prestação de serviços imobiliários, conforme descrito na Política de Privacidade.
+                                </p>
+                            </div>
+                        </label>
+                        {validationErrors.gdprConsent && (
+                            <p className="mt-2 text-sm text-red-600 ml-8">{validationErrors.gdprConsent}</p>
+                        )}
+                    </div>
+
+                    <div className="bg-white rounded-lg p-4 border border-gray-200">
+                        <label className="flex items-start space-x-3 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                className="w-5 h-5 mt-1 text-gray-600 rounded focus:ring-gray-500"
+                                checked={formData.marketingConsent}
+                                onChange={(e) => handleFieldChange('marketingConsent', e.target.checked)}
+                            />
+                            <div>
+                                <span className="text-sm font-semibold text-gray-700 block">
+                                    Consentimento para Marketing e Comunicações
+                                </span>
+                                <p className="text-xs text-gray-600 mt-1">
+                                    Consinto em receber comunicações promocionais e de marketing por email, SMS ou telefone sobre novos imóveis e serviços.
+                                </p>
+                            </div>
                         </label>
                     </div>
-                );
 
+                    <div className="bg-white rounded-lg p-4 border border-gray-200">
+                        <label className="flex items-start space-x-3 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                className="w-5 h-5 mt-1 text-gray-600 rounded focus:ring-gray-500"
+                                checked={formData.dataProcessingConsent}
+                                onChange={(e) => handleFieldChange('dataProcessingConsent', e.target.checked)}
+                            />
+                            <div>
+                                <span className="text-sm font-semibold text-gray-700 block">
+                                    Processamento de Dados para Análise
+                                </span>
+                                <p className="text-xs text-gray-600 mt-1">
+                                    Consinto no processamento dos meus dados para análise de perfil, estatísticas e melhoria dos serviços.
+                                </p>
+                            </div>
+                        </label>
+                    </div>
+
+                    <div className="bg-white rounded-lg p-4 border border-gray-200">
+                        <label className="flex items-start space-x-3 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                className="w-5 h-5 mt-1 text-gray-600 rounded focus:ring-gray-500"
+                                checked={formData.thirdPartyConsent}
+                                onChange={(e) => handleFieldChange('thirdPartyConsent', e.target.checked)}
+                            />
+                            <div>
+                                <span className="text-sm font-semibold text-gray-700 block">
+                                    Partilha com Parceiros
+                                </span>
+                                <p className="text-xs text-gray-600 mt-1">
+                                    Consinto na partilha dos meus dados com parceiros de confiança (bancos, seguradoras, construtoras) para facilitar o processo.
+                                </p>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <div className="flex items-start space-x-2">
+                        <svg className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                            <path fillRule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12zm8.706-1.442c1.146-.573 2.437.463 2.126 1.706l-.709 2.836.042-.02a.75.75 0 01.67 1.34l-.04.022c-1.147.573-2.438-.463-2.127-1.706l.71-2.836-.042.02a.75.75 0 11-.671-1.34l.041-.022zM12 9a.75.75 0 100-1.5.75.75 0 000 1.5z" clipRule="evenodd" />
+                        </svg>
+                        <div>
+                            <p className="text-sm font-medium text-blue-800">Direitos do Titular dos Dados</p>
+                            <p className="text-xs text-blue-700 mt-1">
+                                O cliente tem direito a aceder, retificar, eliminar, restringir o tratamento ou solicitar a portabilidade dos seus dados a qualquer momento, contactando-nos através dos meios disponibilizados.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+
+    const renderCurrentStep = () => {
+        switch (currentStep) {
+            case 1:
+                return renderPersonalData();
+            case 2:
+                return renderFinancialInfo();
+            case 3:
+                return renderDocumentationAndTags();
+            case 4:
+                return renderRelationshipAndConsent();
             default:
-                return null;
+                return renderPersonalData();
         }
     };
 
-    // Loading state
-    if (loading.create || loading.update) {
+    // Loading state para carregamento inicial
+    if (isEditMode && loading.current) {
         return (
             <Layout>
-                <div className="flex justify-center items-center h-64">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+                <div className="flex items-center justify-center h-64">
+                    <div className="text-center">
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                        <p className="text-gray-600">Carregando dados do cliente...</p>
+                    </div>
                 </div>
             </Layout>
         );
@@ -574,201 +1261,123 @@ export default function LeadForm() {
 
     return (
         <Layout>
-            <div className="min-h-screen bg-gray-50 py-8">
-                <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
-                    {/* Header */}
-                    <div className="flex items-center justify-between mb-8">
-                        <div className="flex items-center">
-                            <button
-                                onClick={() => navigate('/leads')}
-                                className="mr-4 text-gray-400 hover:text-gray-600"
-                            >
-                                <ArrowLeftIcon className="h-6 w-6" />
-                            </button>
+            <div className="p-6">
+                {/* Header com Navegação */}
+                <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center space-x-3">
+                        <button
+                            onClick={() => navigate('/clients')}
+                            className="text-gray-500 hover:text-gray-700 transition-colors"
+                        >
+                            <ArrowLeftIcon className="w-5 h-5" />
+                        </button>
+                        <div>
                             <h1 className="text-2xl font-bold text-gray-900">
-                                {isEditMode ? 'Editar Lead' : 'Nova Lead'}
+                                {isEditMode ? 'Editar Cliente' : 'Novo Cliente'}
                             </h1>
+                            <p className="text-sm text-gray-600">Formulário completo de gestão de clientes</p>
                         </div>
                     </div>
+                    <button
+                        onClick={() => navigate('/clients')}
+                        className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors shadow-sm"
+                    >
+                        Cancelar
+                    </button>
+                </div>
 
-                    {/* Formulário */}
-                    <form onSubmit={handleSubmit} className="bg-white shadow rounded-lg">
-                        <div className="px-6 py-4 border-b border-gray-200">
-                            <h2 className="text-lg font-medium text-gray-900">Informações do Prospect</h2>
+                {/* Alertas de erro */}
+                {(contextErrors.create || contextErrors.update) && (
+                    <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+                        <div className="flex">
+                            <ExclamationTriangleIcon className="h-5 w-5 text-red-400" />
+                            <div className="ml-3">
+                                <h3 className="text-sm font-medium text-red-800">Erro ao guardar cliente</h3>
+                                <p className="mt-1 text-sm text-red-700">
+                                    {contextErrors.create || contextErrors.update}
+                                </p>
+                            </div>
                         </div>
+                    </div>
+                )}
 
-                        <div className="p-6 space-y-6">
-                            {/* Dados básicos */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700">
-                                        Nome *
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={formData.prospect?.name || ''}
-                                        onChange={(e) => handleChange('prospect.name', e.target.value)}
-                                        className={`mt-1 block w-full rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 ${errors.name ? 'border-red-300' : 'border-gray-300'
-                                            }`}
-                                        placeholder="João Silva"
-                                    />
-                                    {errors.name && (
-                                        <p className="mt-1 text-sm text-red-600">{errors.name}</p>
+                {/* Progresso */}
+                <div className="mb-8">
+                    <div className="flex items-center justify-between">
+                        {[1, 2, 3, 4].map(step => (
+                            <div key={step} className="flex items-center">
+                                <div className={`flex items-center justify-center w-12 h-12 rounded-full transition-all duration-200 ${step === currentStep
+                                    ? 'bg-blue-600 text-white ring-4 ring-blue-200'
+                                    : step < currentStep
+                                        ? 'bg-green-600 text-white'
+                                        : 'bg-gray-200 text-gray-600'
+                                    }`}>
+                                    {step < currentStep ? (
+                                        <CheckCircleIcon className="w-6 h-6" />
+                                    ) : (
+                                        step
                                     )}
                                 </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700">
-                                        Telefone *
-                                    </label>
-                                    <input
-                                        type="tel"
-                                        value={formData.prospect?.phone || ''}
-                                        onChange={(e) => handleChange('prospect.phone', e.target.value)}
-                                        className={`mt-1 block w-full rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 ${errors.phone ? 'border-red-300' : 'border-gray-300'
-                                            }`}
-                                        placeholder="912345678"
-                                    />
-                                    {errors.phone && (
-                                        <p className="mt-1 text-sm text-red-600">{errors.phone}</p>
-                                    )}
-                                </div>
-
-                                <div className="md:col-span-2">
-                                    <label className="block text-sm font-medium text-gray-700">
-                                        Email
-                                    </label>
-                                    <input
-                                        type="email"
-                                        value={formData.prospect?.email || ''}
-                                        onChange={(e) => handleChange('prospect.email', e.target.value)}
-                                        className={`mt-1 block w-full rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 ${errors.email ? 'border-red-300' : 'border-gray-300'
-                                            }`}
-                                        placeholder="joao@email.com"
-                                    />
-                                    {errors.email && (
-                                        <p className="mt-1 text-sm text-red-600">{errors.email}</p>
-                                    )}
-                                </div>
+                                {step < 4 && (
+                                    <div className={`flex-1 h-1 mx-4 rounded-full transition-all duration-200 ${step < currentStep ? 'bg-green-600' : 'bg-gray-200'
+                                        }`} />
+                                )}
                             </div>
+                        ))}
+                    </div>
+                    <div className="flex justify-between mt-3">
+                        <span className="text-sm text-gray-600 font-medium">Dados Pessoais</span>
+                        <span className="text-sm text-gray-600 font-medium">Info. Financeiras</span>
+                        <span className="text-sm text-gray-600 font-medium">Documentação</span>
+                        <span className="text-sm text-gray-600 font-medium">Relacionamento</span>
+                    </div>
+                </div>
 
-                            {/* Tipo de Qualificação */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Tipo de Lead
-                                </label>
-                                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                                    {QUALIFICATION_TYPES.map(type => (
-                                        <button
-                                            key={type.value}
-                                            type="button"
-                                            onClick={() => handleChange('qualification.type', type.value)}
-                                            className={`px-4 py-2 border rounded-lg text-sm font-medium transition-colors ${formData.qualification?.type === type.value
-                                                ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
-                                                : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
-                                                }`}
-                                        >
-                                            {type.label}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
+                {/* Conteúdo do Formulário */}
+                <div className="bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
+                    {renderCurrentStep()}
+                </div>
 
-                            {/* Campos específicos do tipo */}
-                            {renderQualificationFields()}
+                {/* Navegação */}
+                <div className="mt-8 flex justify-between">
+                    <button
+                        onClick={prevStep}
+                        disabled={currentStep === 1}
+                        className={`px-6 py-3 border rounded-lg transition-all duration-200 shadow-sm ${currentStep === 1
+                            ? 'invisible'
+                            : 'text-gray-700 bg-white border-gray-300 hover:bg-gray-50'
+                            }`}
+                    >
+                        ← Anterior
+                    </button>
 
-                            {/* Origem da Lead */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700">
-                                        Origem
-                                    </label>
-                                    <select
-                                        value={formData.source?.origin || 'website'}
-                                        onChange={(e) => handleChange('source.origin', e.target.value)}
-                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                    >
-                                        {LEAD_SOURCES.map(source => (
-                                            <option key={source.value} value={source.value}>
-                                                {source.label}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700">
-                                        Campanha
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={formData.source?.campaign || ''}
-                                        onChange={(e) => handleChange('source.campaign', e.target.value)}
-                                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                        placeholder="Google Ads, Facebook, etc"
-                                    />
-                                </div>
-                            </div>
-
-                            {/* Status */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">
-                                    Status
-                                </label>
-                                <select
-                                    value={formData.status || 'nova'}
-                                    onChange={(e) => handleChange('status', e.target.value)}
-                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                >
-                                    {LEAD_STATUS.map(status => (
-                                        <option key={status.value} value={status.value}>
-                                            {status.label}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            {/* Notas */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">
-                                    Notas
-                                </label>
-                                <textarea
-                                    value={formData.notes || ''}
-                                    onChange={(e) => handleChange('notes', e.target.value)}
-                                    rows={4}
-                                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                    placeholder="Observações sobre a lead..."
-                                />
-                            </div>
-
-                            {/* Erro de submit */}
-                            {errors.submit && (
-                                <div className="rounded-md bg-red-50 p-4">
-                                    <p className="text-sm text-red-800">{errors.submit}</p>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Footer com botões */}
-                        <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end space-x-3">
+                    <div className="flex gap-4">
+                        {currentStep < totalSteps ? (
                             <button
-                                type="button"
-                                onClick={() => navigate('/leads')}
-                                className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                                onClick={nextStep}
+                                className="px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all duration-200 shadow-lg font-medium"
                             >
-                                Cancelar
+                                Próximo →
                             </button>
+                        ) : (
                             <button
-                                type="submit"
-                                className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                                onClick={handleSubmit}
+                                disabled={isSubmitting || loading.create || loading.update}
+                                className="px-12 py-3 bg-gradient-to-r from-green-600 to-blue-600 text-white rounded-lg hover:from-green-700 hover:to-blue-700 transition-all duration-200 shadow-xl font-semibold text-lg disabled:opacity-50"
                             >
-                                {isEditMode ? 'Atualizar' : 'Criar'} Lead
+                                {isSubmitting || loading.create || loading.update
+                                    ? 'Guardando...'
+                                    : isEditMode
+                                        ? '💾 Guardar Alterações'
+                                        : '✨ Criar Cliente'
+                                }
                             </button>
-                        </div>
-                    </form>
+                        )}
+                    </div>
                 </div>
             </div>
         </Layout>
     );
-}
+};
+
+export default ClientFormPage;
