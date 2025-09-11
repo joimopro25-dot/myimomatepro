@@ -45,29 +45,28 @@ const getLeadDoc = (consultorId, leadId) => {
  */
 export const createLead = async (consultorId, leadData) => {
     try {
-        // Validar dados antes de criar
-        const validation = validateLeadData(leadData);
-        if (!validation.isValid) {
-            throw new Error(`Dados inválidos: ${JSON.stringify(validation.errors)}`);
-        }
+        console.log('📝 Criando nova lead para consultor:', consultorId);
 
-        // Criar schema com consultorId
-        const leadSchema = createLeadSchema(leadData);
-        leadSchema.consultorId = consultorId;
-        leadSchema.createdAt = Timestamp.now();
-        leadSchema.updatedAt = Timestamp.now();
+        const collectionRef = getLeadCollection(consultorId);
 
-        // Adicionar ao Firestore
-        const leadRef = await addDoc(getLeadCollection(consultorId), leadSchema);
-
-        // Retornar a lead criada com ID
-        const newLead = {
-            id: leadRef.id,
-            ...leadSchema
+        // Adicionar timestamps
+        const dataToSave = {
+            ...leadData,
+            consultorId,
+            createdAt: Timestamp.now(),
+            updatedAt: Timestamp.now()
         };
 
-        console.log('Lead criada com sucesso, ID:', leadRef.id);
-        return newLead;
+        // Criar documento no Firestore
+        const docRef = await addDoc(collectionRef, dataToSave);
+
+        console.log('✅ Lead criada com ID:', docRef.id);
+
+        // IMPORTANTE: Retornar a lead COM o ID
+        return {
+            id: docRef.id,  // ← CRÍTICO: Incluir o ID!
+            ...dataToSave
+        };
 
     } catch (error) {
         console.error('LeadService: Erro ao criar lead:', error);

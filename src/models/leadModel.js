@@ -169,6 +169,8 @@ export const LEAD_SOURCES = [
     { value: 'outro', label: 'Outro' }
 ];
 
+
+
 // ===== TIPOS DE QUALIFICAÇÃO =====
 export const QUALIFICATION_TYPES = [
     { value: 'comprador', label: 'Comprador' },
@@ -208,4 +210,25 @@ export const FOLLOWUP_TYPES = [
     { value: 'visita', label: 'Visita' },
     { value: 'email', label: 'Email' },
     { value: 'whatsapp', label: 'WhatsApp' }
+];
+
+// ===== TIPOS DE PROPRIEDADE =====
+export const PROPERTY_TYPES = [
+    { value: 'apartamento', label: 'Apartamento' },
+    { value: 'moradia', label: 'Moradia' },
+    { value: 'terreno', label: 'Terreno' },
+    { value: 'armazem', label: 'Armazém' },
+    { value: 'loja', label: 'Loja' },
+    { value: 'escritorio', label: 'Escritório' },
+    { value: 'garagem', label: 'Garagem' },
+    { value: 'outro', label: 'Outro' }
+];
+
+// ===== DURAÇÃO DO ARRENDAMENTO =====
+export const TENANT_DURATION = [
+    { value: '6', label: '6 meses' },
+    { value: '12', label: '12 meses' },
+    { value: '24', label: '24 meses' },
+    { value: '36', label: '36 meses' },
+    { value: 'indefinido', label: 'Indefinido' }
 ];

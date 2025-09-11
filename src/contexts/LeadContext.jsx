@@ -139,9 +139,15 @@ function leadReducer(state, action) {
             };
 
         case ActionTypes.ADD_LEAD:
+            // VERIFICAR se a lead tem ID antes de adicionar
+            if (!action.payload.id) {
+                console.error('⚠️ Tentando adicionar lead sem ID:', action.payload);
+                return state;
+            }
+
             return {
                 ...state,
-                leads: [action.payload, ...state.leads],
+                leads: [action.payload, ...state.leads],  // Adiciona no início
                 loading: { ...state.loading, create: false }
             };
 
@@ -297,13 +303,23 @@ export function LeadProvider({ children }) {
         setLoading('create', true);
         try {
             const newLead = await createLead(currentUser.uid, leadData);
+
+            // IMPORTANTE: A nova lead DEVE ter ID
+            if (!newLead.id) {
+                console.error('⚠️ Lead criada sem ID!', newLead);
+            }
+
             dispatch({ type: ActionTypes.ADD_LEAD, payload: newLead });
+
+            // Recarregar a lista para garantir sincronização
+            await fetchLeads();
+
             return newLead;
         } catch (error) {
             setError('create', error);
             throw error;
         }
-    }, [currentUser, setLoading, setError]);
+    }, [currentUser, setLoading, setError, fetchLeads]);
 
     // ===== READ: Buscar lead por ID =====
     const fetchLead = useCallback(async (leadId) => {
