@@ -204,17 +204,12 @@ function leadReducer(state, action) {
                 ...state,
                 leads: state.leads.map(lead =>
                     lead.id === action.payload.leadId
-                        ? {
-                            ...lead,
-                            status: 'convertida',
-                            conversion: {
-                                converted: true,
-                                convertedAt: new Date(),
-                                clientId: action.payload.clientId
-                            }
-                        }
+                        ? { ...lead, status: 'converted', clientId: action.payload.clientId }
                         : lead
                 ),
+                currentLead: state.currentLead?.id === action.payload.leadId
+                    ? { ...state.currentLead, status: 'converted', clientId: action.payload.clientId }
+                    : state.currentLead,
                 loading: { ...state.loading, convert: false }
             };
 
@@ -228,8 +223,7 @@ function leadReducer(state, action) {
         case ActionTypes.SET_FILTERS:
             return {
                 ...state,
-                filters: action.payload,
-                pagination: { ...initialState.pagination }
+                filters: { ...state.filters, ...action.payload }
             };
 
         case ActionTypes.SET_SEARCH_TERM:
@@ -241,10 +235,7 @@ function leadReducer(state, action) {
         case ActionTypes.SET_PAGINATION:
             return {
                 ...state,
-                pagination: {
-                    ...state.pagination,
-                    ...action.payload
-                }
+                pagination: { ...state.pagination, ...action.payload }
             };
 
         case ActionTypes.SET_STATS:
@@ -311,15 +302,12 @@ export function LeadProvider({ children }) {
 
             dispatch({ type: ActionTypes.ADD_LEAD, payload: newLead });
 
-            // Recarregar a lista para garantir sincronização
-            await fetchLeads();
-
             return newLead;
         } catch (error) {
             setError('create', error);
             throw error;
         }
-    }, [currentUser, setLoading, setError, fetchLeads]);
+    }, [currentUser, setLoading, setError]);
 
     // ===== READ: Buscar lead por ID =====
     const fetchLead = useCallback(async (leadId) => {
@@ -362,30 +350,25 @@ export function LeadProvider({ children }) {
                 payload: {
                     hasMore: result.hasMore,
                     lastDoc: result.lastDoc,
-                    page: options.loadMore ? state.pagination.page + 1 : 1
+                    page: options.loadMore ? state.pagination.page + 1 : 1,
+                    total: result.total
                 }
             });
-
-            return result;
         } catch (error) {
             setError('list', error);
             throw error;
         }
     }, [currentUser, state.filters, state.pagination, state.leads, setLoading, setError]);
 
-    // ===== READ: Buscar leads =====
+    // ===== SEARCH: Buscar leads por termo =====
     const searchLeadsByTerm = useCallback(async (searchTerm) => {
-        if (!currentUser) return;
+        if (!currentUser || !searchTerm.trim()) {
+            dispatch({ type: ActionTypes.SET_SEARCH_RESULTS, payload: [] });
+            return [];
+        }
 
         setLoading('search', true);
-        dispatch({ type: ActionTypes.SET_SEARCH_TERM, payload: searchTerm });
-
         try {
-            if (!searchTerm) {
-                dispatch({ type: ActionTypes.SET_SEARCH_RESULTS, payload: [] });
-                return [];
-            }
-
             const results = await searchLeads(currentUser.uid, searchTerm);
             dispatch({ type: ActionTypes.SET_SEARCH_RESULTS, payload: results });
             return results;
@@ -396,12 +379,12 @@ export function LeadProvider({ children }) {
     }, [currentUser, setLoading, setError]);
 
     // ===== UPDATE: Atualizar lead =====
-    const updateExistingLead = useCallback(async (leadId, updateData) => {
+    const updateExistingLead = useCallback(async (leadId, updates) => {
         if (!currentUser) return null;
 
         setLoading('update', true);
         try {
-            const updatedLead = await updateLead(currentUser.uid, leadId, updateData);
+            const updatedLead = await updateLead(currentUser.uid, leadId, updates);
             dispatch({ type: ActionTypes.UPDATE_LEAD, payload: updatedLead });
             return updatedLead;
         } catch (error) {
@@ -410,66 +393,69 @@ export function LeadProvider({ children }) {
         }
     }, [currentUser, setLoading, setError]);
 
-    // ===== UPDATE: Adicionar follow-up =====
+    // ===== FOLLOWUP: Adicionar follow-up =====
     const addNewFollowUp = useCallback(async (leadId, followUpData) => {
         if (!currentUser) return null;
 
         setLoading('followUp', true);
         try {
-            const newFollowUp = await addFollowUp(currentUser.uid, leadId, followUpData);
+            const followUp = await addFollowUp(currentUser.uid, leadId, followUpData);
             dispatch({
                 type: ActionTypes.ADD_FOLLOWUP,
-                payload: { leadId, followUp: newFollowUp }
+                payload: { leadId, followUp }
             });
-            return newFollowUp;
+            return followUp;
         } catch (error) {
             setError('followUp', error);
             throw error;
         }
     }, [currentUser, setLoading, setError]);
 
-    // ===== UPDATE: Converter lead em cliente =====
-    const convertLead = useCallback(async (leadId, clientId) => {
-        if (!currentUser) return false;
+    // ===== CONVERT: Converter lead em cliente =====
+    const convertLead = useCallback(async (leadId, clientData) => {
+        if (!currentUser) return null;
 
         setLoading('convert', true);
         try {
-            await convertLeadToClient(currentUser.uid, leadId, clientId);
+            const result = await convertLeadToClient(currentUser.uid, leadId, clientData);
             dispatch({
                 type: ActionTypes.CONVERT_LEAD,
-                payload: { leadId, clientId }
+                payload: { leadId, clientId: result.clientId }
             });
-            return true;
+            return result;
         } catch (error) {
             setError('convert', error);
             throw error;
         }
     }, [currentUser, setLoading, setError]);
 
-    // ===== UPDATE: Atualizar status =====
+    // ===== STATUS: Alterar status da lead =====
     const changeLeadStatus = useCallback(async (leadId, newStatus) => {
-        if (!currentUser) return false;
+        if (!currentUser) return null;
 
         try {
             await updateLeadStatus(currentUser.uid, leadId, newStatus);
-            const updatedLead = await getLead(currentUser.uid, leadId);
-            dispatch({ type: ActionTypes.UPDATE_LEAD, payload: updatedLead });
-            return true;
+            const updatedLead = state.leads.find(l => l.id === leadId);
+            if (updatedLead) {
+                dispatch({
+                    type: ActionTypes.UPDATE_LEAD,
+                    payload: { ...updatedLead, status: newStatus }
+                });
+            }
         } catch (error) {
-            console.error('Erro ao atualizar status:', error);
+            console.error('Erro ao alterar status:', error);
             throw error;
         }
-    }, [currentUser]);
+    }, [currentUser, state.leads]);
 
-    // ===== DELETE: Deletar lead =====
+    // ===== DELETE: Eliminar lead =====
     const deleteExistingLead = useCallback(async (leadId) => {
-        if (!currentUser) return false;
+        if (!currentUser) return;
 
         setLoading('delete', true);
         try {
             await deleteLead(currentUser.uid, leadId);
             dispatch({ type: ActionTypes.DELETE_LEAD, payload: leadId });
-            return true;
         } catch (error) {
             setError('delete', error);
             throw error;
