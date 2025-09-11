@@ -135,9 +135,10 @@ function LeadList() {
         }
     };
 
-    const handleEditClick = (e, leadId) => {
+    const handleEditClick = (e, lead) => {
         e.stopPropagation();
-        navigate(`/leads/${leadId}/edit`);
+        // passar lead completo para o formulário de edição
+        navigate(`/leads/${lead.id}/edit`, { state: { leadFull: lead } });
     };
 
     // Lidar com mudanças nos filtros
@@ -425,7 +426,8 @@ function LeadList() {
                                                 }
 
                                                 console.log(`Navegando para: /leads/${lead.id}`);
-                                                navigate(`/leads/${lead.id}`);
+                                                // Navegar passando o objeto completo para evitar fetch desnecessário
+                                                navigate(`/leads/${lead.id}`, { state: { leadFull: lead } });
                                             }}
                                             className="block hover:bg-gray-50 cursor-pointer"
                                         >
@@ -460,7 +462,7 @@ function LeadList() {
                                                         )}
                                                         <div className="ml-4 flex items-center space-x-2">
                                                             <button
-                                                                onClick={(e) => handleEditClick(e, lead.id)}
+                                                                onClick={(e) => handleEditClick(e, lead)}
                                                                 className="text-indigo-600 hover:text-indigo-900"
                                                             >
                                                                 <PencilIcon className="h-5 w-5" />

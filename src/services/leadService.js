@@ -57,17 +57,26 @@ export const createLead = async (consultorId, leadData) => {
         leadSchema.createdAt = Timestamp.now();
         leadSchema.updatedAt = Timestamp.now();
 
+        // Remover qualquer campo "id" que venha no payload para não sobrescrever o id autogerado
+        if ('id' in leadSchema) {
+            delete leadSchema.id;
+        }
+
+        // DEBUG: mostrar exatamente o objeto que será gravado
+        console.log('Lead schema a ser salvo:', leadSchema);
+
         // Adicionar ao Firestore
         const leadRef = await addDoc(getLeadCollection(consultorId), leadSchema);
 
-        // IMPORTANTE: Retornar a lead criada COM ID
-        const newLead = {
-            id: leadRef.id,  // ← CRÍTICO: Incluir o ID!
-            ...leadSchema
-        };
+        // Atualizar o documento no Firestore com o campo id = leadRef.id
+        await updateDoc(leadRef, { id: leadRef.id });
 
-        console.log('Lead criada com sucesso, ID:', leadRef.id);
-        return newLead;
+        // Buscar o documento salvo e retornar os dados reais persistidos
+        const savedSnap = await getDoc(leadRef);
+        const savedLead = savedSnap.exists() ? { ...savedSnap.data(), id: savedSnap.id } : { ...leadSchema, id: leadRef.id };
+
+        console.log('Lead salva no Firestore:', savedLead);
+        return savedLead;
 
     } catch (error) {
         console.error('LeadService: Erro ao criar lead:', error);
@@ -137,7 +146,30 @@ export const listLeads = async (consultorId, options = {}) => {
 
         // Paginação
         if (lastDoc) {
-            q = query(q, startAfter(lastDoc));
+            // Aceita: DocumentSnapshot, string (leadId) ou objeto { id: '...' }
+            let startAfterDoc = lastDoc;
+
+            // Se for string, buscar snapshot do documento
+            if (typeof lastDoc === 'string') {
+                const snap = await getDoc(getLeadDoc(consultorId, lastDoc));
+                startAfterDoc = snap.exists() ? snap : null;
+            }
+
+            // Se for objeto simples com id (não um DocumentSnapshot), buscar snapshot
+            if (
+                startAfterDoc &&
+                typeof startAfterDoc === 'object' &&
+                typeof startAfterDoc.data !== 'function' &&
+                startAfterDoc.id
+            ) {
+                const snap = await getDoc(getLeadDoc(consultorId, startAfterDoc.id));
+                startAfterDoc = snap.exists() ? snap : null;
+            }
+
+            // Se for DocumentSnapshot válido, aplicar startAfter
+            if (startAfterDoc) {
+                q = query(q, startAfter(startAfterDoc));
+            }
         }
 
         const snapshot = await getDocs(q);

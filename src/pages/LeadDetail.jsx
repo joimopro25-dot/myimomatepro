@@ -165,124 +165,78 @@ export default function LeadDetail() {
         return icons[type] || <ClockIcon className="h-5 w-5" />;
     };
 
-    // Renderizar detalhes da qualificação baseado no tipo
+    // Renderizar detalhes da qualificação baseado no tipo (robusto para estruturas do Firestore)
     const renderQualificationDetails = () => {
-        if (!currentLead?.qualification?.type) return null;
+        const q = currentLead?.qualification;
+        if (!q || !q.type) return null;
 
-        const type = currentLead.qualification.type;
-        const data = currentLead.qualification[type];
-        const typeLabel = QUALIFICATION_TYPES.find(t => t.value === type)?.label || type;
+        // mapear valores de tipo possivelmente em PT para keys internas em inglês
+        const typeMap = {
+            'inquilino': 'tenant',
+            'inquilinos': 'tenant',
+            'comprador': 'buyer',
+            'compradores': 'buyer',
+            'vendedor': 'seller',
+            'vendedores': 'seller',
+            'senhorio': 'landlord',
+            'senhorios': 'landlord',
+            'investidor': 'investor',
+            'investidores': 'investor',
+            // aceitar já chaves em inglês
+            'tenant': 'tenant',
+            'buyer': 'buyer',
+            'seller': 'seller',
+            'landlord': 'landlord',
+            'investor': 'investor'
+        };
 
-        if (!data) return null;
+        const rawType = q.type;
+        const candidateKey = typeMap[String(rawType).toLowerCase()] || rawType;
+        const nested = q[candidateKey] && typeof q[candidateKey] === 'object' ? q[candidateKey] : null;
+        const data = nested || q; // campos podem estar aninhados ou directamente em qualification
+        const typeLabel = QUALIFICATION_TYPES.find(t => t.value === candidateKey || t.value === rawType)?.label || String(rawType);
 
         const details = [];
 
-        // Campos comuns
-        if (data.urgency) {
+        // utilitário para adicionar campo se existir
+        const pushField = (key, label, renderValue) => {
+            const val = data?.[key];
+            if (val === undefined || val === null || (typeof val === 'string' && val.trim() === '')) return;
             details.push(
-                <div key="urgency">
-                    <dt className="text-sm font-medium text-gray-500">Urgência</dt>
-                    <dd className={`mt-1 text-sm font-semibold ${getUrgencyColor(data.urgency)}`}>
-                        {URGENCY_LEVELS.find(u => u.value === data.urgency)?.label}
+                <div key={key}>
+                    <dt className="text-sm font-medium text-gray-500">{label}</dt>
+                    <dd className="mt-1 text-sm text-gray-900">
+                        {renderValue ? renderValue(val) : val}
                     </dd>
                 </div>
             );
-        }
+        };
 
-        // Campos específicos por tipo
-        switch (type) {
-            case 'buyer':
-                if (data.looking) {
-                    details.push(
-                        <div key="looking">
-                            <dt className="text-sm font-medium text-gray-500">Procura</dt>
-                            <dd className="mt-1 text-sm text-gray-900">{data.looking}</dd>
-                        </div>
-                    );
-                }
-                if (data.budget) {
-                    details.push(
-                        <div key="budget">
-                            <dt className="text-sm font-medium text-gray-500">Orçamento</dt>
-                            <dd className="mt-1 text-sm text-gray-900">€{data.budget}</dd>
-                        </div>
-                    );
-                }
-                if (data.preferredLocation) {
-                    details.push(
-                        <div key="location">
-                            <dt className="text-sm font-medium text-gray-500">Localização Preferida</dt>
-                            <dd className="mt-1 text-sm text-gray-900">{data.preferredLocation}</dd>
-                        </div>
-                    );
-                }
-                break;
+        // campos comuns / possíveis
+        pushField('urgency', 'Urgência', (v) => URGENCY_LEVELS.find(u => u.value === v)?.label || v);
+        pushField('looking', 'Procura');
+        pushField('budget', 'Orçamento', (v) => (v !== '' ? `€${v}` : v));
+        pushField('preferredLocation', 'Localização Preferida');
+        pushField('propertyType', 'Tipo de Imóvel');
+        pushField('value', 'Valor Pretendido', (v) => (v !== '' ? `€${v}` : v));
+        pushField('rentValue', 'Renda', (v) => (v !== '' ? `€${v}` : v));
+        pushField('location', 'Localização');
+        pushField('investmentType', 'Tipo de Investimento', (v) => INVESTMENT_TYPES.find(i => i.value === v)?.label || v);
+        pushField('expectedReturn', 'Retorno Esperado', (v) => (v !== '' ? `${v}%` : v));
+        pushField('notes', 'Notas');
 
-            case 'seller':
-                if (data.propertyType) {
-                    details.push(
-                        <div key="property">
-                            <dt className="text-sm font-medium text-gray-500">Tipo de Imóvel</dt>
-                            <dd className="mt-1 text-sm text-gray-900">{data.propertyType}</dd>
-                        </div>
-                    );
-                }
-                if (data.value) {
-                    details.push(
-                        <div key="value">
-                            <dt className="text-sm font-medium text-gray-500">Valor Pretendido</dt>
-                            <dd className="mt-1 text-sm text-gray-900">€{data.value}</dd>
-                        </div>
-                    );
-                }
-                if (data.location) {
-                    details.push(
-                        <div key="location">
-                            <dt className="text-sm font-medium text-gray-500">Localização</dt>
-                            <dd className="mt-1 text-sm text-gray-900">{data.location}</dd>
-                        </div>
-                    );
-                }
-                break;
-
-            case 'investor':
-                if (data.investmentType) {
-                    details.push(
-                        <div key="type">
-                            <dt className="text-sm font-medium text-gray-500">Tipo de Investimento</dt>
-                            <dd className="mt-1 text-sm text-gray-900">
-                                {INVESTMENT_TYPES.find(i => i.value === data.investmentType)?.label}
-                            </dd>
-                        </div>
-                    );
-                }
-                if (data.budget) {
-                    details.push(
-                        <div key="budget">
-                            <dt className="text-sm font-medium text-gray-500">Orçamento</dt>
-                            <dd className="mt-1 text-sm text-gray-900">€{data.budget}</dd>
-                        </div>
-                    );
-                }
-                if (data.expectedReturn) {
-                    details.push(
-                        <div key="return">
-                            <dt className="text-sm font-medium text-gray-500">Retorno Esperado</dt>
-                            <dd className="mt-1 text-sm text-gray-900">{data.expectedReturn}%</dd>
-                        </div>
-                    );
-                }
-                break;
-
-            default:
-                break;
-        }
-
-        if (data.notes) {
-            details.push(
-                <div key="notes" className="sm:col-span-2">
-                    <dt className="text-sm font-medium text-gray-500">Notas</dt>
-                    <dd className="mt-1 text-sm text-gray-900">{data.notes}</dd>
+        // se não encontrou nenhum campo específico, mostrar todo o objecto (fallback)
+        if (details.length === 0) {
+            return (
+                <div className="bg-white shadow overflow-hidden sm:rounded-lg">
+                    <div className="px-4 py-5 sm:px-6">
+                        <h3 className="text-lg leading-6 font-medium text-gray-900">
+                            Qualificação - {typeLabel}
+                        </h3>
+                    </div>
+                    <div className="border-t border-gray-200 px-4 py-5 sm:px-6">
+                        <pre className="text-sm text-gray-700 whitespace-pre-wrap">{JSON.stringify(data, null, 2)}</pre>
+                    </div>
                 </div>
             );
         }
@@ -362,7 +316,7 @@ export default function LeadDetail() {
                     </div>
 
                     {/* Quick Actions */}
-                    <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-4">
+                    <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
                         <button
                             onClick={() => setShowStatusModal(true)}
                             className="relative rounded-lg border border-gray-300 bg-white px-4 py-5 shadow-sm flex items-center space-x-3 hover:border-gray-400"
@@ -393,16 +347,6 @@ export default function LeadDetail() {
                                 Converter em Cliente
                             </div>
                         </button>
-
-                        <Link
-                            to="/leads/new"
-                            className="relative rounded-lg border border-gray-300 bg-white px-4 py-5 shadow-sm flex items-center space-x-3 hover:border-gray-400"
-                        >
-                            <PlusIcon className="h-6 w-6 text-gray-600" />
-                            <div className="text-sm font-medium text-gray-900">
-                                Nova Lead
-                            </div>
-                        </Link>
                     </div>
 
                     <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
