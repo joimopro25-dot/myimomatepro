@@ -45,28 +45,29 @@ const getLeadDoc = (consultorId, leadId) => {
  */
 export const createLead = async (consultorId, leadData) => {
     try {
-        console.log('📝 Criando nova lead para consultor:', consultorId);
+        // Validar dados antes de criar
+        const validation = validateLeadData(leadData);
+        if (!validation.isValid) {
+            throw new Error(`Dados inválidos: ${JSON.stringify(validation.errors)}`);
+        }
 
-        const collectionRef = getLeadCollection(consultorId);
+        // Criar schema com consultorId
+        const leadSchema = createLeadSchema(leadData);
+        leadSchema.consultorId = consultorId;
+        leadSchema.createdAt = Timestamp.now();
+        leadSchema.updatedAt = Timestamp.now();
 
-        // Adicionar timestamps
-        const dataToSave = {
-            ...leadData,
-            consultorId,
-            createdAt: Timestamp.now(),
-            updatedAt: Timestamp.now()
+        // Adicionar ao Firestore
+        const leadRef = await addDoc(getLeadCollection(consultorId), leadSchema);
+
+        // IMPORTANTE: Retornar a lead criada COM ID
+        const newLead = {
+            id: leadRef.id,  // ← CRÍTICO: Incluir o ID!
+            ...leadSchema
         };
 
-        // Criar documento no Firestore
-        const docRef = await addDoc(collectionRef, dataToSave);
-
-        console.log('✅ Lead criada com ID:', docRef.id);
-
-        // IMPORTANTE: Retornar a lead COM o ID
-        return {
-            id: docRef.id,  // ← CRÍTICO: Incluir o ID!
-            ...dataToSave
-        };
+        console.log('Lead criada com sucesso, ID:', leadRef.id);
+        return newLead;
 
     } catch (error) {
         console.error('LeadService: Erro ao criar lead:', error);
@@ -88,8 +89,8 @@ export const getLead = async (consultorId, leadId) => {
         }
 
         return {
-            id: leadDoc.id,
-            ...leadDoc.data()
+            ...leadDoc.data(),
+            id: leadDoc.id
         };
 
     } catch (error) {
@@ -105,14 +106,17 @@ export const listLeads = async (consultorId, options = {}) => {
     try {
         const {
             pageSize = DEFAULT_PAGE_SIZE,
-            lastDoc = null,
             filters = {},
-            sortBy = 'createdAt',
-            sortOrder = 'desc'
+            orderByField = 'createdAt',
+            orderDirection = 'desc',
+            lastDoc = null
         } = options;
 
-        const collectionRef = getLeadCollection(consultorId);
-        let q = query(collectionRef);
+        let q = query(
+            getLeadCollection(consultorId),
+            orderBy(orderByField, orderDirection),
+            limit(pageSize)
+        );
 
         // Aplicar filtros
         if (filters.status && filters.status !== 'all') {
@@ -124,26 +128,14 @@ export const listLeads = async (consultorId, options = {}) => {
         }
 
         if (filters.source && filters.source !== 'all') {
-            q = query(q, where('source.origin', '==', filters.source));
+            q = query(q, where('source', '==', filters.source));
         }
 
         if (filters.urgency && filters.urgency !== 'all') {
-            // Filtro de urgência específico por tipo
-            if (filters.qualificationType === 'comprador') {
-                q = query(q, where('qualification.buyer.urgency', '==', filters.urgency));
-            } else if (filters.qualificationType === 'vendedor') {
-                q = query(q, where('qualification.seller.urgency', '==', filters.urgency));
-            }
-            // ... adicionar outros tipos conforme necessário
+            q = query(q, where('urgency', '==', filters.urgency));
         }
 
-        // Aplicar ordenação
-        q = query(q, orderBy(sortBy, sortOrder));
-
-        // Aplicar limite
-        q = query(q, limit(pageSize));
-
-        // Aplicar paginação
+        // Paginação
         if (lastDoc) {
             q = query(q, startAfter(lastDoc));
         }
@@ -153,8 +145,8 @@ export const listLeads = async (consultorId, options = {}) => {
         const leads = [];
         snapshot.forEach((doc) => {
             leads.push({
-                id: doc.id,
-                ...doc.data()
+                ...doc.data(),
+                id: doc.id
             });
         });
 
@@ -190,8 +182,8 @@ export const searchLeads = async (consultorId, searchTerm) => {
                 data.prospect?.email?.toLowerCase().includes(searchLower)
             ) {
                 leads.push({
-                    id: doc.id,
-                    ...data
+                    ...data,
+                    id: doc.id
                 });
             }
         });
@@ -264,18 +256,28 @@ export const addFollowUp = async (consultorId, leadId, followUpData) => {
 /**
  * Converter lead em cliente
  */
-export const convertLeadToClient = async (consultorId, leadId, clientId) => {
+export const convertLeadToClient = async (consultorId, leadId, clientData) => {
     try {
+        // Importar função de criar cliente dinamicamente para evitar dependência circular
+        const { createClient } = await import('./clientService');
+
+        // Criar o cliente
+        const newClient = await createClient(consultorId, clientData);
+
+        // Atualizar o status da lead
         await updateLead(consultorId, leadId, {
             status: 'convertida',
             conversion: {
                 converted: true,
                 convertedAt: Timestamp.now(),
-                clientId: clientId
+                clientId: newClient.id
             }
         });
 
-        return true;
+        return {
+            clientId: newClient.id,
+            client: newClient
+        };
 
     } catch (error) {
         console.error('LeadService: Erro ao converter lead:', error);
@@ -333,109 +335,16 @@ export const getLeadStats = async (consultorId) => {
                     convertida: 0,
                     perdida: 0
                 },
-                byQualificationType: {
-                    comprador: 0,
-                    vendedor: 0,
-                    senhorio: 0,
-                    inquilino: 0,
-                    investidor: 0
-                },
                 bySource: {},
-                byUrgency: {
-                    baixa: 0,
-                    normal: 0,
-                    alta: 0,
-                    urgente: 0
-                },
-                conversionRate: 0,
-                lastUpdated: new Date().toISOString()
+                byQualification: {},
+                conversionRate: 0
             };
         }
 
         const collectionRef = getLeadCollection(consultorId);
         const snapshot = await getDocs(collectionRef);
 
-        const leads = [];
-        snapshot.forEach((doc) => {
-            leads.push(doc.data());
-        });
-
         const stats = {
-            total: leads.length,
-            byStatus: {
-                nova: 0,
-                qualificada: 0,
-                emNegociacao: 0,
-                convertida: 0,
-                perdida: 0
-            },
-            byQualificationType: {
-                comprador: 0,
-                vendedor: 0,
-                senhorio: 0,
-                inquilino: 0,
-                investidor: 0
-            },
-            bySource: {},
-            byUrgency: {
-                baixa: 0,
-                normal: 0,
-                alta: 0,
-                urgente: 0
-            },
-            conversionRate: 0,
-            lastUpdated: new Date().toISOString()
-        };
-
-        // Calcular estatísticas
-        leads.forEach(lead => {
-            // Por status
-            if (lead.status) {
-                stats.byStatus[lead.status] = (stats.byStatus[lead.status] || 0) + 1;
-            }
-
-            // Por tipo de qualificação
-            if (lead.qualification?.type) {
-                stats.byQualificationType[lead.qualification.type] =
-                    (stats.byQualificationType[lead.qualification.type] || 0) + 1;
-            }
-
-            // Por fonte
-            if (lead.source?.origin) {
-                stats.bySource[lead.source.origin] =
-                    (stats.bySource[lead.source.origin] || 0) + 1;
-            }
-
-            // Por urgência (baseado no tipo)
-            const type = lead.qualification?.type;
-            let urgency = null;
-
-            if (type === 'comprador') {
-                urgency = lead.qualification?.buyer?.urgency;
-            } else if (type === 'vendedor') {
-                urgency = lead.qualification?.seller?.urgency;
-            } else if (type === 'inquilino') {
-                urgency = lead.qualification?.tenant?.urgency;
-            } else if (type === 'senhorio') {
-                urgency = lead.qualification?.landlord?.urgency;
-            }
-
-            if (urgency) {
-                stats.byUrgency[urgency] = (stats.byUrgency[urgency] || 0) + 1;
-            }
-        });
-
-        // Calcular taxa de conversão
-        if (stats.total > 0) {
-            stats.conversionRate = (stats.byStatus.convertida / stats.total) * 100;
-        }
-
-        return stats;
-
-    } catch (error) {
-        console.error('LeadService: Erro ao calcular estatísticas:', error);
-        // Retornar estatísticas vazias ao invés de lançar erro
-        return {
             total: 0,
             byStatus: {
                 nova: 0,
@@ -444,48 +353,82 @@ export const getLeadStats = async (consultorId) => {
                 convertida: 0,
                 perdida: 0
             },
-            byQualificationType: {
-                comprador: 0,
-                vendedor: 0,
-                senhorio: 0,
-                inquilino: 0,
-                investidor: 0
-            },
             bySource: {},
-            byUrgency: {
-                baixa: 0,
-                normal: 0,
-                alta: 0,
-                urgente: 0
-            },
-            conversionRate: 0,
-            lastUpdated: new Date().toISOString()
+            byQualification: {},
+            conversionRate: 0
         };
+
+        snapshot.forEach((doc) => {
+            const data = doc.data();
+            stats.total++;
+
+            // Por status
+            if (data.status && stats.byStatus.hasOwnProperty(data.status)) {
+                stats.byStatus[data.status]++;
+            }
+
+            // Por fonte
+            if (data.source) {
+                stats.bySource[data.source] = (stats.bySource[data.source] || 0) + 1;
+            }
+
+            // Por qualificação
+            if (data.qualification?.type) {
+                stats.byQualification[data.qualification.type] =
+                    (stats.byQualification[data.qualification.type] || 0) + 1;
+            }
+        });
+
+        // Taxa de conversão
+        if (stats.total > 0) {
+            stats.conversionRate = (stats.byStatus.convertida / stats.total) * 100;
+        }
+
+        return stats;
+
+    } catch (error) {
+        console.error('LeadService: Erro ao obter estatísticas:', error);
+        throw new Error(`Erro ao obter estatísticas: ${error.message}`);
     }
 };
 
 // ===== BATCH OPERATIONS =====
 
 /**
- * Operações em lote para múltiplas leads
+ * Atualizar múltiplas leads
  */
-export const batchUpdateLeads = async (consultorId, updates) => {
+export const batchUpdateLeads = async (consultorId, leadIds, updateData) => {
     try {
         const batch = writeBatch(db);
 
-        updates.forEach(({ leadId, data }) => {
+        for (const leadId of leadIds) {
             const leadRef = getLeadDoc(consultorId, leadId);
             batch.update(leadRef, {
-                ...data,
+                ...updateData,
                 updatedAt: Timestamp.now()
             });
-        });
+        }
 
         await batch.commit();
         return true;
 
     } catch (error) {
-        console.error('LeadService: Erro na operação em lote:', error);
-        throw new Error(`Erro na operação em lote: ${error.message}`);
+        console.error('LeadService: Erro ao atualizar leads em lote:', error);
+        throw new Error(`Erro ao atualizar leads em lote: ${error.message}`);
     }
+};
+
+// ===== EXPORT ALL =====
+export default {
+    createLead,
+    getLead,
+    listLeads,
+    searchLeads,
+    updateLead,
+    addFollowUp,
+    convertLeadToClient,
+    updateLeadStatus,
+    deleteLead,
+    getLeadStats,
+    batchUpdateLeads
 };
