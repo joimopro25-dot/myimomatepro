@@ -1,16 +1,22 @@
 /**
  * CLIENT DETAIL PAGE - MyImoMatePro
  * Página de visualização completa dos dados do cliente
- * ✅ VERSÃO LIMPA - Console logs de debug removidos
+ * ✅ VERSÃO COMPLETA E CORRIGIDA
  * 
  * Caminho: src/pages/ClientDetail.jsx
- * Funcionalidade: Ver todas as informações do cliente (ícone olho)
  */
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useClients } from '../contexts/ClientContext';
-import { CLIENT_CONTACT_PREFERENCES, CLIENT_MARITAL_STATUS, CLIENT_MARRIAGE_REGIMES, CLIENT_CREDIT_TYPES, CLIENT_LEAD_SOURCES, CLIENT_AVAILABLE_TAGS } from '../models/clientModel';
+import {
+    CLIENT_CONTACT_PREFERENCES,
+    CLIENT_MARITAL_STATUS,
+    CLIENT_MARRIAGE_REGIMES,
+    CLIENT_CREDIT_TYPES,
+    CLIENT_LEAD_SOURCES,
+    CLIENT_AVAILABLE_TAGS
+} from '../models/clientModel';
 import Layout from '../components/Layout';
 import {
     ArrowLeftIcon,
@@ -57,7 +63,7 @@ const ClientDetail = () => {
 
         try {
             let date;
-            if (dateValue.seconds) {
+            if (dateValue?.seconds) {
                 // Timestamp do Firestore
                 date = new Date(dateValue.seconds * 1000);
             } else if (typeof dateValue === 'string') {
@@ -72,69 +78,46 @@ const ClientDetail = () => {
         }
     };
 
-    // Carregar dados do cliente ao montar componente
+    // Carregar dados do cliente
     useEffect(() => {
-        const loadClient = async () => {
-            if (clientId) {
-                try {
-                    await fetchClient(clientId);
-                } catch (error) {
-                    console.error('ClientDetail: Erro ao carregar cliente:', error);
-                }
-            }
-        };
+        if (clientId) {
+            fetchClient(clientId);
+        }
 
-        loadClient();
-
-        // Cleanup ao desmontar
         return () => {
             clearCurrentClient();
         };
-    }, [clientId, fetchClient, clearCurrentClient]);
+    }, [clientId]);
 
-    // Estados de loading e erro
+    // Loading state
     if (loading.current) {
         return (
             <Layout>
-                <div className="flex items-center justify-center min-h-screen">
+                <div className="flex items-center justify-center h-64">
                     <div className="text-center">
                         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                        <p className="text-gray-600">A carregar dados do cliente...</p>
+                        <p className="text-gray-600">Carregando dados do cliente...</p>
                     </div>
                 </div>
             </Layout>
         );
     }
 
-    if (errors.current) {
-        return (
-            <Layout>
-                <div className="text-center py-12">
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">Erro ao carregar cliente</h3>
-                    <p className="text-gray-600 mb-6">{errors.current}</p>
-                    <button
-                        onClick={() => navigate('/clients')}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                    >
-                        Voltar à Lista
-                    </button>
-                </div>
-            </Layout>
-        );
-    }
-
+    // Cliente não encontrado
     if (!currentClient) {
         return (
             <Layout>
-                <div className="text-center py-12">
-                    <h3 className="text-lg font-medium text-gray-900">Cliente não encontrado</h3>
-                    <p className="text-gray-600 mb-6">O cliente solicitado não existe ou foi removido.</p>
-                    <button
-                        onClick={() => navigate('/clients')}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                    >
-                        Voltar à Lista
-                    </button>
+                <div className="flex items-center justify-center h-64">
+                    <div className="text-center">
+                        <InformationCircleIcon className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                        <h2 className="text-xl font-semibold text-gray-700 mb-2">Cliente não encontrado</h2>
+                        <button
+                            onClick={() => navigate('/clients')}
+                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                        >
+                            Voltar à Lista
+                        </button>
+                    </div>
                 </div>
             </Layout>
         );
@@ -175,8 +158,26 @@ const ClientDetail = () => {
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Estado Civil</label>
                         <p className="text-gray-900">
-                            {CLIENT_MARITAL_STATUS[client.maritalStatus] || 'Não informado'}
+                            {CLIENT_MARITAL_STATUS[client.maritalStatus] || client.maritalStatus || 'Não informado'}
                         </p>
+                    </div>
+                </div>
+            </div>
+
+            {/* Documentos */}
+            <div className="bg-white rounded-lg border border-gray-200 p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                    <IdentificationIcon className="w-5 h-5 mr-2" />
+                    Documentos
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Cartão de Cidadão</label>
+                        <p className="text-gray-900">{client.idNumber || 'Não informado'}</p>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Validade CC</label>
+                        <p className="text-gray-900">{formatDate(client.idExpiry)}</p>
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">NIF</label>
@@ -193,7 +194,7 @@ const ClientDetail = () => {
             <div className="bg-white rounded-lg border border-gray-200 p-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
                     <PhoneIcon className="w-5 h-5 mr-2" />
-                    Informações de Contacto
+                    Contactos
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
@@ -212,77 +213,95 @@ const ClientDetail = () => {
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Melhor Horário</label>
-                        <p className="text-gray-900">{client.bestTimeToContact || 'Não informado'}</p>
+                        <p className="text-gray-900">{client.bestContactTime || 'Não informado'}</p>
                     </div>
                 </div>
             </div>
 
             {/* Morada */}
-            {client.address && (
-                <div className="bg-white rounded-lg border border-gray-200 p-6">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                        <MapPinIcon className="w-5 h-5 mr-2" />
-                        Morada
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Rua</label>
-                            <p className="text-gray-900">{client.address.street || 'Não informado'}</p>
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Cidade</label>
-                            <p className="text-gray-900">{client.address.city || 'Não informado'}</p>
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Código Postal</label>
-                            <p className="text-gray-900">{client.address.postalCode || 'Não informado'}</p>
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">País</label>
-                            <p className="text-gray-900">{client.address.country || 'Portugal'}</p>
-                        </div>
+            <div className="bg-white rounded-lg border border-gray-200 p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                    <MapPinIcon className="w-5 h-5 mr-2" />
+                    Morada de Residência
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Morada</label>
+                        <p className="text-gray-900">
+                            {client.address?.street || 'Não informado'}
+                        </p>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Código Postal</label>
+                        <p className="text-gray-900">{client.address?.postalCode || 'Não informado'}</p>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Localidade</label>
+                        <p className="text-gray-900">{client.address?.city || 'Não informado'}</p>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Freguesia</label>
+                        <p className="text-gray-900">{client.address?.parish || 'Não informado'}</p>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Concelho</label>
+                        <p className="text-gray-900">{client.address?.municipality || 'Não informado'}</p>
                     </div>
                 </div>
-            )}
+            </div>
 
-            {/* Informações do cônjuge */}
-            {client.spouse && (
+            {/* Dados do Cônjuge */}
+            {(client.maritalStatus === 'married' || client.maritalStatus === 'union') && (
                 <div className="bg-white rounded-lg border border-gray-200 p-6">
                     <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
                         <HeartIcon className="w-5 h-5 mr-2" />
-                        Informações do Cônjuge
+                        Dados do Cônjuge
                     </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Nome</label>
-                            <p className="text-gray-900">{client.spouse.name || 'Não informado'}</p>
+                    {client.spouse ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Nome</label>
+                                <p className="text-gray-900">{client.spouse.name || 'Não informado'}</p>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Telefone</label>
+                                <p className="text-gray-900">{client.spouse.phone || 'Não informado'}</p>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                                <p className="text-gray-900">{client.spouse.email || 'Não informado'}</p>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">NIF</label>
+                                <p className="text-gray-900">{client.spouse.nif || 'Não informado'}</p>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Profissão</label>
+                                <p className="text-gray-900">{client.spouse.profession || 'Não informado'}</p>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Regime de Bens</label>
+                                <p className="text-gray-900">
+                                    {CLIENT_MARRIAGE_REGIMES[client.marriageRegime] || 'Não informado'}
+                                </p>
+                            </div>
                         </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Data de Nascimento</label>
-                            <p className="text-gray-900">{formatDate(client.spouse.birthDate)}</p>
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">NIF</label>
-                            <p className="text-gray-900">{client.spouse.nif || 'Não informado'}</p>
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Profissão</label>
-                            <p className="text-gray-900">{client.spouse.profession || 'Não informado'}</p>
-                        </div>
-                    </div>
+                    ) : (
+                        <p className="text-gray-500">Dados do cônjuge não informados</p>
+                    )}
                 </div>
             )}
         </div>
     );
 
-    // Renderizar informações financeiras
+    // Renderizar dados financeiros
     const renderFinancialData = () => (
         <div className="space-y-6">
-            {/* Rendimentos */}
+            {/* Informações Financeiras */}
             <div className="bg-white rounded-lg border border-gray-200 p-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
                     <CurrencyEuroIcon className="w-5 h-5 mr-2" />
-                    Informações de Rendimento
+                    Informações Financeiras
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
@@ -293,7 +312,7 @@ const ClientDetail = () => {
                     </div>
                     {client.spouse && (
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Rendimento Cônjuge</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Rendimento do Cônjuge</label>
                             <p className="text-gray-900">
                                 {client.financial?.spouseMonthlyIncome ? `€${client.financial.spouseMonthlyIncome}` : 'Não informado'}
                             </p>
@@ -306,63 +325,51 @@ const ClientDetail = () => {
                         </p>
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Rendimento Total do Agregado</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Situação de Crédito</label>
                         <p className="text-gray-900">
-                            {client.financial?.totalHouseholdIncome ? `€${client.financial.totalHouseholdIncome}` : 'Não informado'}
+                            {CLIENT_CREDIT_TYPES[client.financial?.creditSituation] || 'Não informado'}
                         </p>
                     </div>
                 </div>
             </div>
 
-            {/* Situação creditícia */}
-            {client.financial?.creditType && (
-                <div className="bg-white rounded-lg border border-gray-200 p-6">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                        <BanknotesIcon className="w-5 h-5 mr-2" />
-                        Situação Creditícia
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de Crédito</label>
-                            <p className="text-gray-900">
-                                {CLIENT_CREDIT_TYPES[client.financial.creditType] || client.financial.creditType}
-                            </p>
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Banco</label>
-                            <p className="text-gray-900">{client.financial.bank || 'Não informado'}</p>
-                        </div>
+            {/* Informações Bancárias */}
+            <div className="bg-white rounded-lg border border-gray-200 p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                    <BuildingOfficeIcon className="w-5 h-5 mr-2" />
+                    Informações Bancárias
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Banco de Relacionamento</label>
+                        <p className="text-gray-900">
+                            {client.financial?.bankRelationship || 'Não informado'}
+                        </p>
                     </div>
-                </div>
-            )}
-
-            {/* Pré-aprovação */}
-            {client.financial?.preApproval && (
-                <div className="bg-white rounded-lg border border-gray-200 p-6">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                        <ClipboardDocumentCheckIcon className="w-5 h-5 mr-2" />
-                        Pré-aprovação de Crédito
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {client.financial.preApproval.hasPreApproval && (
-                            <>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Valor Aprovado</label>
-                                    <p className="text-gray-900">
-                                        {client.financial.preApproval.amount ? `€${client.financial.preApproval.amount}` : 'Não informado'}
-                                    </p>
-                                </div>
-                                <div className="md:col-span-2">
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Notas</label>
-                                    <p className="text-gray-900">
-                                        {client.financial.preApproval.notes || 'Sem notas adicionais'}
-                                    </p>
-                                </div>
-                            </>
-                        )}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Pré-aprovação Bancária</label>
+                        <p className="text-gray-900">
+                            {client.financial?.hasPreApproval ? 'Sim' : 'Não'}
+                        </p>
                     </div>
+                    {client.financial?.hasPreApproval && (
+                        <>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Banco da Pré-aprovação</label>
+                                <p className="text-gray-900">
+                                    {client.financial.preApproval?.bank || 'Não informado'}
+                                </p>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Valor Pré-aprovado</label>
+                                <p className="text-gray-900">
+                                    {client.financial.preApproval?.amount ? `€${client.financial.preApproval.amount}` : 'Não informado'}
+                                </p>
+                            </div>
+                        </>
+                    )}
                 </div>
-            )}
+            </div>
         </div>
     );
 
@@ -519,64 +526,28 @@ const ClientDetail = () => {
             <div className="p-6">
                 {/* Header com navegação */}
                 <div className="flex items-center justify-between mb-6">
-                    <div className="flex items-center">
+                    <div className="flex items-center space-x-3">
                         <button
                             onClick={() => navigate('/clients')}
-                            className="mr-4 p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                            className="text-gray-500 hover:text-gray-700 transition-colors"
                         >
                             <ArrowLeftIcon className="w-5 h-5" />
                         </button>
                         <div>
                             <h1 className="text-2xl font-bold text-gray-900">{client.name}</h1>
-                            <div className="flex items-center mt-1 space-x-4">
-                                {client.tags?.includes('VIP') && (
-                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-yellow-100 text-yellow-800">
-                                        <StarIconSolid className="w-3 h-3 mr-1" />
-                                        VIP
-                                    </span>
-                                )}
-                                {client.tags?.includes('Urgente') && (
-                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-red-100 text-red-800">
-                                        Urgente
-                                    </span>
-                                )}
-                            </div>
+                            <p className="text-sm text-gray-600">Detalhes do Cliente</p>
                         </div>
                     </div>
                     <button
-                        onClick={() => navigate(`/clients/${clientId}/edit`)}
-                        className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                        onClick={() => navigate(`/clients/edit/${clientId}`)}
+                        className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                     >
-                        <PencilIcon className="w-4 h-4" />
+                        <PencilIcon className="w-4 h-4 mr-2" />
                         Editar Cliente
                     </button>
                 </div>
 
-                {/* Informações de contacto rápido */}
-                <div className="bg-blue-50 rounded-lg p-4 mb-6">
-                    <div className="flex flex-wrap items-center gap-4 text-sm">
-                        {client.phone && (
-                            <div className="flex items-center text-blue-700">
-                                <PhoneIcon className="w-4 h-4 mr-1" />
-                                <span>{client.phone}</span>
-                            </div>
-                        )}
-                        {client.email && (
-                            <div className="flex items-center text-blue-700">
-                                <EnvelopeIcon className="w-4 h-4 mr-1" />
-                                <span>{client.email}</span>
-                            </div>
-                        )}
-                        {client.profession && (
-                            <div className="flex items-center text-blue-700">
-                                <DocumentIcon className="w-4 h-4 mr-1" />
-                                <span>{client.profession}</span>
-                            </div>
-                        )}
-                    </div>
-                </div>
-
-                {/* Navegação por tabs */}
+                {/* Tabs */}
                 <div className="border-b border-gray-200 mb-6">
                     <nav className="-mb-px flex space-x-8">
                         {tabs.map((tab) => {
@@ -585,20 +556,22 @@ const ClientDetail = () => {
                                 <button
                                     key={tab.id}
                                     onClick={() => setActiveTab(tab.id)}
-                                    className={`flex items-center py-2 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === tab.id
-                                        ? 'border-blue-500 text-blue-600'
-                                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                                        }`}
+                                    className={`
+                                        py-2 px-1 border-b-2 font-medium text-sm flex items-center space-x-2
+                                        ${activeTab === tab.id
+                                            ? 'border-blue-500 text-blue-600'
+                                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
+                                    `}
                                 >
-                                    <Icon className="w-4 h-4 mr-2" />
-                                    {tab.name}
+                                    <Icon className="w-5 h-5" />
+                                    <span>{tab.name}</span>
                                 </button>
                             );
                         })}
                     </nav>
                 </div>
 
-                {/* Conteúdo do tab ativo */}
+                {/* Conteúdo do Tab */}
                 {renderTabContent()}
             </div>
         </Layout>

@@ -1,19 +1,22 @@
 /**
  * LEAD FORM PAGE - MyImoMatePro
- * Formulário para criar e editar leads
+ * Formulário completo para criar/editar leads
+ * ✅ VERSÃO COMPLETA E MELHORADA
  * 
  * Caminho: src/pages/LeadForm.jsx
  */
 
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useParams, Link } from 'react-router-dom';
-import Layout from '../components/Layout';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useLeads } from '../contexts/LeadContext';
+import Layout from '../components/Layout';
 import {
-    LEAD_SOURCES,
+    LEAD_STATUS,
     QUALIFICATION_TYPES,
+    LEAD_SOURCES,
     URGENCY_LEVELS,
     INVESTMENT_TYPES,
+    FOLLOWUP_TYPES,
     validateLeadData
 } from '../models/leadModel';
 import {
@@ -23,147 +26,267 @@ import {
     EnvelopeIcon,
     HomeIcon,
     CurrencyEuroIcon,
-    MapPinIcon,
     ClockIcon,
+    CalendarIcon,
     DocumentTextIcon,
+    MapPinIcon,
+    ChartBarIcon,
+    ExclamationTriangleIcon,
     CheckCircleIcon,
-    ExclamationCircleIcon
+    InformationCircleIcon,
+    FunnelIcon,
+    BriefcaseIcon,
+    BuildingOfficeIcon,
+    KeyIcon
 } from '@heroicons/react/24/outline';
 
 export default function LeadForm() {
-    const navigate = useNavigate();
     const { leadId } = useParams();
-    const { createLead, updateLead, fetchLead, loading } = useLeads();
+    const navigate = useNavigate();
+    const isEditMode = Boolean(leadId);
 
-    const isEditMode = !!leadId;
+    const {
+        currentLead,
+        loading,
+        errors: contextErrors,
+        createLead,
+        updateLead,
+        fetchLead,
+        clearCurrentLead,
+        clearError
+    } = useLeads();
 
-    // Estado do formulário
+    // Estado do formulário com estrutura completa
     const [formData, setFormData] = useState({
-        prospect: {
-            name: '',
-            phone: '',
-            email: ''
+        // Dados Básicos
+        name: '',
+        email: '',
+        phone: '',
+        secondaryPhone: '',
+
+        // Origem e Qualificação
+        source: 'website',
+        sourceDetails: '',
+        qualificationType: '',
+        investmentType: '',
+        urgencyLevel: 'medium',
+
+        // Preferências Imobiliárias
+        preferences: {
+            propertyType: '', // apartamento, moradia, terreno, comercial
+            purpose: '', // habitacao_propria, investimento, arrendamento
+            minBedrooms: '',
+            maxBedrooms: '',
+            minArea: '',
+            maxArea: '',
+            parking: false,
+            garage: false,
+            garden: false,
+            pool: false,
+            elevator: false,
+            balcony: false,
+            storage: false
         },
-        source: {
-            origin: 'website',
-            details: ''
+
+        // Localização Preferida
+        location: {
+            zones: [],
+            districts: '',
+            municipalities: '',
+            parishes: '',
+            maxDistanceWork: '',
+            nearSchools: false,
+            nearPublicTransport: false,
+            nearHospital: false,
+            nearShopping: false
         },
-        qualification: {
-            type: '',
-            buyer: {
-                looking: '',
-                budget: '',
-                preferredLocation: '',
-                urgency: 'normal',
-                notes: ''
-            },
-            seller: {
-                propertyType: '',
-                value: '',
-                location: '',
-                urgency: 'normal',
-                notes: ''
-            },
-            tenant: {
-                looking: '',
-                budget: '',
-                preferredLocation: '',
-                urgency: 'normal',
-                notes: ''
-            },
-            landlord: {
-                propertyType: '',
-                rentValue: '',
-                location: '',
-                urgency: 'normal',
-                notes: ''
-            },
-            investor: {
-                investmentType: '',
-                budget: '',
-                preferredLocation: '',
-                expectedReturn: '',
-                notes: ''
-            }
+
+        // Informação Financeira
+        financial: {
+            budget: '',
+            maxBudget: '',
+            hasFinancing: false,
+            financingApproved: false,
+            bankName: '',
+            downPayment: '',
+            monthlyPayment: '',
+            needsFinancingHelp: false
         },
-        nextContact: {
-            date: '',
-            type: 'chamada',
-            notes: ''
+
+        // Timing e Urgência
+        timing: {
+            buyingTimeframe: '3_months', // immediately, 3_months, 6_months, 1_year, exploring
+            sellingTimeframe: '',
+            reasonToBuy: '',
+            reasonToSell: '',
+            currentSituation: '' // renting, owner, first_buyer, investor
         },
-        generalNotes: ''
+
+        // Follow-up
+        nextContactDate: '',
+        nextContactTime: '',
+        preferredContactMethod: 'phone',
+        bestContactTime: '',
+        notes: '',
+
+        // Status
+        status: 'new',
+        temperature: 'warm', // hot, warm, cold
+        priority: 'normal' // high, normal, low
     });
 
-    const [errors, setErrors] = useState([]);
+    const [validationErrors, setValidationErrors] = useState({});
+    const [currentStep, setCurrentStep] = useState(1);
     const [showSuccess, setShowSuccess] = useState(false);
 
-    // Carregar dados da lead em modo de edição
+    // Total de steps
+    const totalSteps = 5;
+
+    // Carregar dados se for edição
     useEffect(() => {
-        if (isEditMode) {
-            loadLeadData();
+        if (isEditMode && leadId) {
+            fetchLead(leadId);
         }
-    }, [leadId]);
+        return () => {
+            clearCurrentLead();
+            clearError();
+        };
+    }, [leadId, isEditMode]);
 
-    const loadLeadData = async () => {
-        try {
-            const lead = await fetchLead(leadId);
-            if (lead) {
-                setFormData({
-                    prospect: lead.prospect || formData.prospect,
-                    source: lead.source || formData.source,
-                    qualification: lead.qualification || formData.qualification,
-                    nextContact: lead.nextContact || formData.nextContact,
-                    generalNotes: lead.generalNotes || ''
-                });
-            }
-        } catch (error) {
-            console.error('Erro ao carregar lead:', error);
-        }
-    };
-
-    // Handlers para mudanças no formulário
-    const handleInputChange = (section, field, value) => {
-        setFormData(prev => ({
-            ...prev,
-            [section]: {
-                ...prev[section],
-                [field]: value
-            }
-        }));
-    };
-
-    const handleQualificationChange = (type, field, value) => {
-        setFormData(prev => ({
-            ...prev,
-            qualification: {
-                ...prev.qualification,
-                [type]: {
-                    ...prev.qualification[type],
-                    [field]: value
+    // Preencher formulário com dados da lead
+    useEffect(() => {
+        if (isEditMode && currentLead) {
+            setFormData({
+                ...currentLead,
+                preferences: {
+                    ...formData.preferences,
+                    ...currentLead.preferences
+                },
+                location: {
+                    ...formData.location,
+                    ...currentLead.location
+                },
+                financial: {
+                    ...formData.financial,
+                    ...currentLead.financial
+                },
+                timing: {
+                    ...formData.timing,
+                    ...currentLead.timing
                 }
-            }
-        }));
+            });
+        }
+    }, [currentLead, isEditMode]);
+
+    // Handle mudanças nos campos
+    const handleChange = (e) => {
+        const { name, value, type, checked } = e.target;
+
+        if (name.includes('.')) {
+            const [section, field] = name.split('.');
+            setFormData(prev => ({
+                ...prev,
+                [section]: {
+                    ...prev[section],
+                    [field]: type === 'checkbox' ? checked : value
+                }
+            }));
+        } else {
+            setFormData(prev => ({
+                ...prev,
+                [name]: type === 'checkbox' ? checked : value
+            }));
+        }
+
+        // Limpar erro do campo
+        if (validationErrors[name]) {
+            setValidationErrors(prev => {
+                const newErrors = { ...prev };
+                delete newErrors[name];
+                return newErrors;
+            });
+        }
     };
 
-    const handleQualificationTypeChange = (type) => {
-        setFormData(prev => ({
-            ...prev,
-            qualification: {
-                ...prev.qualification,
-                type: type
-            }
-        }));
+    // Validar step atual
+    const validateStep = (step) => {
+        let errors = {};
+
+        switch (step) {
+            case 1: // Dados Básicos
+                if (!formData.name || formData.name.trim().length < 2) {
+                    errors.name = 'Nome é obrigatório (mínimo 2 caracteres)';
+                }
+                if (!formData.phone || formData.phone.trim().length < 9) {
+                    errors.phone = 'Telefone é obrigatório';
+                }
+                if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+                    errors.email = 'Email inválido';
+                }
+                break;
+
+            case 2: // Qualificação
+                if (!formData.qualificationType) {
+                    errors.qualificationType = 'Tipo de qualificação é obrigatório';
+                }
+                break;
+
+            case 3: // Preferências
+                // Validações opcionais
+                break;
+
+            case 4: // Financeiro
+                if (formData.financial.budget && isNaN(formData.financial.budget)) {
+                    errors['financial.budget'] = 'Orçamento deve ser um número';
+                }
+                break;
+
+            case 5: // Follow-up
+                if (!formData.nextContactDate) {
+                    errors.nextContactDate = 'Data do próximo contacto é obrigatória';
+                }
+                break;
+        }
+
+        return errors;
     };
 
-    // Validar e submeter formulário
+    // Navegar entre steps
+    const handleNextStep = () => {
+        const errors = validateStep(currentStep);
+        if (Object.keys(errors).length > 0) {
+            setValidationErrors(errors);
+            return;
+        }
+        setCurrentStep(prev => Math.min(prev + 1, totalSteps));
+    };
+
+    const handlePreviousStep = () => {
+        setCurrentStep(prev => Math.max(prev - 1, 1));
+    };
+
+    // Submit do formulário
     const handleSubmit = async (e) => {
         e.preventDefault();
 
-        // Validar dados
-        const validation = validateLeadData(formData);
-        if (!validation.isValid) {
-            setErrors(validation.errors);
-            window.scrollTo(0, 0);
+        // Validar todos os steps
+        let allErrors = {};
+        for (let i = 1; i <= totalSteps; i++) {
+            const stepErrors = validateStep(i);
+            allErrors = { ...allErrors, ...stepErrors };
+        }
+
+        if (Object.keys(allErrors).length > 0) {
+            setValidationErrors(allErrors);
+            // Voltar ao primeiro step com erro
+            const firstErrorStep = Object.keys(allErrors).reduce((min, key) => {
+                if (key.includes('name') || key.includes('phone') || key.includes('email')) return Math.min(min, 1);
+                if (key.includes('qualification')) return Math.min(min, 2);
+                if (key.includes('preferences')) return Math.min(min, 3);
+                if (key.includes('financial')) return Math.min(min, 4);
+                return Math.min(min, 5);
+            }, totalSteps);
+            setCurrentStep(firstErrorStep);
             return;
         }
 
@@ -173,710 +296,877 @@ export default function LeadForm() {
             } else {
                 await createLead(formData);
             }
-
             setShowSuccess(true);
             setTimeout(() => {
                 navigate('/leads');
-            }, 1500);
+            }, 2000);
         } catch (error) {
             console.error('Erro ao salvar lead:', error);
-            setErrors(['Erro ao salvar lead. Tente novamente.']);
         }
     };
 
-    // Renderizar campos específicos por tipo de qualificação
-    const renderQualificationFields = () => {
-        const type = formData.qualification.type;
-
-        if (!type) {
-            return (
-                <div className="text-center py-8 bg-gray-50 rounded-lg">
-                    <HomeIcon className="mx-auto h-12 w-12 text-gray-400" />
-                    <p className="mt-2 text-sm text-gray-500">
-                        Selecione o tipo de qualificação para ver os campos específicos
-                    </p>
+    // Renderizar Step 1: Dados Básicos
+    const renderBasicData = () => (
+        <div className="space-y-6">
+            <div className="text-center mb-6">
+                <div className="w-16 h-16 bg-gradient-to-r from-orange-500 to-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <UserIcon className="w-8 h-8 text-white" />
                 </div>
-            );
-        }
+                <h2 className="text-2xl font-bold text-gray-900">Dados do Prospect</h2>
+                <p className="text-gray-600 mt-2">Informações básicas de contacto</p>
+            </div>
 
-        switch (type) {
-            case 'comprador':
-                return (
-                    <div className="space-y-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700">
-                                O que procura?
-                            </label>
-                            <textarea
-                                value={formData.qualification.buyer.looking}
-                                onChange={(e) => handleQualificationChange('buyer', 'looking', e.target.value)}
-                                rows={3}
-                                className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                                placeholder="Ex: T2 com garagem, Moradia com jardim..."
-                            />
-                        </div>
-
-                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">
-                                    Orçamento
-                                </label>
-                                <input
-                                    type="text"
-                                    value={formData.qualification.buyer.budget}
-                                    onChange={(e) => handleQualificationChange('buyer', 'budget', e.target.value)}
-                                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                                    placeholder="Ex: 150.000€ - 200.000€"
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">
-                                    Urgência
-                                </label>
-                                <select
-                                    value={formData.qualification.buyer.urgency}
-                                    onChange={(e) => handleQualificationChange('buyer', 'urgency', e.target.value)}
-                                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                                >
-                                    {URGENCY_LEVELS.map(level => (
-                                        <option key={level.value} value={level.value}>
-                                            {level.label}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700">
-                                Localização Preferida
-                            </label>
-                            <input
-                                type="text"
-                                value={formData.qualification.buyer.preferredLocation}
-                                onChange={(e) => handleQualificationChange('buyer', 'preferredLocation', e.target.value)}
-                                className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                                placeholder="Ex: Porto, Vila Nova de Gaia, Matosinhos..."
-                            />
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700">
-                                Notas Adicionais
-                            </label>
-                            <textarea
-                                value={formData.qualification.buyer.notes}
-                                onChange={(e) => handleQualificationChange('buyer', 'notes', e.target.value)}
-                                rows={3}
-                                className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                                placeholder="Observações importantes sobre o comprador..."
-                            />
-                        </div>
+            <div className="bg-white rounded-xl border border-gray-200 p-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Nome */}
+                    <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Nome Completo *
+                        </label>
+                        <input
+                            type="text"
+                            name="name"
+                            value={formData.name}
+                            onChange={handleChange}
+                            className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent ${validationErrors.name ? 'border-red-500' : 'border-gray-300'
+                                }`}
+                            placeholder="Nome completo do prospect"
+                        />
+                        {validationErrors.name && (
+                            <p className="mt-1 text-sm text-red-600">{validationErrors.name}</p>
+                        )}
                     </div>
-                );
 
-            case 'vendedor':
-                return (
-                    <div className="space-y-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700">
-                                O que quer vender?
-                            </label>
-                            <input
-                                type="text"
-                                value={formData.qualification.seller.propertyType}
-                                onChange={(e) => handleQualificationChange('seller', 'propertyType', e.target.value)}
-                                className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                                placeholder="Ex: Apartamento T3, Moradia V4..."
-                            />
-                        </div>
-
-                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">
-                                    Valor Pretendido
-                                </label>
-                                <input
-                                    type="text"
-                                    value={formData.qualification.seller.value}
-                                    onChange={(e) => handleQualificationChange('seller', 'value', e.target.value)}
-                                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                                    placeholder="Ex: 250.000€"
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">
-                                    Urgência
-                                </label>
-                                <select
-                                    value={formData.qualification.seller.urgency}
-                                    onChange={(e) => handleQualificationChange('seller', 'urgency', e.target.value)}
-                                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                                >
-                                    {URGENCY_LEVELS.map(level => (
-                                        <option key={level.value} value={level.value}>
-                                            {level.label}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700">
-                                Localização
-                            </label>
-                            <input
-                                type="text"
-                                value={formData.qualification.seller.location}
-                                onChange={(e) => handleQualificationChange('seller', 'location', e.target.value)}
-                                className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                                placeholder="Morada completa do imóvel"
-                            />
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700">
-                                Notas Adicionais
-                            </label>
-                            <textarea
-                                value={formData.qualification.seller.notes}
-                                onChange={(e) => handleQualificationChange('seller', 'notes', e.target.value)}
-                                rows={3}
-                                className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                                placeholder="Observações importantes sobre o vendedor..."
-                            />
-                        </div>
+                    {/* Telefone Principal */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Telefone Principal *
+                        </label>
+                        <input
+                            type="tel"
+                            name="phone"
+                            value={formData.phone}
+                            onChange={handleChange}
+                            className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent ${validationErrors.phone ? 'border-red-500' : 'border-gray-300'
+                                }`}
+                            placeholder="912 345 678"
+                        />
+                        {validationErrors.phone && (
+                            <p className="mt-1 text-sm text-red-600">{validationErrors.phone}</p>
+                        )}
                     </div>
-                );
 
-            case 'inquilino':
-                return (
-                    <div className="space-y-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700">
-                                O que procura?
-                            </label>
-                            <textarea
-                                value={formData.qualification.tenant.looking}
-                                onChange={(e) => handleQualificationChange('tenant', 'looking', e.target.value)}
-                                rows={3}
-                                className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                                placeholder="Ex: T2 mobilado, Estúdio perto do metro..."
-                            />
-                        </div>
-
-                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">
-                                    Orçamento Mensal
-                                </label>
-                                <input
-                                    type="text"
-                                    value={formData.qualification.tenant.budget}
-                                    onChange={(e) => handleQualificationChange('tenant', 'budget', e.target.value)}
-                                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                                    placeholder="Ex: 500€ - 700€"
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">
-                                    Urgência
-                                </label>
-                                <select
-                                    value={formData.qualification.tenant.urgency}
-                                    onChange={(e) => handleQualificationChange('tenant', 'urgency', e.target.value)}
-                                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                                >
-                                    {URGENCY_LEVELS.map(level => (
-                                        <option key={level.value} value={level.value}>
-                                            {level.label}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700">
-                                Localização Preferida
-                            </label>
-                            <input
-                                type="text"
-                                value={formData.qualification.tenant.preferredLocation}
-                                onChange={(e) => handleQualificationChange('tenant', 'preferredLocation', e.target.value)}
-                                className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                                placeholder="Ex: Centro do Porto, Gaia..."
-                            />
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700">
-                                Notas Adicionais
-                            </label>
-                            <textarea
-                                value={formData.qualification.tenant.notes}
-                                onChange={(e) => handleQualificationChange('tenant', 'notes', e.target.value)}
-                                rows={3}
-                                className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                                placeholder="Observações importantes sobre o inquilino..."
-                            />
-                        </div>
+                    {/* Telefone Secundário */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Telefone Secundário
+                        </label>
+                        <input
+                            type="tel"
+                            name="secondaryPhone"
+                            value={formData.secondaryPhone}
+                            onChange={handleChange}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                            placeholder="Opcional"
+                        />
                     </div>
-                );
 
-            case 'senhorio':
-                return (
-                    <div className="space-y-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700">
-                                O que quer arrendar?
-                            </label>
-                            <input
-                                type="text"
-                                value={formData.qualification.landlord.propertyType}
-                                onChange={(e) => handleQualificationChange('landlord', 'propertyType', e.target.value)}
-                                className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                                placeholder="Ex: Apartamento T2, Moradia T3..."
-                            />
-                        </div>
-
-                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">
-                                    Valor da Renda
-                                </label>
-                                <input
-                                    type="text"
-                                    value={formData.qualification.landlord.rentValue}
-                                    onChange={(e) => handleQualificationChange('landlord', 'rentValue', e.target.value)}
-                                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                                    placeholder="Ex: 800€/mês"
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">
-                                    Urgência
-                                </label>
-                                <select
-                                    value={formData.qualification.landlord.urgency}
-                                    onChange={(e) => handleQualificationChange('landlord', 'urgency', e.target.value)}
-                                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                                >
-                                    {URGENCY_LEVELS.map(level => (
-                                        <option key={level.value} value={level.value}>
-                                            {level.label}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700">
-                                Localização
-                            </label>
-                            <input
-                                type="text"
-                                value={formData.qualification.landlord.location}
-                                onChange={(e) => handleQualificationChange('landlord', 'location', e.target.value)}
-                                className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                                placeholder="Morada completa do imóvel"
-                            />
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700">
-                                Notas Adicionais
-                            </label>
-                            <textarea
-                                value={formData.qualification.landlord.notes}
-                                onChange={(e) => handleQualificationChange('landlord', 'notes', e.target.value)}
-                                rows={3}
-                                className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                                placeholder="Observações importantes sobre o senhorio..."
-                            />
-                        </div>
+                    {/* Email */}
+                    <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Email
+                        </label>
+                        <input
+                            type="email"
+                            name="email"
+                            value={formData.email}
+                            onChange={handleChange}
+                            className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent ${validationErrors.email ? 'border-red-500' : 'border-gray-300'
+                                }`}
+                            placeholder="email@exemplo.com"
+                        />
+                        {validationErrors.email && (
+                            <p className="mt-1 text-sm text-red-600">{validationErrors.email}</p>
+                        )}
                     </div>
-                );
 
-            case 'investidor':
-                return (
-                    <div className="space-y-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700">
-                                Tipo de Investimento
-                            </label>
-                            <select
-                                value={formData.qualification.investor.investmentType}
-                                onChange={(e) => handleQualificationChange('investor', 'investmentType', e.target.value)}
-                                className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    {/* Origem da Lead */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Como nos conheceu? *
+                        </label>
+                        <select
+                            name="source"
+                            value={formData.source}
+                            onChange={handleChange}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                        >
+                            {Object.entries(LEAD_SOURCES).map(([key, value]) => (
+                                <option key={key} value={key}>{value}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    {/* Detalhes da Origem */}
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Detalhes
+                        </label>
+                        <input
+                            type="text"
+                            name="sourceDetails"
+                            value={formData.sourceDetails}
+                            onChange={handleChange}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                            placeholder="Ex: Campanha Facebook Ads"
+                        />
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+
+    // Renderizar Step 2: Qualificação Imobiliária
+    const renderQualification = () => (
+        <div className="space-y-6">
+            <div className="text-center mb-6">
+                <div className="w-16 h-16 bg-gradient-to-r from-orange-500 to-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <HomeIcon className="w-8 h-8 text-white" />
+                </div>
+                <h2 className="text-2xl font-bold text-gray-900">Qualificação Imobiliária</h2>
+                <p className="text-gray-600 mt-2">Tipo de interesse e urgência</p>
+            </div>
+
+            {/* Tipo de Qualificação */}
+            <div className="bg-white rounded-xl border border-gray-200 p-6">
+                <label className="block text-sm font-medium text-gray-700 mb-4">
+                    Tipo de Qualificação *
+                </label>
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                    {Object.entries(QUALIFICATION_TYPES).map(([key, value]) => {
+                        const icons = {
+                            buyer: HomeIcon,
+                            seller: KeyIcon,
+                            landlord: BuildingOfficeIcon,
+                            tenant: UserIcon,
+                            investor: ChartBarIcon
+                        };
+                        const Icon = icons[key];
+
+                        return (
+                            <button
+                                key={key}
+                                type="button"
+                                onClick={() => setFormData(prev => ({ ...prev, qualificationType: key }))}
+                                className={`p-4 rounded-xl border-2 transition-all ${formData.qualificationType === key
+                                        ? 'border-orange-500 bg-orange-50'
+                                        : 'border-gray-200 hover:border-gray-300'
+                                    }`}
                             >
-                                <option value="">Selecione...</option>
-                                {INVESTMENT_TYPES.map(type => (
-                                    <option key={type.value} value={type.value}>
-                                        {type.label}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
+                                <Icon className={`w-8 h-8 mx-auto mb-2 ${formData.qualificationType === key ? 'text-orange-600' : 'text-gray-400'
+                                    }`} />
+                                <p className={`text-sm font-medium ${formData.qualificationType === key ? 'text-orange-900' : 'text-gray-700'
+                                    }`}>
+                                    {value}
+                                </p>
+                            </button>
+                        );
+                    })}
+                </div>
+                {validationErrors.qualificationType && (
+                    <p className="mt-2 text-sm text-red-600">{validationErrors.qualificationType}</p>
+                )}
+            </div>
 
-                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">
-                                    Orçamento
-                                </label>
+            {/* Detalhes específicos por tipo */}
+            {formData.qualificationType === 'investor' && (
+                <div className="bg-white rounded-xl border border-gray-200 p-6">
+                    <label className="block text-sm font-medium text-gray-700 mb-4">
+                        Tipo de Investimento
+                    </label>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {Object.entries(INVESTMENT_TYPES).map(([key, value]) => (
+                            <label key={key} className="flex items-center space-x-3">
                                 <input
-                                    type="text"
-                                    value={formData.qualification.investor.budget}
-                                    onChange={(e) => handleQualificationChange('investor', 'budget', e.target.value)}
-                                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                                    placeholder="Ex: 500.000€ - 1.000.000€"
+                                    type="radio"
+                                    name="investmentType"
+                                    value={key}
+                                    checked={formData.investmentType === key}
+                                    onChange={handleChange}
+                                    className="w-4 h-4 text-orange-600 focus:ring-orange-500"
                                 />
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">
-                                    Retorno Esperado
-                                </label>
-                                <input
-                                    type="text"
-                                    value={formData.qualification.investor.expectedReturn}
-                                    onChange={(e) => handleQualificationChange('investor', 'expectedReturn', e.target.value)}
-                                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                                    placeholder="Ex: 8% ao ano"
-                                />
-                            </div>
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700">
-                                Localização Preferida
+                                <span className="text-gray-700">{value}</span>
                             </label>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* Urgência e Temperatura */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="bg-white rounded-xl border border-gray-200 p-6">
+                    <label className="block text-sm font-medium text-gray-700 mb-4">
+                        Nível de Urgência
+                    </label>
+                    <div className="space-y-3">
+                        {Object.entries(URGENCY_LEVELS).map(([key, value]) => (
+                            <label key={key} className="flex items-center space-x-3">
+                                <input
+                                    type="radio"
+                                    name="urgencyLevel"
+                                    value={key}
+                                    checked={formData.urgencyLevel === key}
+                                    onChange={handleChange}
+                                    className="w-4 h-4 text-orange-600 focus:ring-orange-500"
+                                />
+                                <span className="text-gray-700">{value}</span>
+                            </label>
+                        ))}
+                    </div>
+                </div>
+
+                <div className="bg-white rounded-xl border border-gray-200 p-6">
+                    <label className="block text-sm font-medium text-gray-700 mb-4">
+                        Temperatura da Lead
+                    </label>
+                    <div className="space-y-3">
+                        <label className="flex items-center space-x-3">
                             <input
-                                type="text"
-                                value={formData.qualification.investor.preferredLocation}
-                                onChange={(e) => handleQualificationChange('investor', 'preferredLocation', e.target.value)}
-                                className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                                placeholder="Ex: Porto, Lisboa, Algarve..."
+                                type="radio"
+                                name="temperature"
+                                value="hot"
+                                checked={formData.temperature === 'hot'}
+                                onChange={handleChange}
+                                className="w-4 h-4 text-red-600 focus:ring-red-500"
                             />
-                        </div>
+                            <span className="text-gray-700">🔥 Quente - Pronto para fechar</span>
+                        </label>
+                        <label className="flex items-center space-x-3">
+                            <input
+                                type="radio"
+                                name="temperature"
+                                value="warm"
+                                checked={formData.temperature === 'warm'}
+                                onChange={handleChange}
+                                className="w-4 h-4 text-yellow-600 focus:ring-yellow-500"
+                            />
+                            <span className="text-gray-700">☀️ Morna - Em avaliação</span>
+                        </label>
+                        <label className="flex items-center space-x-3">
+                            <input
+                                type="radio"
+                                name="temperature"
+                                value="cold"
+                                checked={formData.temperature === 'cold'}
+                                onChange={handleChange}
+                                className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                            />
+                            <span className="text-gray-700">❄️ Fria - Início de relacionamento</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
 
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700">
-                                Notas Adicionais
-                            </label>
-                            <textarea
-                                value={formData.qualification.investor.notes}
-                                onChange={(e) => handleQualificationChange('investor', 'notes', e.target.value)}
-                                rows={3}
-                                className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                                placeholder="Observações importantes sobre o investidor..."
+    // Renderizar Step 3: Preferências
+    const renderPreferences = () => (
+        <div className="space-y-6">
+            <div className="text-center mb-6">
+                <div className="w-16 h-16 bg-gradient-to-r from-orange-500 to-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <HomeIcon className="w-8 h-8 text-white" />
+                </div>
+                <h2 className="text-2xl font-bold text-gray-900">Preferências do Imóvel</h2>
+                <p className="text-gray-600 mt-2">O que o cliente procura</p>
+            </div>
+
+            {/* Tipo e Características */}
+            <div className="bg-white rounded-xl border border-gray-200 p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Tipo de Imóvel</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Tipo de Propriedade
+                        </label>
+                        <select
+                            name="preferences.propertyType"
+                            value={formData.preferences.propertyType}
+                            onChange={handleChange}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                        >
+                            <option value="">Selecione...</option>
+                            <option value="apartamento">Apartamento</option>
+                            <option value="moradia">Moradia</option>
+                            <option value="terreno">Terreno</option>
+                            <option value="comercial">Comercial</option>
+                            <option value="armazem">Armazém</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Finalidade
+                        </label>
+                        <select
+                            name="preferences.purpose"
+                            value={formData.preferences.purpose}
+                            onChange={handleChange}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                        >
+                            <option value="">Selecione...</option>
+                            <option value="habitacao_propria">Habitação Própria</option>
+                            <option value="investimento">Investimento</option>
+                            <option value="arrendamento">Arrendamento</option>
+                            <option value="ferias">Casa de Férias</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Quartos (Mín - Máx)
+                        </label>
+                        <div className="flex space-x-2">
+                            <input
+                                type="number"
+                                name="preferences.minBedrooms"
+                                value={formData.preferences.minBedrooms}
+                                onChange={handleChange}
+                                className="w-1/2 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                                placeholder="Mín"
+                                min="0"
+                            />
+                            <input
+                                type="number"
+                                name="preferences.maxBedrooms"
+                                value={formData.preferences.maxBedrooms}
+                                onChange={handleChange}
+                                className="w-1/2 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                                placeholder="Máx"
+                                min="0"
                             />
                         </div>
                     </div>
-                );
 
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Área m² (Mín - Máx)
+                        </label>
+                        <div className="flex space-x-2">
+                            <input
+                                type="number"
+                                name="preferences.minArea"
+                                value={formData.preferences.minArea}
+                                onChange={handleChange}
+                                className="w-1/2 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                                placeholder="Mín"
+                                min="0"
+                            />
+                            <input
+                                type="number"
+                                name="preferences.maxArea"
+                                value={formData.preferences.maxArea}
+                                onChange={handleChange}
+                                className="w-1/2 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                                placeholder="Máx"
+                                min="0"
+                            />
+                        </div>
+                    </div>
+                </div>
+
+                {/* Características desejadas */}
+                <h4 className="text-sm font-medium text-gray-700 mt-6 mb-3">Características Desejadas</h4>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {[
+                        { key: 'parking', label: 'Estacionamento' },
+                        { key: 'garage', label: 'Garagem' },
+                        { key: 'garden', label: 'Jardim' },
+                        { key: 'pool', label: 'Piscina' },
+                        { key: 'elevator', label: 'Elevador' },
+                        { key: 'balcony', label: 'Varanda' },
+                        { key: 'storage', label: 'Arrecadação' }
+                    ].map(item => (
+                        <label key={item.key} className="flex items-center space-x-2">
+                            <input
+                                type="checkbox"
+                                name={`preferences.${item.key}`}
+                                checked={formData.preferences[item.key]}
+                                onChange={handleChange}
+                                className="w-4 h-4 text-orange-600 rounded focus:ring-orange-500"
+                            />
+                            <span className="text-sm text-gray-700">{item.label}</span>
+                        </label>
+                    ))}
+                </div>
+            </div>
+
+            {/* Localização */}
+            <div className="bg-white rounded-xl border border-gray-200 p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                    <MapPinIcon className="w-5 h-5 mr-2" />
+                    Localização Pretendida
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Distritos
+                        </label>
+                        <input
+                            type="text"
+                            name="location.districts"
+                            value={formData.location.districts}
+                            onChange={handleChange}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                            placeholder="Ex: Porto, Braga"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Concelhos
+                        </label>
+                        <input
+                            type="text"
+                            name="location.municipalities"
+                            value={formData.location.municipalities}
+                            onChange={handleChange}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                            placeholder="Ex: Matosinhos, Gaia"
+                        />
+                    </div>
+                </div>
+
+                <h4 className="text-sm font-medium text-gray-700 mt-6 mb-3">Proximidades Importantes</h4>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {[
+                        { key: 'nearSchools', label: 'Escolas' },
+                        { key: 'nearPublicTransport', label: 'Transportes' },
+                        { key: 'nearHospital', label: 'Hospital' },
+                        { key: 'nearShopping', label: 'Comércio' }
+                    ].map(item => (
+                        <label key={item.key} className="flex items-center space-x-2">
+                            <input
+                                type="checkbox"
+                                name={`location.${item.key}`}
+                                checked={formData.location[item.key]}
+                                onChange={handleChange}
+                                className="w-4 h-4 text-orange-600 rounded focus:ring-orange-500"
+                            />
+                            <span className="text-sm text-gray-700">{item.label}</span>
+                        </label>
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
+
+    // Renderizar Step 4: Informação Financeira
+    const renderFinancial = () => (
+        <div className="space-y-6">
+            <div className="text-center mb-6">
+                <div className="w-16 h-16 bg-gradient-to-r from-orange-500 to-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <CurrencyEuroIcon className="w-8 h-8 text-white" />
+                </div>
+                <h2 className="text-2xl font-bold text-gray-900">Informação Financeira</h2>
+                <p className="text-gray-600 mt-2">Capacidade de investimento</p>
+            </div>
+
+            <div className="bg-white rounded-xl border border-gray-200 p-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Orçamento Mínimo (€)
+                        </label>
+                        <input
+                            type="number"
+                            name="financial.budget"
+                            value={formData.financial.budget}
+                            onChange={handleChange}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                            placeholder="150000"
+                            min="0"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Orçamento Máximo (€)
+                        </label>
+                        <input
+                            type="number"
+                            name="financial.maxBudget"
+                            value={formData.financial.maxBudget}
+                            onChange={handleChange}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                            placeholder="250000"
+                            min="0"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Entrada Disponível (€)
+                        </label>
+                        <input
+                            type="number"
+                            name="financial.downPayment"
+                            value={formData.financial.downPayment}
+                            onChange={handleChange}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                            placeholder="30000"
+                            min="0"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Prestação Mensal Máxima (€)
+                        </label>
+                        <input
+                            type="number"
+                            name="financial.monthlyPayment"
+                            value={formData.financial.monthlyPayment}
+                            onChange={handleChange}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                            placeholder="800"
+                            min="0"
+                        />
+                    </div>
+                </div>
+
+                <div className="mt-6 space-y-4">
+                    <label className="flex items-center space-x-3">
+                        <input
+                            type="checkbox"
+                            name="financial.hasFinancing"
+                            checked={formData.financial.hasFinancing}
+                            onChange={handleChange}
+                            className="w-4 h-4 text-orange-600 rounded focus:ring-orange-500"
+                        />
+                        <span className="text-gray-700">Necessita de financiamento</span>
+                    </label>
+
+                    {formData.financial.hasFinancing && (
+                        <>
+                            <label className="flex items-center space-x-3 ml-7">
+                                <input
+                                    type="checkbox"
+                                    name="financial.financingApproved"
+                                    checked={formData.financial.financingApproved}
+                                    onChange={handleChange}
+                                    className="w-4 h-4 text-orange-600 rounded focus:ring-orange-500"
+                                />
+                                <span className="text-gray-700">Já tem pré-aprovação bancária</span>
+                            </label>
+
+                            {formData.financial.financingApproved && (
+                                <div className="ml-7">
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Nome do Banco
+                                    </label>
+                                    <input
+                                        type="text"
+                                        name="financial.bankName"
+                                        value={formData.financial.bankName}
+                                        onChange={handleChange}
+                                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                                        placeholder="Ex: Banco XYZ"
+                                    />
+                                </div>
+                            )}
+
+                            <label className="flex items-center space-x-3 ml-7">
+                                <input
+                                    type="checkbox"
+                                    name="financial.needsFinancingHelp"
+                                    checked={formData.financial.needsFinancingHelp}
+                                    onChange={handleChange}
+                                    className="w-4 h-4 text-orange-600 rounded focus:ring-orange-500"
+                                />
+                                <span className="text-gray-700">Precisa de ajuda com financiamento</span>
+                            </label>
+                        </>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+
+    // Renderizar Step 5: Follow-up e Notas
+    const renderFollowUp = () => (
+        <div className="space-y-6">
+            <div className="text-center mb-6">
+                <div className="w-16 h-16 bg-gradient-to-r from-orange-500 to-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <CalendarIcon className="w-8 h-8 text-white" />
+                </div>
+                <h2 className="text-2xl font-bold text-gray-900">Próximo Contacto</h2>
+                <p className="text-gray-600 mt-2">Agendar follow-up</p>
+            </div>
+
+            <div className="bg-white rounded-xl border border-gray-200 p-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Data do Próximo Contacto *
+                        </label>
+                        <input
+                            type="date"
+                            name="nextContactDate"
+                            value={formData.nextContactDate}
+                            onChange={handleChange}
+                            className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-orange-500 ${validationErrors.nextContactDate ? 'border-red-500' : 'border-gray-300'
+                                }`}
+                        />
+                        {validationErrors.nextContactDate && (
+                            <p className="mt-1 text-sm text-red-600">{validationErrors.nextContactDate}</p>
+                        )}
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Hora
+                        </label>
+                        <input
+                            type="time"
+                            name="nextContactTime"
+                            value={formData.nextContactTime}
+                            onChange={handleChange}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Método de Contacto Preferido
+                        </label>
+                        <select
+                            name="preferredContactMethod"
+                            value={formData.preferredContactMethod}
+                            onChange={handleChange}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                        >
+                            <option value="phone">Telefone</option>
+                            <option value="email">Email</option>
+                            <option value="whatsapp">WhatsApp</option>
+                            <option value="presencial">Presencial</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Melhor Horário para Contacto
+                        </label>
+                        <select
+                            name="bestContactTime"
+                            value={formData.bestContactTime}
+                            onChange={handleChange}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                        >
+                            <option value="">Qualquer hora</option>
+                            <option value="morning">Manhã (9h-12h)</option>
+                            <option value="afternoon">Tarde (14h-18h)</option>
+                            <option value="evening">Noite (18h-21h)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div className="mt-6">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Notas e Observações
+                    </label>
+                    <textarea
+                        name="notes"
+                        value={formData.notes}
+                        onChange={handleChange}
+                        rows="4"
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                        placeholder="Adicione notas importantes sobre esta lead..."
+                    />
+                </div>
+
+                <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Status da Lead
+                        </label>
+                        <select
+                            name="status"
+                            value={formData.status}
+                            onChange={handleChange}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                        >
+                            {Object.entries(LEAD_STATUS).map(([key, value]) => (
+                                <option key={key} value={key}>{value}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Prioridade
+                        </label>
+                        <select
+                            name="priority"
+                            value={formData.priority}
+                            onChange={handleChange}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                        >
+                            <option value="low">Baixa</option>
+                            <option value="normal">Normal</option>
+                            <option value="high">Alta</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+
+    // Renderizar conteúdo do step atual
+    const renderCurrentStep = () => {
+        switch (currentStep) {
+            case 1:
+                return renderBasicData();
+            case 2:
+                return renderQualification();
+            case 3:
+                return renderPreferences();
+            case 4:
+                return renderFinancial();
+            case 5:
+                return renderFollowUp();
             default:
-                return null;
+                return renderBasicData();
         }
     };
+
+    // Loading
+    if (loading.current && isEditMode) {
+        return (
+            <Layout>
+                <div className="flex items-center justify-center h-64">
+                    <div className="text-center">
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600 mx-auto mb-4"></div>
+                        <p className="text-gray-600">Carregando dados da lead...</p>
+                    </div>
+                </div>
+            </Layout>
+        );
+    }
 
     return (
         <Layout>
-            <div className="min-h-screen bg-gray-50 py-8">
-                <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
-                    {/* Header */}
-                    <div className="mb-8">
-                        <Link
-                            to="/leads"
-                            className="inline-flex items-center text-sm text-gray-500 hover:text-gray-700"
+            <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                {/* Header */}
+                <div className="flex items-center justify-between mb-8">
+                    <div className="flex items-center space-x-3">
+                        <button
+                            onClick={() => navigate('/leads')}
+                            className="text-gray-500 hover:text-gray-700 transition-colors"
                         >
-                            <ArrowLeftIcon className="mr-2 h-4 w-4" />
-                            Voltar para Leads
-                        </Link>
-                        <h1 className="mt-4 text-2xl font-bold text-gray-900">
-                            {isEditMode ? 'Editar Lead' : 'Nova Lead'}
-                        </h1>
+                            <ArrowLeftIcon className="w-5 h-5" />
+                        </button>
+                        <div>
+                            <h1 className="text-2xl font-bold text-gray-900">
+                                {isEditMode ? 'Editar Lead' : 'Nova Lead'}
+                            </h1>
+                            <p className="text-sm text-gray-600">
+                                {isEditMode ? 'Atualizar informações da lead' : 'Registar novo prospect'}
+                            </p>
+                        </div>
                     </div>
+                    <div className="flex items-center space-x-2">
+                        <FunnelIcon className="w-8 h-8 text-orange-500" />
+                    </div>
+                </div>
 
-                    {/* Mensagens de Erro */}
-                    {errors.length > 0 && (
-                        <div className="mb-4 rounded-md bg-red-50 p-4">
-                            <div className="flex">
-                                <ExclamationCircleIcon className="h-5 w-5 text-red-400" />
-                                <div className="ml-3">
-                                    <h3 className="text-sm font-medium text-red-800">
-                                        Erro ao salvar lead
-                                    </h3>
-                                    <div className="mt-2 text-sm text-red-700">
-                                        <ul className="list-disc pl-5 space-y-1">
-                                            {errors.map((error, index) => (
-                                                <li key={index}>{error}</li>
-                                            ))}
-                                        </ul>
-                                    </div>
+                {/* Progress Steps */}
+                <div className="mb-8">
+                    <div className="flex items-center justify-between">
+                        {[1, 2, 3, 4, 5].map((step) => (
+                            <div key={step} className="flex-1 flex items-center">
+                                <div
+                                    className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold ${step === currentStep
+                                            ? 'bg-orange-500 text-white'
+                                            : step < currentStep
+                                                ? 'bg-green-500 text-white'
+                                                : 'bg-gray-200 text-gray-500'
+                                        }`}
+                                >
+                                    {step < currentStep ? (
+                                        <CheckCircleIcon className="w-6 h-6" />
+                                    ) : (
+                                        step
+                                    )}
                                 </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Mensagem de Sucesso */}
-                    {showSuccess && (
-                        <div className="mb-4 rounded-md bg-green-50 p-4">
-                            <div className="flex">
-                                <CheckCircleIcon className="h-5 w-5 text-green-400" />
-                                <div className="ml-3">
-                                    <p className="text-sm font-medium text-green-800">
-                                        Lead {isEditMode ? 'atualizada' : 'criada'} com sucesso!
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Formulário */}
-                    <form onSubmit={handleSubmit} className="space-y-8">
-                        {/* Dados do Prospect */}
-                        <div className="bg-white shadow rounded-lg p-6">
-                            <h2 className="text-lg font-medium text-gray-900 mb-4">
-                                Dados do Prospect
-                            </h2>
-                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700">
-                                        Nome *
-                                    </label>
-                                    <div className="mt-1 relative">
-                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                            <UserIcon className="h-5 w-5 text-gray-400" />
-                                        </div>
-                                        <input
-                                            type="text"
-                                            required
-                                            value={formData.prospect.name}
-                                            onChange={(e) => handleInputChange('prospect', 'name', e.target.value)}
-                                            className="pl-10 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                                            placeholder="Nome completo"
-                                        />
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700">
-                                        Telefone
-                                    </label>
-                                    <div className="mt-1 relative">
-                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                            <PhoneIcon className="h-5 w-5 text-gray-400" />
-                                        </div>
-                                        <input
-                                            type="tel"
-                                            value={formData.prospect.phone}
-                                            onChange={(e) => handleInputChange('prospect', 'phone', e.target.value)}
-                                            className="pl-10 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                                            placeholder="912 345 678"
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="sm:col-span-2">
-                                    <label className="block text-sm font-medium text-gray-700">
-                                        Email
-                                    </label>
-                                    <div className="mt-1 relative">
-                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                            <EnvelopeIcon className="h-5 w-5 text-gray-400" />
-                                        </div>
-                                        <input
-                                            type="email"
-                                            value={formData.prospect.email}
-                                            onChange={(e) => handleInputChange('prospect', 'email', e.target.value)}
-                                            className="pl-10 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                                            placeholder="email@exemplo.com"
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Origem da Lead */}
-                        <div className="bg-white shadow rounded-lg p-6">
-                            <h2 className="text-lg font-medium text-gray-900 mb-4">
-                                Origem da Lead
-                            </h2>
-                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700">
-                                        Como nos conheceu?
-                                    </label>
-                                    <select
-                                        value={formData.source.origin}
-                                        onChange={(e) => handleInputChange('source', 'origin', e.target.value)}
-                                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                                    >
-                                        {LEAD_SOURCES.map(source => (
-                                            <option key={source.value} value={source.value}>
-                                                {source.label}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700">
-                                        Detalhes
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={formData.source.details}
-                                        onChange={(e) => handleInputChange('source', 'details', e.target.value)}
-                                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                                        placeholder="Ex: Campanha Facebook Ads"
+                                {step < totalSteps && (
+                                    <div
+                                        className={`flex-1 h-1 mx-2 ${step < currentStep ? 'bg-green-500' : 'bg-gray-200'
+                                            }`}
                                     />
-                                </div>
+                                )}
                             </div>
-                        </div>
+                        ))}
+                    </div>
+                    <div className="flex justify-between mt-2">
+                        <span className="text-xs text-gray-600">Dados</span>
+                        <span className="text-xs text-gray-600">Qualificação</span>
+                        <span className="text-xs text-gray-600">Preferências</span>
+                        <span className="text-xs text-gray-600">Financeiro</span>
+                        <span className="text-xs text-gray-600">Follow-up</span>
+                    </div>
+                </div>
 
-                        {/* Qualificação Imobiliária */}
-                        <div className="bg-white shadow rounded-lg p-6">
-                            <h2 className="text-lg font-medium text-gray-900 mb-4">
-                                Qualificação Imobiliária
-                            </h2>
+                {/* Formulário */}
+                <form onSubmit={handleSubmit}>
+                    {renderCurrentStep()}
 
-                            {/* Seleção do Tipo */}
-                            <div className="mb-6">
-                                <label className="block text-sm font-medium text-gray-700 mb-3">
-                                    Tipo de Qualificação
-                                </label>
-                                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-                                    {QUALIFICATION_TYPES.map(type => (
-                                        <button
-                                            key={type.value}
-                                            type="button"
-                                            onClick={() => handleQualificationTypeChange(type.value)}
-                                            className={`
-                                                relative rounded-lg border p-4 flex flex-col items-center cursor-pointer
-                                                ${formData.qualification.type === type.value
-                                                    ? 'border-indigo-500 bg-indigo-50'
-                                                    : 'border-gray-300 bg-white hover:bg-gray-50'
-                                                }
-                                            `}
-                                        >
-                                            <span className="text-2xl mb-1">
-                                                {type.value === 'comprador' && '🏠'}
-                                                {type.value === 'vendedor' && '💰'}
-                                                {type.value === 'senhorio' && '🔑'}
-                                                {type.value === 'inquilino' && '🏘️'}
-                                                {type.value === 'investidor' && '📈'}
-                                            </span>
-                                            <span className="text-sm font-medium text-gray-900">
-                                                {type.label}
-                                            </span>
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
+                    {/* Botões de navegação */}
+                    <div className="flex justify-between mt-8">
+                        <button
+                            type="button"
+                            onClick={handlePreviousStep}
+                            disabled={currentStep === 1}
+                            className={`px-6 py-3 rounded-lg font-medium ${currentStep === 1
+                                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                }`}
+                        >
+                            Anterior
+                        </button>
 
-                            {/* Campos Específicos */}
-                            {renderQualificationFields()}
-                        </div>
-
-                        {/* Próximo Contacto */}
-                        <div className="bg-white shadow rounded-lg p-6">
-                            <h2 className="text-lg font-medium text-gray-900 mb-4">
-                                Próximo Contacto
-                            </h2>
-                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700">
-                                        Data
-                                    </label>
-                                    <input
-                                        type="date"
-                                        value={formData.nextContact.date}
-                                        onChange={(e) => handleInputChange('nextContact', 'date', e.target.value)}
-                                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700">
-                                        Tipo
-                                    </label>
-                                    <select
-                                        value={formData.nextContact.type}
-                                        onChange={(e) => handleInputChange('nextContact', 'type', e.target.value)}
-                                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                                    >
-                                        <option value="chamada">Chamada</option>
-                                        <option value="visita">Visita</option>
-                                        <option value="email">Email</option>
-                                        <option value="whatsapp">WhatsApp</option>
-                                    </select>
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700">
-                                        Notas
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={formData.nextContact.notes}
-                                        onChange={(e) => handleInputChange('nextContact', 'notes', e.target.value)}
-                                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                                        placeholder="Lembretes..."
-                                    />
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Notas Gerais */}
-                        <div className="bg-white shadow rounded-lg p-6">
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Notas Gerais
-                            </label>
-                            <textarea
-                                value={formData.generalNotes}
-                                onChange={(e) => setFormData(prev => ({ ...prev, generalNotes: e.target.value }))}
-                                rows={4}
-                                className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                                placeholder="Observações adicionais sobre esta lead..."
-                            />
-                        </div>
-
-                        {/* Botões de Ação */}
-                        <div className="flex justify-end space-x-3">
-                            <Link
-                                to="/leads"
-                                className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                        {currentStep < totalSteps ? (
+                            <button
+                                type="button"
+                                onClick={handleNextStep}
+                                className="px-6 py-3 bg-gradient-to-r from-orange-500 to-red-500 text-white rounded-lg font-medium hover:from-orange-600 hover:to-red-600"
                             >
-                                Cancelar
-                            </Link>
+                                Próximo
+                            </button>
+                        ) : (
                             <button
                                 type="submit"
-                                disabled={loading.create || loading.update}
-                                className="inline-flex justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
+                                className="px-6 py-3 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg font-medium hover:from-green-600 hover:to-green-700"
                             >
-                                {loading.create || loading.update ? (
-                                    <>
-                                        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
-                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                                        </svg>
-                                        Salvando...
-                                    </>
-                                ) : (
-                                    <>{isEditMode ? 'Atualizar' : 'Criar'} Lead</>
-                                )}
+                                {isEditMode ? 'Atualizar Lead' : 'Criar Lead'}
                             </button>
+                        )}
+                    </div>
+                </form>
+
+                {/* Mensagem de sucesso */}
+                {showSuccess && (
+                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                        <div className="bg-white rounded-xl p-8 max-w-md">
+                            <CheckCircleIcon className="w-16 h-16 text-green-500 mx-auto mb-4" />
+                            <h3 className="text-xl font-semibold text-center text-gray-900 mb-2">
+                                {isEditMode ? 'Lead Atualizada!' : 'Lead Criada com Sucesso!'}
+                            </h3>
+                            <p className="text-center text-gray-600">
+                                Redirecionando para a lista de leads...
+                            </p>
                         </div>
-                    </form>
-                </div>
+                    </div>
+                )}
             </div>
         </Layout>
     );

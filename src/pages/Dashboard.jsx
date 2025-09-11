@@ -180,16 +180,13 @@ const Dashboard = () => {
                                                         <div>
                                                             <p className="text-sm text-gray-500">
                                                                 Novo cliente adicionado:{' '}
-                                                                <button
-                                                                    onClick={() => navigate(`/clients/${client.id}`)}
-                                                                    className="font-medium text-gray-900 hover:text-blue-600"
-                                                                >
+                                                                <span className="font-medium text-gray-900">
                                                                     {client.name}
-                                                                </button>
+                                                                </span>
                                                             </p>
                                                         </div>
                                                         <div className="text-right text-sm whitespace-nowrap text-gray-500">
-                                                            {new Date(client.createdAt).toLocaleDateString('pt-PT')}
+                                                            {client.createdAt?.toDate?.()?.toLocaleDateString?.() || 'Recente'}
                                                         </div>
                                                     </div>
                                                 </div>
@@ -199,48 +196,10 @@ const Dashboard = () => {
                                 </ul>
                             </div>
                         ) : (
-                            <div className="text-center py-8">
-                                <UserGroupIcon className="mx-auto h-12 w-12 text-gray-400" />
-                                <h3 className="mt-2 text-sm font-medium text-gray-900">Sem atividade</h3>
-                                <p className="mt-1 text-sm text-gray-500">
-                                    Comece por adicionar o seu primeiro cliente
-                                </p>
-                                <div className="mt-6">
-                                    <button
-                                        onClick={() => navigate('/clients/new')}
-                                        className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
-                                    >
-                                        <PlusIcon className="-ml-1 mr-2 h-5 w-5" />
-                                        Novo Cliente
-                                    </button>
-                                </div>
-                            </div>
+                            <p className="text-center text-gray-500">Nenhuma atividade recente</p>
                         )}
                     </div>
                 </div>
-
-                {/* Subscription Alert */}
-                {subscription?.status === 'trial' && subscription?.daysRemaining <= 7 && (
-                    <div className="mt-8 bg-yellow-50 border-l-4 border-yellow-400 p-4">
-                        <div className="flex">
-                            <div className="flex-shrink-0">
-                                <CalendarIcon className="h-5 w-5 text-yellow-400" />
-                            </div>
-                            <div className="ml-3">
-                                <p className="text-sm text-yellow-700">
-                                    O seu período de teste termina em{' '}
-                                    <span className="font-medium">{subscription.daysRemaining} dias</span>.{' '}
-                                    <button
-                                        onClick={() => navigate('/account')}
-                                        className="font-medium underline text-yellow-700 hover:text-yellow-600"
-                                    >
-                                        Atualizar plano
-                                    </button>
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                )}
             </div>
         </Layout>
     );
