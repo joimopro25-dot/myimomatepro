@@ -26,10 +26,17 @@ import {
     ExclamationTriangleIcon,
     CheckCircleIcon,
     ClockIcon,
-    UserGroupIcon
+    UserGroupIcon,
+    PencilIcon,
+    TrashIcon,
+    HomeIcon,
+    CurrencyEuroIcon,
+    KeyIcon,
+    BuildingOfficeIcon,
+    ChartBarIcon
 } from '@heroicons/react/24/outline';
 
-export default function LeadList() {
+function LeadList() {
     const navigate = useNavigate();
     const {
         leads,
@@ -40,11 +47,14 @@ export default function LeadList() {
         fetchLeads,
         searchLeads,
         applyFilters,
-        changeLeadStatus
+        changeLeadStatus,
+        deleteLead
     } = useLeads();
 
     const [localSearchTerm, setLocalSearchTerm] = useState('');
     const [showFilters, setShowFilters] = useState(false);
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [leadToDelete, setLeadToDelete] = useState(null);
 
     // Buscar leads ao montar o componente
     useEffect(() => {
@@ -87,14 +97,45 @@ export default function LeadList() {
 
     // Função para obter ícone do tipo
     const getTypeIcon = (type) => {
-        const icons = {
-            comprador: '🏠',
-            vendedor: '💰',
-            senhorio: '🔑',
-            inquilino: '🏘️',
-            investidor: '📈'
-        };
-        return icons[type] || '📋';
+        switch (type) {
+            case 'comprador':
+                return <HomeIcon className="h-5 w-5 text-blue-500" />;
+            case 'vendedor':
+                return <CurrencyEuroIcon className="h-5 w-5 text-green-500" />;
+            case 'senhorio':
+                return <KeyIcon className="h-5 w-5 text-purple-500" />;
+            case 'inquilino':
+                return <BuildingOfficeIcon className="h-5 w-5 text-orange-500" />;
+            case 'investidor':
+                return <ChartBarIcon className="h-5 w-5 text-indigo-500" />;
+            default:
+                return <UserPlusIcon className="h-5 w-5 text-gray-500" />;
+        }
+    };
+
+    // Handler para deletar lead
+    const handleDeleteClick = (e, lead) => {
+        e.stopPropagation();
+        setLeadToDelete(lead);
+        setShowDeleteModal(true);
+    };
+
+    const handleConfirmDelete = async () => {
+        if (leadToDelete) {
+            try {
+                await deleteLead(leadToDelete.id);
+                setShowDeleteModal(false);
+                setLeadToDelete(null);
+                fetchLeads();
+            } catch (error) {
+                console.error('Erro ao deletar lead:', error);
+            }
+        }
+    };
+
+    const handleEditClick = (e, leadId) => {
+        e.stopPropagation();
+        navigate(`/leads/${leadId}/edit`);
     };
 
     // Lidar com mudanças nos filtros
@@ -377,7 +418,7 @@ export default function LeadList() {
                                         <div className="px-4 py-4 sm:px-6">
                                             <div className="flex items-center justify-between">
                                                 <div className="flex items-center">
-                                                    <div className="flex-shrink-0 text-2xl">
+                                                    <div className="flex-shrink-0">
                                                         {getTypeIcon(lead.qualification?.type)}
                                                     </div>
                                                     <div className="ml-4">
@@ -410,7 +451,23 @@ export default function LeadList() {
                                                             {formatDate(lead.createdAt)}
                                                         </div>
                                                     </div>
-                                                    <ChevronRightIcon className="h-5 w-5 text-gray-400" />
+                                                    <div className="flex items-center space-x-2">
+                                                        <button
+                                                            onClick={(e) => handleEditClick(e, lead.id)}
+                                                            className="text-gray-400 hover:text-indigo-600"
+                                                            title="Editar"
+                                                        >
+                                                            <PencilIcon className="h-5 w-5" />
+                                                        </button>
+                                                        <button
+                                                            onClick={(e) => handleDeleteClick(e, lead)}
+                                                            className="text-gray-400 hover:text-red-600"
+                                                            title="Apagar"
+                                                        >
+                                                            <TrashIcon className="h-5 w-5" />
+                                                        </button>
+                                                        <ChevronRightIcon className="h-5 w-5 text-gray-400" />
+                                                    </div>
                                                 </div>
                                             </div>
                                             {/* Additional Info */}
@@ -483,3 +540,5 @@ export default function LeadList() {
         </div>
     );
 }
+
+export default LeadList;

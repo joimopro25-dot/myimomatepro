@@ -324,6 +324,35 @@ export const deleteLead = async (consultorId, leadId) => {
  */
 export const getLeadStats = async (consultorId) => {
     try {
+        if (!consultorId) {
+            return {
+                total: 0,
+                byStatus: {
+                    nova: 0,
+                    qualificada: 0,
+                    emNegociacao: 0,
+                    convertida: 0,
+                    perdida: 0
+                },
+                byQualificationType: {
+                    comprador: 0,
+                    vendedor: 0,
+                    senhorio: 0,
+                    inquilino: 0,
+                    investidor: 0
+                },
+                bySource: {},
+                byUrgency: {
+                    baixa: 0,
+                    normal: 0,
+                    alta: 0,
+                    urgente: 0
+                },
+                conversionRate: 0,
+                lastUpdated: new Date().toISOString()
+            };
+        }
+
         const collectionRef = getLeadCollection(consultorId);
         const snapshot = await getDocs(collectionRef);
 
@@ -406,7 +435,33 @@ export const getLeadStats = async (consultorId) => {
 
     } catch (error) {
         console.error('LeadService: Erro ao calcular estatísticas:', error);
-        throw new Error(`Erro ao calcular estatísticas: ${error.message}`);
+        // Retornar estatísticas vazias ao invés de lançar erro
+        return {
+            total: 0,
+            byStatus: {
+                nova: 0,
+                qualificada: 0,
+                emNegociacao: 0,
+                convertida: 0,
+                perdida: 0
+            },
+            byQualificationType: {
+                comprador: 0,
+                vendedor: 0,
+                senhorio: 0,
+                inquilino: 0,
+                investidor: 0
+            },
+            bySource: {},
+            byUrgency: {
+                baixa: 0,
+                normal: 0,
+                alta: 0,
+                urgente: 0
+            },
+            conversionRate: 0,
+            lastUpdated: new Date().toISOString()
+        };
     }
 };
 
