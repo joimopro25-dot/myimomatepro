@@ -7,6 +7,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
+import Layout from '../components/Layout';
 import { useLeads } from '../contexts/LeadContext';
 import {
     LEAD_SOURCES,
@@ -534,7 +535,7 @@ export default function LeadForm() {
                                     value={formData.qualification.investor.budget}
                                     onChange={(e) => handleQualificationChange('investor', 'budget', e.target.value)}
                                     className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                                    placeholder="Ex: 500.000€"
+                                    placeholder="Ex: 500.000€ - 1.000.000€"
                                 />
                             </div>
 
@@ -586,293 +587,297 @@ export default function LeadForm() {
     };
 
     return (
-        <div className="min-h-screen bg-gray-50 py-8">
-            <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
-                {/* Header */}
-                <div className="mb-8">
-                    <Link
-                        to="/leads"
-                        className="inline-flex items-center text-sm text-gray-500 hover:text-gray-700"
-                    >
-                        <ArrowLeftIcon className="mr-2 h-4 w-4" />
-                        Voltar para Leads
-                    </Link>
-                    <h1 className="mt-4 text-2xl font-bold text-gray-900">
-                        {isEditMode ? 'Editar Lead' : 'Nova Lead'}
-                    </h1>
-                </div>
-
-                {/* Alertas */}
-                {errors.length > 0 && (
-                    <div className="mb-6 bg-red-50 border border-red-200 rounded-md p-4">
-                        <div className="flex">
-                            <ExclamationCircleIcon className="h-5 w-5 text-red-400" />
-                            <div className="ml-3">
-                                <h3 className="text-sm font-medium text-red-800">
-                                    Corrija os seguintes erros:
-                                </h3>
-                                <ul className="mt-2 text-sm text-red-700 list-disc list-inside">
-                                    {errors.map((error, index) => (
-                                        <li key={index}>{error}</li>
-                                    ))}
-                                </ul>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {showSuccess && (
-                    <div className="mb-6 bg-green-50 border border-green-200 rounded-md p-4">
-                        <div className="flex">
-                            <CheckCircleIcon className="h-5 w-5 text-green-400" />
-                            <div className="ml-3">
-                                <p className="text-sm font-medium text-green-800">
-                                    Lead {isEditMode ? 'atualizada' : 'criada'} com sucesso!
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {/* Formulário */}
-                <form onSubmit={handleSubmit} className="space-y-8">
-                    {/* Dados do Prospect */}
-                    <div className="bg-white shadow rounded-lg p-6">
-                        <h2 className="text-lg font-medium text-gray-900 mb-4">
-                            Dados do Prospect
-                        </h2>
-                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">
-                                    Nome *
-                                </label>
-                                <div className="mt-1 relative">
-                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                        <UserIcon className="h-5 w-5 text-gray-400" />
-                                    </div>
-                                    <input
-                                        type="text"
-                                        required
-                                        value={formData.prospect.name}
-                                        onChange={(e) => handleInputChange('prospect', 'name', e.target.value)}
-                                        className="pl-10 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                                        placeholder="Nome completo"
-                                    />
-                                </div>
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">
-                                    Telefone *
-                                </label>
-                                <div className="mt-1 relative">
-                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                        <PhoneIcon className="h-5 w-5 text-gray-400" />
-                                    </div>
-                                    <input
-                                        type="tel"
-                                        required
-                                        value={formData.prospect.phone}
-                                        onChange={(e) => handleInputChange('prospect', 'phone', e.target.value)}
-                                        className="pl-10 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                                        placeholder="912345678"
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="sm:col-span-2">
-                                <label className="block text-sm font-medium text-gray-700">
-                                    Email
-                                </label>
-                                <div className="mt-1 relative">
-                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                        <EnvelopeIcon className="h-5 w-5 text-gray-400" />
-                                    </div>
-                                    <input
-                                        type="email"
-                                        value={formData.prospect.email}
-                                        onChange={(e) => handleInputChange('prospect', 'email', e.target.value)}
-                                        className="pl-10 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                                        placeholder="email@exemplo.com"
-                                    />
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Fonte da Lead */}
-                    <div className="bg-white shadow rounded-lg p-6">
-                        <h2 className="text-lg font-medium text-gray-900 mb-4">
-                            Fonte da Lead
-                        </h2>
-                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">
-                                    Origem
-                                </label>
-                                <select
-                                    value={formData.source.origin}
-                                    onChange={(e) => handleInputChange('source', 'origin', e.target.value)}
-                                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                                >
-                                    {LEAD_SOURCES.map(source => (
-                                        <option key={source.value} value={source.value}>
-                                            {source.label}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">
-                                    Detalhes
-                                </label>
-                                <input
-                                    type="text"
-                                    value={formData.source.details}
-                                    onChange={(e) => handleInputChange('source', 'details', e.target.value)}
-                                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                                    placeholder="Ex: Campanha Facebook Ads"
-                                />
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Qualificação Imobiliária */}
-                    <div className="bg-white shadow rounded-lg p-6">
-                        <h2 className="text-lg font-medium text-gray-900 mb-4">
-                            Qualificação Imobiliária
-                        </h2>
-
-                        {/* Seleção do Tipo */}
-                        <div className="mb-6">
-                            <label className="block text-sm font-medium text-gray-700 mb-3">
-                                Tipo de Qualificação
-                            </label>
-                            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-                                {QUALIFICATION_TYPES.map(type => (
-                                    <button
-                                        key={type.value}
-                                        type="button"
-                                        onClick={() => handleQualificationTypeChange(type.value)}
-                                        className={`
-                                            relative rounded-lg border p-4 flex flex-col items-center cursor-pointer
-                                            ${formData.qualification.type === type.value
-                                                ? 'border-indigo-500 bg-indigo-50'
-                                                : 'border-gray-300 bg-white hover:bg-gray-50'
-                                            }
-                                        `}
-                                    >
-                                        <span className="text-2xl mb-1">
-                                            {type.value === 'comprador' && '🏠'}
-                                            {type.value === 'vendedor' && '💰'}
-                                            {type.value === 'senhorio' && '🔑'}
-                                            {type.value === 'inquilino' && '🏘️'}
-                                            {type.value === 'investidor' && '📈'}
-                                        </span>
-                                        <span className="text-sm font-medium text-gray-900">
-                                            {type.label}
-                                        </span>
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* Campos Específicos */}
-                        {renderQualificationFields()}
-                    </div>
-
-                    {/* Próximo Contacto */}
-                    <div className="bg-white shadow rounded-lg p-6">
-                        <h2 className="text-lg font-medium text-gray-900 mb-4">
-                            Próximo Contacto
-                        </h2>
-                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">
-                                    Data
-                                </label>
-                                <input
-                                    type="date"
-                                    value={formData.nextContact.date}
-                                    onChange={(e) => handleInputChange('nextContact', 'date', e.target.value)}
-                                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">
-                                    Tipo
-                                </label>
-                                <select
-                                    value={formData.nextContact.type}
-                                    onChange={(e) => handleInputChange('nextContact', 'type', e.target.value)}
-                                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                                >
-                                    <option value="chamada">Chamada</option>
-                                    <option value="email">Email</option>
-                                    <option value="whatsapp">WhatsApp</option>
-                                    <option value="visita">Visita</option>
-                                </select>
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">
-                                    Notas
-                                </label>
-                                <input
-                                    type="text"
-                                    value={formData.nextContact.notes}
-                                    onChange={(e) => handleInputChange('nextContact', 'notes', e.target.value)}
-                                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                                    placeholder="Lembrete..."
-                                />
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Notas Gerais */}
-                    <div className="bg-white shadow rounded-lg p-6">
-                        <h2 className="text-lg font-medium text-gray-900 mb-4">
-                            Notas Gerais
-                        </h2>
-                        <textarea
-                            value={formData.generalNotes}
-                            onChange={(e) => setFormData(prev => ({ ...prev, generalNotes: e.target.value }))}
-                            rows={4}
-                            className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                            placeholder="Observações adicionais sobre esta lead..."
-                        />
-                    </div>
-
-                    {/* Botões de Ação */}
-                    <div className="flex justify-end space-x-3">
+        <Layout>
+            <div className="min-h-screen bg-gray-50 py-8">
+                <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+                    {/* Header */}
+                    <div className="mb-8">
                         <Link
                             to="/leads"
-                            className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                            className="inline-flex items-center text-sm text-gray-500 hover:text-gray-700"
                         >
-                            Cancelar
+                            <ArrowLeftIcon className="mr-2 h-4 w-4" />
+                            Voltar para Leads
                         </Link>
-                        <button
-                            type="submit"
-                            disabled={loading.create || loading.update}
-                            className="inline-flex justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
-                        >
-                            {loading.create || loading.update ? (
-                                <>
-                                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
-                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                                    </svg>
-                                    Salvando...
-                                </>
-                            ) : (
-                                <>{isEditMode ? 'Atualizar' : 'Criar'} Lead</>
-                            )}
-                        </button>
+                        <h1 className="mt-4 text-2xl font-bold text-gray-900">
+                            {isEditMode ? 'Editar Lead' : 'Nova Lead'}
+                        </h1>
                     </div>
-                </form>
+
+                    {/* Mensagens de Erro */}
+                    {errors.length > 0 && (
+                        <div className="mb-4 rounded-md bg-red-50 p-4">
+                            <div className="flex">
+                                <ExclamationCircleIcon className="h-5 w-5 text-red-400" />
+                                <div className="ml-3">
+                                    <h3 className="text-sm font-medium text-red-800">
+                                        Erro ao salvar lead
+                                    </h3>
+                                    <div className="mt-2 text-sm text-red-700">
+                                        <ul className="list-disc pl-5 space-y-1">
+                                            {errors.map((error, index) => (
+                                                <li key={index}>{error}</li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Mensagem de Sucesso */}
+                    {showSuccess && (
+                        <div className="mb-4 rounded-md bg-green-50 p-4">
+                            <div className="flex">
+                                <CheckCircleIcon className="h-5 w-5 text-green-400" />
+                                <div className="ml-3">
+                                    <p className="text-sm font-medium text-green-800">
+                                        Lead {isEditMode ? 'atualizada' : 'criada'} com sucesso!
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Formulário */}
+                    <form onSubmit={handleSubmit} className="space-y-8">
+                        {/* Dados do Prospect */}
+                        <div className="bg-white shadow rounded-lg p-6">
+                            <h2 className="text-lg font-medium text-gray-900 mb-4">
+                                Dados do Prospect
+                            </h2>
+                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700">
+                                        Nome *
+                                    </label>
+                                    <div className="mt-1 relative">
+                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <UserIcon className="h-5 w-5 text-gray-400" />
+                                        </div>
+                                        <input
+                                            type="text"
+                                            required
+                                            value={formData.prospect.name}
+                                            onChange={(e) => handleInputChange('prospect', 'name', e.target.value)}
+                                            className="pl-10 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                                            placeholder="Nome completo"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700">
+                                        Telefone
+                                    </label>
+                                    <div className="mt-1 relative">
+                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <PhoneIcon className="h-5 w-5 text-gray-400" />
+                                        </div>
+                                        <input
+                                            type="tel"
+                                            value={formData.prospect.phone}
+                                            onChange={(e) => handleInputChange('prospect', 'phone', e.target.value)}
+                                            className="pl-10 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                                            placeholder="912 345 678"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="sm:col-span-2">
+                                    <label className="block text-sm font-medium text-gray-700">
+                                        Email
+                                    </label>
+                                    <div className="mt-1 relative">
+                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <EnvelopeIcon className="h-5 w-5 text-gray-400" />
+                                        </div>
+                                        <input
+                                            type="email"
+                                            value={formData.prospect.email}
+                                            onChange={(e) => handleInputChange('prospect', 'email', e.target.value)}
+                                            className="pl-10 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                                            placeholder="email@exemplo.com"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Origem da Lead */}
+                        <div className="bg-white shadow rounded-lg p-6">
+                            <h2 className="text-lg font-medium text-gray-900 mb-4">
+                                Origem da Lead
+                            </h2>
+                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700">
+                                        Como nos conheceu?
+                                    </label>
+                                    <select
+                                        value={formData.source.origin}
+                                        onChange={(e) => handleInputChange('source', 'origin', e.target.value)}
+                                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                                    >
+                                        {LEAD_SOURCES.map(source => (
+                                            <option key={source.value} value={source.value}>
+                                                {source.label}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700">
+                                        Detalhes
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={formData.source.details}
+                                        onChange={(e) => handleInputChange('source', 'details', e.target.value)}
+                                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                                        placeholder="Ex: Campanha Facebook Ads"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Qualificação Imobiliária */}
+                        <div className="bg-white shadow rounded-lg p-6">
+                            <h2 className="text-lg font-medium text-gray-900 mb-4">
+                                Qualificação Imobiliária
+                            </h2>
+
+                            {/* Seleção do Tipo */}
+                            <div className="mb-6">
+                                <label className="block text-sm font-medium text-gray-700 mb-3">
+                                    Tipo de Qualificação
+                                </label>
+                                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+                                    {QUALIFICATION_TYPES.map(type => (
+                                        <button
+                                            key={type.value}
+                                            type="button"
+                                            onClick={() => handleQualificationTypeChange(type.value)}
+                                            className={`
+                                                relative rounded-lg border p-4 flex flex-col items-center cursor-pointer
+                                                ${formData.qualification.type === type.value
+                                                    ? 'border-indigo-500 bg-indigo-50'
+                                                    : 'border-gray-300 bg-white hover:bg-gray-50'
+                                                }
+                                            `}
+                                        >
+                                            <span className="text-2xl mb-1">
+                                                {type.value === 'comprador' && '🏠'}
+                                                {type.value === 'vendedor' && '💰'}
+                                                {type.value === 'senhorio' && '🔑'}
+                                                {type.value === 'inquilino' && '🏘️'}
+                                                {type.value === 'investidor' && '📈'}
+                                            </span>
+                                            <span className="text-sm font-medium text-gray-900">
+                                                {type.label}
+                                            </span>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Campos Específicos */}
+                            {renderQualificationFields()}
+                        </div>
+
+                        {/* Próximo Contacto */}
+                        <div className="bg-white shadow rounded-lg p-6">
+                            <h2 className="text-lg font-medium text-gray-900 mb-4">
+                                Próximo Contacto
+                            </h2>
+                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700">
+                                        Data
+                                    </label>
+                                    <input
+                                        type="date"
+                                        value={formData.nextContact.date}
+                                        onChange={(e) => handleInputChange('nextContact', 'date', e.target.value)}
+                                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700">
+                                        Tipo
+                                    </label>
+                                    <select
+                                        value={formData.nextContact.type}
+                                        onChange={(e) => handleInputChange('nextContact', 'type', e.target.value)}
+                                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                                    >
+                                        <option value="chamada">Chamada</option>
+                                        <option value="visita">Visita</option>
+                                        <option value="email">Email</option>
+                                        <option value="whatsapp">WhatsApp</option>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700">
+                                        Notas
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={formData.nextContact.notes}
+                                        onChange={(e) => handleInputChange('nextContact', 'notes', e.target.value)}
+                                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                                        placeholder="Lembretes..."
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Notas Gerais */}
+                        <div className="bg-white shadow rounded-lg p-6">
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Notas Gerais
+                            </label>
+                            <textarea
+                                value={formData.generalNotes}
+                                onChange={(e) => setFormData(prev => ({ ...prev, generalNotes: e.target.value }))}
+                                rows={4}
+                                className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                                placeholder="Observações adicionais sobre esta lead..."
+                            />
+                        </div>
+
+                        {/* Botões de Ação */}
+                        <div className="flex justify-end space-x-3">
+                            <Link
+                                to="/leads"
+                                className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                            >
+                                Cancelar
+                            </Link>
+                            <button
+                                type="submit"
+                                disabled={loading.create || loading.update}
+                                className="inline-flex justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
+                            >
+                                {loading.create || loading.update ? (
+                                    <>
+                                        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                        </svg>
+                                        Salvando...
+                                    </>
+                                ) : (
+                                    <>{isEditMode ? 'Atualizar' : 'Criar'} Lead</>
+                                )}
+                            </button>
+                        </div>
+                    </form>
+                </div>
             </div>
-        </div>
+        </Layout>
     );
 }
