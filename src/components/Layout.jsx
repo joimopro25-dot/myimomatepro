@@ -1,6 +1,6 @@
 /**
  * LAYOUT - MyImoMatePro
- * Layout principal da aplicação limpo
+ * Layout principal da aplicação
  * 
  * Caminho: src/components/Layout.jsx
  */

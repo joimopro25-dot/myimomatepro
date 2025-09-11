@@ -1,6 +1,6 @@
 /**
  * SIDEBAR - MyImoMatePro
- * Componente de navegação lateral limpo
+ * Componente de navegação lateral com Leads
  * 
  * Caminho: src/components/Sidebar.jsx
  */
@@ -10,9 +10,11 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
 import { useClients } from '../contexts/ClientContext';
+import { useLeads } from '../contexts/LeadContext';
 import {
     HomeIcon,
     UserGroupIcon,
+    UserPlusIcon,
     CogIcon,
     ArrowRightOnRectangleIcon,
     XMarkIcon,
@@ -26,6 +28,7 @@ const Sidebar = ({ isOpen, onClose }) => {
     const { currentUser, logout } = useAuth();
     const { subscription } = useSubscription();
     const { clients } = useClients();
+    const { leads } = useLeads();
 
     const handleLogout = async () => {
         try {
@@ -42,6 +45,13 @@ const Sidebar = ({ isOpen, onClose }) => {
             href: '/dashboard',
             icon: HomeIcon,
             current: window.location.pathname === '/dashboard'
+        },
+        {
+            name: 'Leads',
+            href: '/leads',
+            icon: UserPlusIcon,
+            current: window.location.pathname.includes('/leads'),
+            badge: leads?.filter(l => l.status === 'nova')?.length || 0
         },
         {
             name: 'Clientes',
@@ -87,9 +97,9 @@ const Sidebar = ({ isOpen, onClose }) => {
 
             {/* Sidebar */}
             <div className={`
-        fixed inset-y-0 left-0 z-50 w-64 bg-gray-900 transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0
-        ${isOpen ? 'translate-x-0' : '-translate-x-full'}
-      `}>
+                fixed inset-y-0 left-0 z-50 w-64 bg-gray-900 transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0
+                ${isOpen ? 'translate-x-0' : '-translate-x-full'}
+            `}>
                 <div className="flex flex-col h-full">
                     {/* Header */}
                     <div className="flex items-center justify-between px-4 py-5 border-b border-gray-800">
@@ -97,7 +107,7 @@ const Sidebar = ({ isOpen, onClose }) => {
                             <h2 className="text-xl font-bold text-white">MyImoMatePro</h2>
                             {subscription && (
                                 <p className="text-xs text-gray-400 mt-1">
-                                    Plano: {subscription.plan}
+                                    Plano: {subscription.plano}
                                 </p>
                             )}
                         </div>
@@ -138,18 +148,17 @@ const Sidebar = ({ isOpen, onClose }) => {
                                 to={item.href}
                                 onClick={item.disabled ? (e) => e.preventDefault() : onClose}
                                 className={({ isActive }) => `
-                  group flex items-center px-2 py-2 text-sm font-medium rounded-md transition-colors
-                  ${item.disabled
+                                    group flex items-center px-2 py-2 text-sm font-medium rounded-md transition-colors
+                                    ${item.disabled
                                         ? 'text-gray-500 cursor-not-allowed'
                                         : isActive
                                             ? 'bg-gray-800 text-white'
                                             : 'text-gray-300 hover:bg-gray-700 hover:text-white'
                                     }
-                `}
+                                `}
                             >
                                 <item.icon
-                                    className={`mr-3 flex-shrink-0 h-6 w-6 ${item.disabled ? 'text-gray-500' : ''
-                                        }`}
+                                    className={`mr-3 flex-shrink-0 h-6 w-6 ${item.disabled ? 'text-gray-500' : ''}`}
                                     aria-hidden="true"
                                 />
                                 {item.name}
@@ -174,12 +183,12 @@ const Sidebar = ({ isOpen, onClose }) => {
                                     to={item.href}
                                     onClick={onClose}
                                     className={({ isActive }) => `
-                    group flex items-center px-2 py-2 text-sm font-medium rounded-md transition-colors
-                    ${isActive
+                                        group flex items-center px-2 py-2 text-sm font-medium rounded-md transition-colors
+                                        ${isActive
                                             ? 'bg-gray-800 text-white'
                                             : 'text-gray-300 hover:bg-gray-700 hover:text-white'
                                         }
-                  `}
+                                    `}
                                 >
                                     <item.icon
                                         className="mr-3 flex-shrink-0 h-6 w-6"
@@ -202,14 +211,14 @@ const Sidebar = ({ isOpen, onClose }) => {
                         </nav>
 
                         {/* Subscription alert */}
-                        {subscription?.status === 'trial' && subscription?.daysRemaining <= 7 && (
+                        {subscription?.status === 'trial' && subscription?.trialFim && (
                             <div className="px-4 pb-4">
                                 <div className="bg-yellow-900 bg-opacity-50 rounded-lg p-3">
                                     <div className="flex">
                                         <CreditCardIcon className="h-5 w-5 text-yellow-400" />
                                         <div className="ml-3">
                                             <p className="text-sm text-yellow-400">
-                                                {subscription.daysRemaining} dias restantes
+                                                Período de teste
                                             </p>
                                             <button
                                                 onClick={() => navigate('/account')}
