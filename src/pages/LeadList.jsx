@@ -4,7 +4,6 @@
  * 
  * Caminho: src/pages/LeadList.jsx
  */
-
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
@@ -69,6 +68,8 @@ function LeadList() {
                 searchLeads(localSearchTerm);
             }
         }, 500);
+
+
 
         return () => clearTimeout(timer);
     }, [localSearchTerm]);
@@ -407,10 +408,25 @@ function LeadList() {
                     ) : (
                         <div className="bg-white shadow overflow-hidden sm:rounded-md">
                             <ul className="divide-y divide-gray-200">
-                                {displayLeads.map((lead) => (
-                                    <li key={lead.id}>
+                                {displayLeads.map((lead, index) => (
+                                    <li key={lead.id || `lead-${index}`}>
                                         <div
-                                            onClick={() => navigate(`/leads/${lead.id}`)}
+                                            onClick={() => {
+                                                console.log('Clicando na lead:', {
+                                                    id: lead.id,
+                                                    name: lead.prospect?.name,
+                                                    leadCompleta: lead
+                                                });
+
+                                                if (!lead.id) {
+                                                    console.error('ERRO: Lead sem ID!', lead);
+                                                    alert('Erro: Esta lead não possui ID. Por favor, recarregue a página.');
+                                                    return;
+                                                }
+
+                                                console.log(`Navegando para: /leads/${lead.id}`);
+                                                navigate(`/leads/${lead.id}`);
+                                            }}
                                             className="block hover:bg-gray-50 cursor-pointer"
                                         >
                                             <div className="px-4 py-4 sm:px-6">
@@ -478,7 +494,23 @@ function LeadList() {
                         </div>
                     )}
                 </div>
-
+                {/* Botão de Debug Temporário */}
+                <button
+                    onClick={() => {
+                        console.log('=== DEBUG: LEADS CARREGADAS ===');
+                        console.log('Total de leads:', leads.length);
+                        leads.forEach((lead, index) => {
+                            console.log(`Lead ${index}:`, {
+                                id: lead.id,
+                                name: lead.prospect?.name,
+                                hasId: !!lead.id
+                            });
+                        });
+                    }}
+                    className="ml-2 bg-yellow-500 text-white px-4 py-2 rounded"
+                >
+                    Debug Leads
+                </button>
                 {/* Modal de Confirmação de Delete */}
                 {showDeleteModal && (
                     <div className="fixed z-10 inset-0 overflow-y-auto">
@@ -527,6 +559,7 @@ function LeadList() {
                     </div>
                 )}
             </div>
+
         </Layout>
     );
 }
