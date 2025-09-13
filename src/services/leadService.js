@@ -1,6 +1,7 @@
 /**
  * LEAD SERVICE - MyImoMatePro
  * CRUD completo para gestão de leads no Firestore
+ * Atualizado com suporte para data e hora em follow-ups
  * 
  * Caminho: src/services/leadService.js
  */
@@ -256,25 +257,71 @@ export const updateLead = async (consultorId, leadId, updateData) => {
 };
 
 /**
- * Adicionar follow-up
+ * Adicionar follow-up com data e hora
+ * @param {string} consultorId - ID do consultor
+ * @param {string} leadId - ID da lead
+ * @param {object} followUpData - Dados do follow-up incluindo scheduledDateTime
  */
 export const addFollowUp = async (consultorId, leadId, followUpData) => {
     try {
         const lead = await getLead(consultorId, leadId);
 
+        // Processar data e hora
+        let scheduledDateTime;
+
+        if (followUpData.scheduledDateTime) {
+            // Se já vem como datetime completo, usar diretamente
+            scheduledDateTime = followUpData.scheduledDateTime instanceof Date
+                ? Timestamp.fromDate(followUpData.scheduledDateTime)
+                : Timestamp.fromDate(new Date(followUpData.scheduledDateTime));
+        } else if (followUpData.scheduledFor && followUpData.scheduledTime) {
+            // Se vem separado, combinar data e hora
+            const dateTimeString = `${followUpData.scheduledFor}T${followUpData.scheduledTime}:00`;
+            scheduledDateTime = Timestamp.fromDate(new Date(dateTimeString));
+        } else if (followUpData.date) {
+            // Compatibilidade com formato antigo
+            scheduledDateTime = followUpData.date instanceof Timestamp
+                ? followUpData.date
+                : Timestamp.fromDate(new Date(followUpData.date));
+        } else {
+            // Fallback para data atual se não fornecido
+            scheduledDateTime = Timestamp.now();
+        }
+
         const newFollowUp = {
-            id: Date.now().toString(), // ID simples baseado em timestamp
-            date: followUpData.date || Timestamp.now(),
-            type: followUpData.type,
+            id: Date.now().toString(), // ID único baseado em timestamp
+            scheduledDateTime: scheduledDateTime, // Data e hora combinados
+            type: followUpData.type || 'call',
+            description: followUpData.description || '',
             notes: followUpData.notes || '',
+            status: 'pending', // pending, completed, cancelled
             createdAt: Timestamp.now(),
-            createdBy: consultorId
+            createdBy: consultorId,
+
+            // Campos adicionais para compatibilidade e futuras funcionalidades
+            reminder: followUpData.reminder || false, // Se deve gerar lembrete
+            reminderMinutesBefore: followUpData.reminderMinutesBefore || 30, // Minutos antes para lembrete
+            priority: followUpData.priority || 'normal', // low, normal, high, urgent
+
+            // Campos legacy para compatibilidade
+            date: scheduledDateTime, // Mantém campo date para compatibilidade
+            scheduledFor: followUpData.scheduledFor, // Data original
+            scheduledTime: followUpData.scheduledTime // Hora original
         };
 
         const updatedFollowUps = [...(lead.followUps || []), newFollowUp];
 
+        // Ordenar follow-ups por data/hora (mais recentes primeiro)
+        updatedFollowUps.sort((a, b) => {
+            const dateA = a.scheduledDateTime?.toDate() || a.date?.toDate() || new Date(0);
+            const dateB = b.scheduledDateTime?.toDate() || b.date?.toDate() || new Date(0);
+            return dateB - dateA;
+        });
+
         await updateLead(consultorId, leadId, {
-            followUps: updatedFollowUps
+            followUps: updatedFollowUps,
+            lastFollowUpAt: scheduledDateTime,
+            nextFollowUp: getNextPendingFollowUp(updatedFollowUps)
         });
 
         return newFollowUp;
@@ -283,6 +330,151 @@ export const addFollowUp = async (consultorId, leadId, followUpData) => {
         console.error('LeadService: Erro ao adicionar follow-up:', error);
         throw new Error(`Erro ao adicionar follow-up: ${error.message}`);
     }
+};
+
+/**
+ * Obter próximo follow-up pendente
+ * @private
+ */
+const getNextPendingFollowUp = (followUps) => {
+    const now = new Date();
+
+    const pendingFollowUps = followUps
+        .filter(f => f.status !== 'completed' && f.status !== 'cancelled')
+        .filter(f => {
+            const followUpDate = f.scheduledDateTime?.toDate() || f.date?.toDate();
+            return followUpDate && followUpDate > now;
+        })
+        .sort((a, b) => {
+            const dateA = a.scheduledDateTime?.toDate() || a.date?.toDate();
+            const dateB = b.scheduledDateTime?.toDate() || b.date?.toDate();
+            return dateA - dateB;
+        });
+
+    if (pendingFollowUps.length > 0) {
+        const next = pendingFollowUps[0];
+        return {
+            id: next.id,
+            type: next.type,
+            scheduledDateTime: next.scheduledDateTime || next.date,
+            description: next.description
+        };
+    }
+
+    return null;
+};
+
+/**
+ * Marcar follow-up como completo
+ * @param {string} consultorId - ID do consultor
+ * @param {string} leadId - ID da lead
+ * @param {string} followUpId - ID do follow-up
+ */
+export const completeFollowUp = async (consultorId, leadId, followUpId) => {
+    try {
+        const lead = await getLead(consultorId, leadId);
+
+        const updatedFollowUps = lead.followUps.map(f => {
+            if (f.id === followUpId) {
+                return {
+                    ...f,
+                    status: 'completed',
+                    completedAt: Timestamp.now(),
+                    completedBy: consultorId
+                };
+            }
+            return f;
+        });
+
+        await updateLead(consultorId, leadId, {
+            followUps: updatedFollowUps,
+            nextFollowUp: getNextPendingFollowUp(updatedFollowUps)
+        });
+
+        return true;
+
+    } catch (error) {
+        console.error('LeadService: Erro ao completar follow-up:', error);
+        throw new Error(`Erro ao completar follow-up: ${error.message}`);
+    }
+};
+
+/**
+ * Obter follow-ups por período
+ * @param {string} consultorId - ID do consultor  
+ * @param {Date} startDate - Data início
+ * @param {Date} endDate - Data fim
+ */
+export const getFollowUpsByPeriod = async (consultorId, startDate, endDate) => {
+    try {
+        const leadsRef = getLeadCollection(consultorId);
+        const q = query(leadsRef, where('status', '!=', 'convertida'));
+        const snapshot = await getDocs(q);
+
+        const allFollowUps = [];
+
+        snapshot.forEach(doc => {
+            const lead = { id: doc.id, ...doc.data() };
+            const followUps = lead.followUps || [];
+
+            followUps.forEach(followUp => {
+                const followUpDate = followUp.scheduledDateTime?.toDate() || followUp.date?.toDate();
+
+                if (followUpDate && followUpDate >= startDate && followUpDate <= endDate) {
+                    allFollowUps.push({
+                        ...followUp,
+                        leadId: lead.id,
+                        leadName: lead.prospect?.name || 'Sem nome',
+                        leadPhone: lead.prospect?.phone || ''
+                    });
+                }
+            });
+        });
+
+        // Ordenar por data/hora
+        allFollowUps.sort((a, b) => {
+            const dateA = a.scheduledDateTime?.toDate() || a.date?.toDate();
+            const dateB = b.scheduledDateTime?.toDate() || b.date?.toDate();
+            return dateA - dateB;
+        });
+
+        return allFollowUps;
+
+    } catch (error) {
+        console.error('LeadService: Erro ao buscar follow-ups por período:', error);
+        throw new Error(`Erro ao buscar follow-ups: ${error.message}`);
+    }
+};
+
+/**
+ * Obter follow-ups do dia
+ * @param {string} consultorId - ID do consultor
+ */
+export const getTodayFollowUps = async (consultorId) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    return getFollowUpsByPeriod(consultorId, today, tomorrow);
+};
+
+/**
+ * Obter follow-ups atrasados
+ * @param {string} consultorId - ID do consultor
+ */
+export const getOverdueFollowUps = async (consultorId) => {
+    const now = new Date();
+    const yearAgo = new Date();
+    yearAgo.setFullYear(yearAgo.getFullYear() - 1);
+
+    const allFollowUps = await getFollowUpsByPeriod(consultorId, yearAgo, now);
+
+    return allFollowUps.filter(f =>
+        f.status !== 'completed' &&
+        f.status !== 'cancelled'
+    );
 };
 
 /**
@@ -369,7 +561,9 @@ export const getLeadStats = async (consultorId) => {
                 },
                 bySource: {},
                 byQualification: {},
-                conversionRate: 0
+                conversionRate: 0,
+                followUpsToday: 0,
+                followUpsOverdue: 0
             };
         }
 
@@ -387,8 +581,16 @@ export const getLeadStats = async (consultorId) => {
             },
             bySource: {},
             byQualification: {},
-            conversionRate: 0
+            conversionRate: 0,
+            followUpsToday: 0,
+            followUpsOverdue: 0
         };
+
+        const now = new Date();
+        const todayStart = new Date(now);
+        todayStart.setHours(0, 0, 0, 0);
+        const todayEnd = new Date(now);
+        todayEnd.setHours(23, 59, 59, 999);
 
         snapshot.forEach((doc) => {
             const data = doc.data();
@@ -408,6 +610,24 @@ export const getLeadStats = async (consultorId) => {
             if (data.qualification?.type) {
                 stats.byQualification[data.qualification.type] =
                     (stats.byQualification[data.qualification.type] || 0) + 1;
+            }
+
+            // Contar follow-ups
+            if (data.followUps) {
+                data.followUps.forEach(followUp => {
+                    const followUpDate = followUp.scheduledDateTime?.toDate() || followUp.date?.toDate();
+
+                    if (followUpDate && followUp.status !== 'completed' && followUp.status !== 'cancelled') {
+                        // Follow-ups de hoje
+                        if (followUpDate >= todayStart && followUpDate <= todayEnd) {
+                            stats.followUpsToday++;
+                        }
+                        // Follow-ups atrasados
+                        else if (followUpDate < now) {
+                            stats.followUpsOverdue++;
+                        }
+                    }
+                });
             }
         });
 
@@ -458,6 +678,10 @@ export default {
     searchLeads,
     updateLead,
     addFollowUp,
+    completeFollowUp,
+    getFollowUpsByPeriod,
+    getTodayFollowUps,
+    getOverdueFollowUps,
     convertLeadToClient,
     updateLeadStatus,
     deleteLead,

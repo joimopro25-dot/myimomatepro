@@ -1,6 +1,7 @@
 /**
- * LEAD FORM PAGE - MyImoMatePro
+ * LEAD FORM PAGE - MyImoMatePro (CORREÇÃO)
  * Formulário para criar e editar leads
+ * Correção do erro de input controlado/não controlado
  * 
  * Caminho: src/pages/LeadForm.jsx
  */
@@ -104,30 +105,81 @@ export default function LeadForm() {
         }
     }, [leadId]);
 
+    // CORREÇÃO: Método loadLeadData protegido contra valores undefined
     const loadLeadData = async () => {
         try {
             const lead = await fetchLead(leadId);
             if (lead) {
+                // Garantir que todos os campos tenham valores definidos
                 setFormData({
-                    prospect: lead.prospect || formData.prospect,
-                    source: lead.source || formData.source,
-                    qualification: lead.qualification || formData.qualification,
-                    nextContact: lead.nextContact || formData.nextContact,
+                    prospect: {
+                        name: lead.prospect?.name || '',
+                        phone: lead.prospect?.phone || '',
+                        email: lead.prospect?.email || ''
+                    },
+                    source: {
+                        origin: lead.source?.origin || 'website',
+                        details: lead.source?.details || ''
+                    },
+                    qualification: {
+                        type: lead.qualification?.type || '',
+                        buyer: {
+                            looking: lead.qualification?.buyer?.looking || '',
+                            budget: lead.qualification?.buyer?.budget || '',
+                            preferredLocation: lead.qualification?.buyer?.preferredLocation || '',
+                            urgency: lead.qualification?.buyer?.urgency || 'normal',
+                            notes: lead.qualification?.buyer?.notes || ''
+                        },
+                        seller: {
+                            propertyType: lead.qualification?.seller?.propertyType || '',
+                            value: lead.qualification?.seller?.value || '',
+                            location: lead.qualification?.seller?.location || '',
+                            urgency: lead.qualification?.seller?.urgency || 'normal',
+                            notes: lead.qualification?.seller?.notes || ''
+                        },
+                        tenant: {
+                            looking: lead.qualification?.tenant?.looking || '',
+                            budget: lead.qualification?.tenant?.budget || '',
+                            preferredLocation: lead.qualification?.tenant?.preferredLocation || '',
+                            urgency: lead.qualification?.tenant?.urgency || 'normal',
+                            notes: lead.qualification?.tenant?.notes || ''
+                        },
+                        landlord: {
+                            propertyType: lead.qualification?.landlord?.propertyType || '',
+                            rentValue: lead.qualification?.landlord?.rentValue || '',
+                            location: lead.qualification?.landlord?.location || '',
+                            urgency: lead.qualification?.landlord?.urgency || 'normal',
+                            notes: lead.qualification?.landlord?.notes || ''
+                        },
+                        investor: {
+                            investmentType: lead.qualification?.investor?.investmentType || '',
+                            budget: lead.qualification?.investor?.budget || '',
+                            preferredLocation: lead.qualification?.investor?.preferredLocation || '',
+                            expectedReturn: lead.qualification?.investor?.expectedReturn || '',
+                            notes: lead.qualification?.investor?.notes || ''
+                        }
+                    },
+                    nextContact: {
+                        date: lead.nextContact?.date || '',
+                        type: lead.nextContact?.type || 'chamada',
+                        notes: lead.nextContact?.notes || ''
+                    },
                     generalNotes: lead.generalNotes || ''
                 });
             }
         } catch (error) {
             console.error('Erro ao carregar lead:', error);
+            setErrors(['Erro ao carregar dados da lead']);
         }
     };
 
-    // Handlers para mudanças no formulário
+    // Handlers para mudanças no formulário - Protegidos contra undefined
     const handleInputChange = (section, field, value) => {
         setFormData(prev => ({
             ...prev,
             [section]: {
                 ...prev[section],
-                [field]: value
+                [field]: value || '' // Garantir que nunca seja undefined
             }
         }));
     };
@@ -139,7 +191,7 @@ export default function LeadForm() {
                 ...prev.qualification,
                 [type]: {
                     ...prev.qualification[type],
-                    [field]: value
+                    [field]: value || '' // Garantir que nunca seja undefined
                 }
             }
         }));
@@ -842,7 +894,7 @@ export default function LeadForm() {
                             </label>
                             <textarea
                                 value={formData.generalNotes}
-                                onChange={(e) => setFormData(prev => ({ ...prev, generalNotes: e.target.value }))}
+                                onChange={(e) => setFormData(prev => ({ ...prev, generalNotes: e.target.value || '' }))}
                                 rows={4}
                                 className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                                 placeholder="Observações adicionais sobre esta lead..."

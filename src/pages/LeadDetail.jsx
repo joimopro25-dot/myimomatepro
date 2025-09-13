@@ -1,6 +1,6 @@
 /**
  * LEAD DETAIL PAGE - MyImoMatePro
- * Página de detalhes da lead com sistema de follow-ups e sidebar integrada
+ * Página de detalhes da lead com sistema de follow-ups e campo de hora
  * 
  * Caminho: src/pages/LeadDetail.jsx
  */
@@ -61,7 +61,8 @@ export default function LeadDetail() {
     const [followUpData, setFollowUpData] = useState({
         type: 'call',
         description: '',
-        scheduledFor: new Date().toISOString().split('T')[0]
+        scheduledFor: new Date().toISOString().split('T')[0],
+        scheduledTime: '09:00'
     });
 
     const [newStatus, setNewStatus] = useState('');
@@ -95,12 +96,20 @@ export default function LeadDetail() {
 
     const handleAddFollowUp = async () => {
         try {
-            await addFollowUp(leadId, followUpData);
+            // Combinar data e hora em um único timestamp
+            const dateTime = `${followUpData.scheduledFor}T${followUpData.scheduledTime}:00`;
+
+            await addFollowUp(leadId, {
+                ...followUpData,
+                scheduledDateTime: new Date(dateTime) // Envia datetime completo
+            });
+
             setShowFollowUpModal(false);
             setFollowUpData({
                 type: 'call',
                 description: '',
-                scheduledFor: new Date().toISOString().split('T')[0]
+                scheduledFor: new Date().toISOString().split('T')[0],
+                scheduledTime: '09:00'
             });
         } catch (error) {
             console.error('Erro ao adicionar follow-up:', error);
@@ -127,8 +136,21 @@ export default function LeadDetail() {
 
     const formatDateTime = (timestamp) => {
         if (!timestamp) return 'N/A';
+
         const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-        return date.toLocaleString('pt-PT');
+
+        const dateStr = date.toLocaleDateString('pt-PT', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric'
+        });
+
+        const timeStr = date.toLocaleTimeString('pt-PT', {
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+
+        return `${dateStr} às ${timeStr}`;
     };
 
     const getStatusColor = (status) => {
@@ -419,12 +441,12 @@ export default function LeadDetail() {
                                                                     {FOLLOWUP_TYPES.find(t => t.value === followUp.type)?.label}
                                                                 </p>
                                                                 <p className="text-sm text-gray-500">
-                                                                    {followUp.description}
+                                                                    {followUp.description || followUp.notes}
                                                                 </p>
                                                             </div>
                                                         </div>
                                                         <div className="text-sm text-gray-500">
-                                                            {formatDateTime(followUp.createdAt)}
+                                                            {formatDateTime(followUp.scheduledDateTime || followUp.date || followUp.createdAt)}
                                                         </div>
                                                     </div>
                                                     {followUp.completed && (
@@ -547,7 +569,7 @@ export default function LeadDetail() {
                 </div>
             )}
 
-            {/* Modal de Follow-up */}
+            {/* Modal de Follow-up COM CAMPO DE HORA */}
             {showFollowUpModal && (
                 <div className="fixed z-50 inset-0 overflow-y-auto">
                     <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
@@ -575,6 +597,7 @@ export default function LeadDetail() {
                                             ))}
                                         </select>
                                     </div>
+
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700">
                                             Descrição
@@ -587,16 +610,33 @@ export default function LeadDetail() {
                                             placeholder="Detalhes do follow-up..."
                                         />
                                     </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700">
-                                            Agendar para
-                                        </label>
-                                        <input
-                                            type="date"
-                                            value={followUpData.scheduledFor}
-                                            onChange={(e) => setFollowUpData({ ...followUpData, scheduledFor: e.target.value })}
-                                            className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                                        />
+
+                                    {/* CAMPOS DE DATA E HORA */}
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700">
+                                                Data
+                                            </label>
+                                            <input
+                                                type="date"
+                                                value={followUpData.scheduledFor}
+                                                onChange={(e) => setFollowUpData({ ...followUpData, scheduledFor: e.target.value })}
+                                                min={new Date().toISOString().split('T')[0]}
+                                                className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700">
+                                                Hora
+                                            </label>
+                                            <input
+                                                type="time"
+                                                value={followUpData.scheduledTime}
+                                                onChange={(e) => setFollowUpData({ ...followUpData, scheduledTime: e.target.value })}
+                                                className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                                            />
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -614,7 +654,8 @@ export default function LeadDetail() {
                                         setFollowUpData({
                                             type: 'call',
                                             description: '',
-                                            scheduledFor: new Date().toISOString().split('T')[0]
+                                            scheduledFor: new Date().toISOString().split('T')[0],
+                                            scheduledTime: '09:00'
                                         });
                                     }}
                                     className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
