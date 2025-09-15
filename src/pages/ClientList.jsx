@@ -1,7 +1,7 @@
 /**
  * CLIENT LIST PAGE - MyImoMatePro
  * Página principal de listagem e gestão de clientes
- * ✅ VERSÃO LIMPA - Console logs de debug removidos
+ * ✅ ATUALIZADO: Adicionado suporte para OpportunityBadges
  * 
  * Caminho: src/pages/ClientList.jsx
  */
@@ -12,6 +12,7 @@ import { useClients } from '../contexts/ClientContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
 import { CLIENT_AVAILABLE_TAGS, CLIENT_MARITAL_STATUS } from '../models/clientModel';
 import Layout from '../components/Layout';
+import OpportunityBadges from '../components/opportunities/OpportunityBadges';
 import {
     MagnifyingGlassIcon,
     PlusIcon,
@@ -27,7 +28,10 @@ import {
     UserGroupIcon,
     HeartIcon,
     CurrencyEuroIcon,
-    DocumentIcon
+    DocumentIcon,
+    CalendarIcon,
+    IdentificationIcon,
+    MapPinIcon
 } from '@heroicons/react/24/outline';
 import {
     UserIcon as UserIconSolid,
@@ -165,126 +169,189 @@ const ClientListPage = () => {
     // Verificar se pode adicionar cliente
     const canAddClient = !subscription || !isClientLimitReached();
 
-    // Component para renderizar cliente
+    // Função auxiliar para obter ícone do estado civil
+    const getMaritalStatusIcon = (status) => {
+        switch (status) {
+            case 'single': return '👤';
+            case 'married': return '👫';
+            case 'divorced': return '💔';
+            case 'widowed': return '🕊️';
+            default: return '👤';
+        }
+    };
+
+    // Função para obter iniciais do nome
+    const getInitials = (name) => {
+        if (!name) return 'NN';
+        return name
+            .split(' ')
+            .map(word => word[0])
+            .join('')
+            .toUpperCase()
+            .slice(0, 2);
+    };
+
+    // Formatar data
+    const formatDate = (date) => {
+        if (!date) return 'N/A';
+        if (date.seconds) {
+            return new Date(date.seconds * 1000).toLocaleDateString('pt-PT');
+        }
+        return new Date(date).toLocaleDateString('pt-PT');
+    };
+
+    // Component para renderizar cliente ATUALIZADO
     const ClientCard = ({ client }) => {
         if (!client || !client.id) {
             return null;
         }
 
         return (
-            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
-                {/* Header do cartão */}
-                <div className="flex items-start justify-between mb-4">
-                    <div className="flex items-center space-x-3">
-                        <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
-                            <UserIconSolid className="w-6 h-6 text-white" />
-                        </div>
-                        <div>
-                            <h3 className="font-semibold text-gray-900">{client.name}</h3>
-                            <div className="flex items-center space-x-2 mt-1">
+            <div
+                onClick={() => navigate(`/clients/${client.id}`)}
+                className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 hover:shadow-lg transition-all duration-200 cursor-pointer group relative overflow-hidden"
+            >
+                {/* Gradient overlay on hover */}
+                <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+
+                <div className="relative">
+                    {/* Header do cartão */}
+                    <div className="flex items-start justify-between mb-4">
+                        <div className="flex items-center space-x-3">
+                            <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-semibold text-lg shadow-md">
+                                {getInitials(client.name)}
+                            </div>
+                            <div>
+                                <h3 className="font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">
+                                    {client.name}
+                                </h3>
                                 {client.email && (
-                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-100 text-green-800">
-                                        <EnvelopeIcon className="w-3 h-3 mr-1" />
-                                        Email
-                                    </span>
-                                )}
-                                {client.phone && (
-                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800">
-                                        <PhoneIcon className="w-3 h-3 mr-1" />
-                                        Tel
-                                    </span>
+                                    <p className="text-sm text-gray-500 flex items-center gap-1">
+                                        <EnvelopeIcon className="w-3 h-3" />
+                                        {client.email}
+                                    </p>
                                 )}
                             </div>
                         </div>
-                    </div>
 
-                    {/* Ações do cartão */}
-                    <div className="flex items-center space-x-1">
-                        <button
-                            onClick={() => navigate(`/clients/${client.id}`)}
-                            className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
-                            title="Ver detalhes"
-                        >
-                            <EyeIcon className="w-4 h-4" />
-                        </button>
-                        <button
-                            onClick={() => navigate(`/clients/${client.id}/edit`)}
-                            className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-md transition-colors"
-                            title="Editar"
-                        >
-                            <PencilIcon className="w-4 h-4" />
-                        </button>
-                        <button
-                            onClick={() => handleDeactivateClient(client.id)}
-                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
-                            title="Desativar"
-                        >
-                            <TrashIcon className="w-4 h-4" />
-                        </button>
-                    </div>
-                </div>
-
-                {/* Informações do cliente */}
-                <div className="space-y-2 text-sm text-gray-600">
-                    {client.email && (
-                        <div className="flex items-center space-x-2">
-                            <EnvelopeIcon className="w-4 h-4 text-gray-400" />
-                            <span className="truncate">{client.email}</span>
-                        </div>
-                    )}
-                    {client.phone && (
-                        <div className="flex items-center space-x-2">
-                            <PhoneIcon className="w-4 h-4 text-gray-400" />
-                            <span>{client.phone}</span>
-                        </div>
-                    )}
-                    {client.maritalStatus && (
-                        <div className="flex items-center space-x-2">
-                            <HeartIcon className="w-4 h-4 text-gray-400" />
-                            <span>{CLIENT_MARITAL_STATUS[client.maritalStatus] || client.maritalStatus}</span>
-                        </div>
-                    )}
-                    {client.financial?.monthlyIncome && (
-                        <div className="flex items-center space-x-2">
-                            <CurrencyEuroIcon className="w-4 h-4 text-gray-400" />
-                            <span>{parseInt(client.financial.monthlyIncome).toLocaleString()}€/mês</span>
-                        </div>
-                    )}
-                </div>
-
-                {/* Tags */}
-                {client.tags && client.tags.length > 0 && (
-                    <div className="mt-4 flex flex-wrap gap-1">
-                        {client.tags.slice(0, 3).map((tag, index) => (
-                            <span
-                                key={index}
-                                className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-700"
+                        {/* Ações do cartão */}
+                        <div className="flex items-center space-x-1">
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    navigate(`/clients/${client.id}`);
+                                }}
+                                className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                                title="Ver detalhes"
                             >
-                                <TagIcon className="w-3 h-3 mr-1" />
-                                {tag}
-                            </span>
-                        ))}
-                        {client.tags.length > 3 && (
-                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-700">
-                                +{client.tags.length - 3}
-                            </span>
-                        )}
+                                <EyeIcon className="w-4 h-4" />
+                            </button>
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    navigate(`/clients/${client.id}/edit`);
+                                }}
+                                className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-md transition-colors"
+                                title="Editar"
+                            >
+                                <PencilIcon className="w-4 h-4" />
+                            </button>
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeactivateClient(client.id);
+                                }}
+                                className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                                title="Desativar"
+                            >
+                                <TrashIcon className="w-4 h-4" />
+                            </button>
+                        </div>
                     </div>
-                )}
 
-                {/* Footer do cartão */}
-                <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between">
-                    <div className="flex items-center space-x-1">
-                        <input
-                            type="checkbox"
-                            checked={selectedClients.includes(client.id)}
-                            onChange={() => handleSelectClient(client.id)}
-                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                        />
-                        <span className="text-sm text-gray-500">Selecionar</span>
+                    {/* Informações de contacto */}
+                    <div className="space-y-2 mb-4">
+                        <div className="flex items-center text-sm text-gray-600">
+                            <PhoneIcon className="w-4 h-4 mr-2 text-gray-400" />
+                            {client.phone || 'Sem telefone'}
+                        </div>
+
+                        {client.nif && (
+                            <div className="flex items-center text-sm text-gray-600">
+                                <IdentificationIcon className="w-4 h-4 mr-2 text-gray-400" />
+                                NIF: {client.nif}
+                            </div>
+                        )}
+
+                        <div className="flex items-center text-sm text-gray-600">
+                            <HeartIcon className="w-4 h-4 mr-2 text-gray-400" />
+                            {getMaritalStatusIcon(client.maritalStatus)} {CLIENT_MARITAL_STATUS[client.maritalStatus] || 'N/A'}
+                        </div>
                     </div>
-                    <div className="text-xs text-gray-400">
-                        {client.createdAt && new Date(client.createdAt.seconds * 1000).toLocaleDateString()}
+
+                    {/* ===== SECÇÃO DE OPORTUNIDADES ===== */}
+                    <div className="pt-4 border-t border-gray-100">
+                        <OpportunityBadges
+                            clientId={client.id}
+                            variant="compact"
+                            showEmpty={true}
+                            onAddClick={(e) => {
+                                if (e) e.stopPropagation();
+                                navigate(`/clients/${client.id}/opportunities/new`);
+                            }}
+                            onOpportunityClick={(opportunity) => {
+                                navigate(`/clients/${client.id}/opportunities/${opportunity.id}`);
+                            }}
+                        />
+                    </div>
+
+                    {/* Info financeira (se existir) */}
+                    {client.financial?.monthlyIncome && (
+                        <div className="mt-4 pt-4 border-t border-gray-100">
+                            <div className="flex items-center justify-between text-sm">
+                                <span className="text-gray-500">Rendimento mensal:</span>
+                                <span className="font-semibold text-gray-900">
+                                    €{parseFloat(client.financial.monthlyIncome).toLocaleString('pt-PT')}
+                                </span>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Tags */}
+                    {client.tags && client.tags.length > 0 && (
+                        <div className="mt-4 flex flex-wrap gap-1">
+                            {client.tags.slice(0, 2).map((tag, index) => (
+                                <span
+                                    key={index}
+                                    className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-700"
+                                >
+                                    <TagIcon className="w-3 h-3 mr-1" />
+                                    {tag}
+                                </span>
+                            ))}
+                            {client.tags.length > 2 && (
+                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-700">
+                                    +{client.tags.length - 2}
+                                </span>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Footer do cartão */}
+                    <div className="mt-4 flex items-center justify-between text-xs text-gray-400">
+                        <span>Cliente desde {formatDate(client.createdAt)}</span>
+                        <div className="flex items-center space-x-1">
+                            <input
+                                type="checkbox"
+                                checked={selectedClients.includes(client.id)}
+                                onChange={(e) => {
+                                    e.stopPropagation();
+                                    handleSelectClient(client.id);
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            />
+                        </div>
                     </div>
                 </div>
             </div>
@@ -399,8 +466,8 @@ const ClientListPage = () => {
                                 <button
                                     onClick={() => setShowFilters(!showFilters)}
                                     className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg border transition-colors ${activeFiltersCount > 0
-                                        ? 'bg-blue-50 border-blue-200 text-blue-700'
-                                        : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                                            ? 'bg-blue-50 border-blue-200 text-blue-700'
+                                            : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
                                         }`}
                                 >
                                     <FunnelIcon className="w-4 h-4" />
@@ -427,8 +494,8 @@ const ClientListPage = () => {
                                     <button
                                         onClick={() => setViewMode('grid')}
                                         className={`px-3 py-1 text-sm ${viewMode === 'grid'
-                                            ? 'bg-blue-500 text-white'
-                                            : 'bg-white text-gray-700 hover:bg-gray-50'
+                                                ? 'bg-blue-500 text-white'
+                                                : 'bg-white text-gray-700 hover:bg-gray-50'
                                             }`}
                                     >
                                         Grade
@@ -436,8 +503,8 @@ const ClientListPage = () => {
                                     <button
                                         onClick={() => setViewMode('table')}
                                         className={`px-3 py-1 text-sm ${viewMode === 'table'
-                                            ? 'bg-blue-500 text-white'
-                                            : 'bg-white text-gray-700 hover:bg-gray-50'
+                                                ? 'bg-blue-500 text-white'
+                                                : 'bg-white text-gray-700 hover:bg-gray-50'
                                             }`}
                                     >
                                         Tabela
@@ -447,9 +514,103 @@ const ClientListPage = () => {
                         </div>
                     </div>
 
+                    {/* Painel de Filtros */}
+                    {showFilters && (
+                        <div className="px-6 pb-6 border-t border-gray-100">
+                            <div className="pt-4 grid grid-cols-1 md:grid-cols-4 gap-4">
+                                {/* Filtro por Tag */}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Tag
+                                    </label>
+                                    <select
+                                        value={filters.tag}
+                                        onChange={(e) => handleFilterChange({ ...filters, tag: e.target.value })}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    >
+                                        <option value="all">Todas</option>
+                                        {CLIENT_AVAILABLE_TAGS.map(tag => (
+                                            <option key={tag} value={tag}>{tag}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {/* Filtro por Estado Civil */}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Estado Civil
+                                    </label>
+                                    <select
+                                        value={filters.maritalStatus}
+                                        onChange={(e) => handleFilterChange({ ...filters, maritalStatus: e.target.value })}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    >
+                                        <option value="all">Todos</option>
+                                        {Object.entries(CLIENT_MARITAL_STATUS).map(([key, value]) => (
+                                            <option key={key} value={key}>{value}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {/* Filtro por Email */}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Email
+                                    </label>
+                                    <select
+                                        value={filters.hasEmail}
+                                        onChange={(e) => handleFilterChange({ ...filters, hasEmail: e.target.value })}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    >
+                                        <option value="all">Todos</option>
+                                        <option value="true">Com Email</option>
+                                        <option value="false">Sem Email</option>
+                                    </select>
+                                </div>
+
+                                {/* Filtro por Info Financeira */}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Info Financeira
+                                    </label>
+                                    <select
+                                        value={filters.hasFinancialInfo}
+                                        onChange={(e) => handleFilterChange({ ...filters, hasFinancialInfo: e.target.value })}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    >
+                                        <option value="all">Todos</option>
+                                        <option value="true">Com Info</option>
+                                        <option value="false">Sem Info</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            {/* Botão para limpar filtros */}
+                            {activeFiltersCount > 0 && (
+                                <div className="mt-4">
+                                    <button
+                                        onClick={() => handleFilterChange({
+                                            tag: 'all',
+                                            maritalStatus: 'all',
+                                            hasEmail: 'all',
+                                            hasFinancialInfo: 'all'
+                                        })}
+                                        className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                                    >
+                                        Limpar filtros
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
                     {/* Conteúdo da lista */}
                     <div className="p-6">
-                        {shouldShowEmptyState ? (
+                        {loading.list || loading.search ? (
+                            <div className="flex justify-center items-center py-12">
+                                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+                            </div>
+                        ) : shouldShowEmptyState ? (
                             <div className="text-center py-12">
                                 <UserGroupIcon className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                                 <h3 className="text-lg font-medium text-gray-900 mb-2">
@@ -482,7 +643,7 @@ const ClientListPage = () => {
                                     </div>
                                 )}
                             </div>
-                        ) : !loading.search && (
+                        ) : (
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                                 {displayClients.map((client) => (
                                     <ClientCard key={client.id} client={client} />

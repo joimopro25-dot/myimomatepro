@@ -1,15 +1,27 @@
+/**
+ * APP.JSX - MyImoMatePro
+ * Componente principal com rotas e providers
+ * VERSÃO CORRIGIDA: Ordem das rotas ajustada para evitar conflitos
+ * 
+ * Caminho: src/App.jsx
+ */
+
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { SubscriptionProvider } from './contexts/SubscriptionContext';
 import { ClientProvider } from './contexts/ClientContext';
+import { OpportunityProvider } from './contexts/OpportunityContext';
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
 import Dashboard from './pages/Dashboard';
 import AccountSettings from './pages/AccountSettings';
 import ClientList from './pages/ClientList';
 import ClientForm from './pages/ClientForm';
-import ClientDetail from './pages/ClientDetail'; // ✅ ADICIONADO: Import do ClientDetail
+import ClientDetail from './pages/ClientDetail';
+import OpportunityList from './pages/OpportunityList';
+import OpportunityForm from './pages/OpportunityForm';
+import OpportunityDetail from './pages/OpportunityDetail';
 import './index.css';
 
 // Componente para proteger rotas autenticadas
@@ -55,63 +67,76 @@ function AppRoutes() {
         } />
 
         {/* ===== ROTAS PROTEGIDAS - SISTEMA DE CLIENTES ===== */}
+
+        {/* Lista de todos os clientes */}
         <Route path="/clients" element={
           <ProtectedRoute>
             <ClientList />
           </ProtectedRoute>
         } />
 
+        {/* Novo cliente */}
         <Route path="/clients/new" element={
           <ProtectedRoute>
             <ClientForm />
           </ProtectedRoute>
         } />
 
-        {/* ✅ CORRIGIDO: Rota para visualização de cliente específico */}
-        <Route path="/clients/:clientId" element={
+        {/* ===== IMPORTANTE: ROTAS DE OPORTUNIDADES ANTES DO CLIENT DETAIL ===== */}
+
+        {/* Lista de todas as oportunidades */}
+        <Route path="/opportunities" element={
           <ProtectedRoute>
-            <ClientDetail />
+            <OpportunityList />
           </ProtectedRoute>
         } />
 
+        {/* Oportunidades de um cliente específico */}
+        <Route path="/clients/:clientId/opportunities" element={
+          <ProtectedRoute>
+            <OpportunityList />
+          </ProtectedRoute>
+        } />
+
+        {/* Nova oportunidade para um cliente */}
+        <Route path="/clients/:clientId/opportunities/new" element={
+          <ProtectedRoute>
+            <OpportunityForm />
+          </ProtectedRoute>
+        } />
+
+        {/* Editar oportunidade */}
+        <Route path="/clients/:clientId/opportunities/:opportunityId/edit" element={
+          <ProtectedRoute>
+            <OpportunityForm />
+          </ProtectedRoute>
+        } />
+
+        {/* Detalhe da oportunidade */}
+        <Route path="/clients/:clientId/opportunities/:opportunityId" element={
+          <ProtectedRoute>
+            <OpportunityDetail />
+          </ProtectedRoute>
+        } />
+
+        {/* ===== ROTAS DE CLIENTE (DEPOIS DAS OPORTUNIDADES) ===== */}
+
+        {/* Editar cliente */}
         <Route path="/clients/:clientId/edit" element={
           <ProtectedRoute>
             <ClientForm />
           </ProtectedRoute>
         } />
 
-        {/* ===== FUTURAS ROTAS DO SISTEMA ===== */}
-        {/* 
-        Rotas planejadas para próximas fases:
-        
-        // SISTEMA DE LEADS
-        <Route path="/leads" element={<ProtectedRoute><LeadList /></ProtectedRoute>} />
-        <Route path="/leads/new" element={<ProtectedRoute><LeadForm /></ProtectedRoute>} />
-        <Route path="/leads/:leadId/edit" element={<ProtectedRoute><LeadForm /></ProtectedRoute>} />
-        
-        // SISTEMA DE OPORTUNIDADES
-        <Route path="/opportunities" element={<ProtectedRoute><OpportunityList /></ProtectedRoute>} />
-        <Route path="/opportunities/new" element={<ProtectedRoute><OpportunityForm /></ProtectedRoute>} />
-        <Route path="/opportunities/:opportunityId" element={<ProtectedRoute><OpportunityDetail /></ProtectedRoute>} />
-        
-        // SISTEMA DE DEALS
-        <Route path="/deals" element={<ProtectedRoute><DealList /></ProtectedRoute>} />
-        <Route path="/deals/new" element={<ProtectedRoute><DealForm /></ProtectedRoute>} />
-        <Route path="/deals/:dealId" element={<ProtectedRoute><DealDetail /></ProtectedRoute>} />
-        
-        // SISTEMA DE RELATÓRIOS
-        <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
-        <Route path="/reports/performance" element={<ProtectedRoute><PerformanceReport /></ProtectedRoute>} />
-        <Route path="/reports/commissions" element={<ProtectedRoute><CommissionReport /></ProtectedRoute>} />
-        
-        // SISTEMA DE CONFIGURAÇÕES
-        <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
-        <Route path="/settings/profile" element={<ProtectedRoute><ProfileSettings /></ProtectedRoute>} />
-        <Route path="/settings/integrations" element={<ProtectedRoute><IntegrationSettings /></ProtectedRoute>} />
-        */}
+        {/* Detalhe do cliente - DEVE SER A ÚLTIMA */}
+        <Route path="/clients/:clientId" element={
+          <ProtectedRoute>
+            <ClientDetail />
+          </ProtectedRoute>
+        } />
 
-        {/* ===== ROTA FALLBACK ===== */}
-        <Route path="*" element={<Navigate to="/" />} />
+        {/* ===== ROTA CATCH-ALL - 404 ===== */}
+        <Route path="*" element={<Navigate to="/dashboard" />} />
       </Routes>
     </Router>
   );
@@ -122,7 +147,9 @@ function App() {
     <AuthProvider>
       <SubscriptionProvider>
         <ClientProvider>
-          <AppRoutes />
+          <OpportunityProvider>
+            <AppRoutes />
+          </OpportunityProvider>
         </ClientProvider>
       </SubscriptionProvider>
     </AuthProvider>
