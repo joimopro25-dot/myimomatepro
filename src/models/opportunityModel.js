@@ -1,6 +1,8 @@
 /**
  * OPPORTUNITY MODEL - MyImoMatePro
- * Schema para Oportunidades de Negócio
+ * VERSÃO INTEGRADA com suporte completo para imóveis, visitas, ofertas e CPCV
+ * 
+ * Caminho: src/models/opportunityModel.js
  * Estrutura: consultores/{consultorId}/clientes/{clienteId}/oportunidades/{oportunidadeId}
  * 
  * Tipos de Oportunidade:
@@ -57,6 +59,85 @@ export const OPPORTUNITY_PRIORITY_LABELS = {
     [OPPORTUNITY_PRIORITIES.HIGH]: 'Alta',
     [OPPORTUNITY_PRIORITIES.URGENT]: 'Urgente'
 };
+
+// ===== NOVOS ESTADOS PARA VISITAS =====
+
+export const VISIT_STATES = {
+    SCHEDULED: 'agendada',
+    CONFIRMED: 'confirmada',
+    COMPLETED: 'efetuada',
+    CANCELLED: 'cancelada',
+    NO_SHOW: 'nao_compareceu'
+};
+
+export const VISIT_STATE_LABELS = {
+    [VISIT_STATES.SCHEDULED]: '📅 Agendada',
+    [VISIT_STATES.CONFIRMED]: '✅ Confirmada',
+    [VISIT_STATES.COMPLETED]: '✔️ Efetuada',
+    [VISIT_STATES.CANCELLED]: '❌ Cancelada',
+    [VISIT_STATES.NO_SHOW]: '⚠️ Não Compareceu'
+};
+
+// ===== NOVOS ESTADOS PARA OFERTAS =====
+
+export const OFFER_STATES = {
+    DRAFT: 'rascunho',
+    SUBMITTED: 'submetida',
+    NEGOTIATION: 'negociacao',
+    COUNTER_OFFER: 'contraproposta',
+    ACCEPTED: 'aceite',
+    REJECTED: 'rejeitada'
+};
+
+export const OFFER_STATE_LABELS = {
+    [OFFER_STATES.DRAFT]: '📝 Rascunho',
+    [OFFER_STATES.SUBMITTED]: '📤 Submetida',
+    [OFFER_STATES.NEGOTIATION]: '🤝 Negociação',
+    [OFFER_STATES.COUNTER_OFFER]: '↔️ Contraproposta',
+    [OFFER_STATES.ACCEPTED]: '✅ Aceite',
+    [OFFER_STATES.REJECTED]: '❌ Rejeitada'
+};
+
+// ===== ESTADOS DE NEGÓCIO DO IMÓVEL =====
+
+export const PROPERTY_BUSINESS_STATES = {
+    PROSPECTING: 'prospeção',
+    VISITED: 'visitado',
+    PROPOSAL: 'proposta',
+    NEGOTIATION: 'negociação',
+    ACCEPTED: 'aceite',
+    CPCV: 'cpcv',
+    DEED: 'escritura'
+};
+
+export const PROPERTY_BUSINESS_STATE_LABELS = {
+    [PROPERTY_BUSINESS_STATES.PROSPECTING]: 'Prospeção',
+    [PROPERTY_BUSINESS_STATES.VISITED]: 'Visitado',
+    [PROPERTY_BUSINESS_STATES.PROPOSAL]: 'Proposta',
+    [PROPERTY_BUSINESS_STATES.NEGOTIATION]: 'Negociação',
+    [PROPERTY_BUSINESS_STATES.ACCEPTED]: 'Aceite',
+    [PROPERTY_BUSINESS_STATES.CPCV]: 'CPCV',
+    [PROPERTY_BUSINESS_STATES.DEED]: 'Escritura'
+};
+
+// ===== NÍVEIS DE INTERESSE =====
+
+export const INTEREST_LEVELS = {
+    NO_INTEREST: 'sem_interesse',
+    LOW: 'baixo',
+    MEDIUM: 'medio',
+    HIGH: 'alto',
+    VERY_HIGH: 'muito_alto'
+};
+
+export const INTEREST_LEVEL_LABELS = {
+    [INTEREST_LEVELS.NO_INTEREST]: '😐 Sem Interesse',
+    [INTEREST_LEVELS.LOW]: '😔 Baixo',
+    [INTEREST_LEVELS.MEDIUM]: '🙂 Médio',
+    [INTEREST_LEVELS.HIGH]: '😊 Alto',
+    [INTEREST_LEVELS.VERY_HIGH]: '🤩 Muito Alto'
+};
+
 // ===== LABELS PARA UI =====
 
 export const OPPORTUNITY_TYPE_LABELS = {
@@ -108,7 +189,97 @@ export const OPPORTUNITY_STATE_COLORS = {
     [OPPORTUNITY_STATES.ON_HOLD]: 'orange'
 };
 
-// ===== SCHEMA BASE DA OPORTUNIDADE =====
+// ===== SCHEMA PARA VISITA =====
+
+export const createVisitSchema = (visitData = {}) => {
+    return {
+        id: visitData.id || Date.now().toString(),
+        data: visitData.data || '',
+        hora: visitData.hora || '',
+        estado: visitData.estado || VISIT_STATES.SCHEDULED,
+        notas: visitData.notas || '',
+        feedback: visitData.feedback || '',
+        interesseNivel: visitData.interesseNivel || INTEREST_LEVELS.MEDIUM,
+        pontosPositivos: visitData.pontosPositivos || '',
+        pontosNegativos: visitData.pontosNegativos || '',
+        proximosPassos: visitData.proximosPassos || '',
+        createdAt: visitData.createdAt || new Date().toISOString(),
+        updatedAt: visitData.updatedAt || new Date().toISOString()
+    };
+};
+
+// ===== SCHEMA PARA OFERTA =====
+
+export const createOfferSchema = (offerData = {}) => {
+    return {
+        id: offerData.id || Date.now().toString(),
+        valor: offerData.valor || '',
+        data: offerData.data || '',
+        condicoes: offerData.condicoes || '',
+        status: offerData.status || OFFER_STATES.DRAFT,
+        notas: offerData.notas || '',
+        // Campos para contraproposta
+        isContraproposta: offerData.isContraproposta || false,
+        valorContraproposta: offerData.valorContraproposta || '',
+        condicoesContraproposta: offerData.condicoesContraproposta || '',
+        justificacao: offerData.justificacao || '',
+        createdAt: offerData.createdAt || new Date().toISOString(),
+        updatedAt: offerData.updatedAt || new Date().toISOString()
+    };
+};
+
+// ===== SCHEMA PARA CPCV =====
+
+export const createCPCVSchema = (cpcvData = {}) => {
+    return {
+        numeroContrato: cpcvData.numeroContrato || '',
+        dataAssinatura: cpcvData.dataAssinatura || '',
+        valorVenda: cpcvData.valorVenda || '',
+        sinal: cpcvData.sinal || '',
+        sinalPercentagem: cpcvData.sinalPercentagem || 10,
+        dataEscritura: cpcvData.dataEscritura || '',
+        financiamento: cpcvData.financiamento || false,
+        banco: cpcvData.banco || '',
+        valorCredito: cpcvData.valorCredito || '',
+        dipEmitido: cpcvData.dipEmitido || false,
+        numeroDIP: cpcvData.numeroDIP || '',
+        createdAt: cpcvData.createdAt || new Date().toISOString(),
+        updatedAt: cpcvData.updatedAt || new Date().toISOString()
+    };
+};
+
+// ===== SCHEMA PARA IMÓVEL =====
+
+export const createPropertySchema = (propertyData = {}) => {
+    return {
+        id: propertyData.id || Date.now().toString(),
+        referencia: propertyData.referencia || '',
+        tipologia: propertyData.tipologia || 'T2',
+        area: propertyData.area || '',
+        casasBanho: propertyData.casasBanho || 1,
+        temSuite: propertyData.temSuite || false,
+        numeroSuites: propertyData.numeroSuites || 0,
+        url: propertyData.url || '',
+        localizacao: propertyData.localizacao || '',
+        valorAnunciado: propertyData.valorAnunciado || '',
+        // Dados do agente
+        agenteNome: propertyData.agenteNome || '',
+        agenteTelefone: propertyData.agenteTelefone || '',
+        agenteEmail: propertyData.agenteEmail || '',
+        agenteAgencia: propertyData.agenteAgencia || '',
+        // Notas e estado
+        notas: propertyData.notas || '',
+        estadoNegocio: propertyData.estadoNegocio || PROPERTY_BUSINESS_STATES.PROSPECTING,
+        // Arrays para gestão
+        visitas: propertyData.visitas || [],
+        ofertas: propertyData.ofertas || [],
+        cpcv: propertyData.cpcv || null,
+        createdAt: propertyData.createdAt || new Date().toISOString(),
+        updatedAt: propertyData.updatedAt || new Date().toISOString()
+    };
+};
+
+// ===== SCHEMA BASE DA OPORTUNIDADE (ATUALIZADO) =====
 
 export const createOpportunitySchema = (opportunityData) => {
     const baseSchema = {
@@ -140,7 +311,10 @@ export const createOpportunitySchema = (opportunityData) => {
         dataFechoPrevisto: opportunityData.dataFechoPrevisto || null,
         dataFechoReal: opportunityData.dataFechoReal || null,
 
-        // ===== PROPRIEDADE RELACIONADA =====
+        // ===== NOVO: ARRAY DE IMÓVEIS =====
+        imoveis: opportunityData.imoveis || [],
+
+        // ===== PROPRIEDADE RELACIONADA (LEGACY - mantido para compatibilidade) =====
         propriedade: {
             tipoImovel: opportunityData.propriedade?.tipoImovel || '',
             localizacao: opportunityData.propriedade?.localizacao || '',
@@ -168,21 +342,29 @@ export const createOpportunitySchema = (opportunityData) => {
         // ===== NOTAS E OBSERVAÇÕES =====
         notas: opportunityData.notas || '',
 
-        // ===== MÉTRICAS E ANALYTICS =====
+        // ===== MÉTRICAS E ANALYTICS (ATUALIZADO) =====
         metricas: {
             numeroContactos: opportunityData.metricas?.numeroContactos || 0,
             numeroVisitas: opportunityData.metricas?.numeroVisitas || 0,
+            visitasRealizadas: opportunityData.metricas?.visitasRealizadas || 0,
             numeroPropostas: opportunityData.metricas?.numeroPropostas || 0,
+            propostasAceites: opportunityData.metricas?.propostasAceites || 0,
+            numeroCPCVs: opportunityData.metricas?.numeroCPCVs || 0,
             diasEmPipeline: opportunityData.metricas?.diasEmPipeline || 0,
             taxaConversao: opportunityData.metricas?.taxaConversao || 0
         }
     };
 
+    // Processar imóveis para garantir estrutura completa
+    if (opportunityData.imoveis && opportunityData.imoveis.length > 0) {
+        baseSchema.imoveis = opportunityData.imoveis.map(imovel => createPropertySchema(imovel));
+    }
+
     // Adicionar campos específicos baseados no tipo
     return addTypeSpecificFields(baseSchema, opportunityData);
 };
 
-// ===== CAMPOS ESPECÍFICOS POR TIPO =====
+// ===== CAMPOS ESPECÍFICOS POR TIPO (mantém igual) =====
 
 const addTypeSpecificFields = (schema, data) => {
     switch (schema.tipo) {
@@ -190,7 +372,7 @@ const addTypeSpecificFields = (schema, data) => {
             return {
                 ...schema,
                 comprador: {
-                    tipoCompra: data.comprador?.tipoCompra || 'habitacao_propria', // habitacao_propria, investimento, segunda_habitacao
+                    tipoCompra: data.comprador?.tipoCompra || 'habitacao_propria',
                     necessitaCredito: data.comprador?.necessitaCredito || false,
                     creditoAprovado: data.comprador?.creditoAprovado || false,
                     valorCredito: data.comprador?.valorCredito || 0,
@@ -222,12 +404,12 @@ const addTypeSpecificFields = (schema, data) => {
                 senhorio: {
                     valorRenda: data.senhorio?.valorRenda || 0,
                     duracaoContrato: data.senhorio?.duracaoContrato || '1_ano',
-                    caucao: data.senhorio?.caucao || 2, // número de meses
+                    caucao: data.senhorio?.caucao || 2,
                     incluiDespesas: data.senhorio?.incluiDespesas || false,
                     permitePets: data.senhorio?.permitePets || false,
                     mobiliado: data.senhorio?.mobiliado || false,
                     disponibilidade: data.senhorio?.disponibilidade || 'imediata',
-                    tipoInquilino: data.senhorio?.tipoInquilino || [] // estudantes, familias, profissionais
+                    tipoInquilino: data.senhorio?.tipoInquilino || []
                 }
             };
 
@@ -251,7 +433,7 @@ const addTypeSpecificFields = (schema, data) => {
             return {
                 ...schema,
                 investidor: {
-                    tipoInvestimento: data.investidor?.tipoInvestimento || [], // reabilitacao, arrendamento, revenda
+                    tipoInvestimento: data.investidor?.tipoInvestimento || [],
                     orcamentoTotal: data.investidor?.orcamentoTotal || 0,
                     retornoEsperado: data.investidor?.retornoEsperado || 0,
                     prazoInvestimento: data.investidor?.prazoInvestimento || '1_ano',
@@ -267,7 +449,7 @@ const addTypeSpecificFields = (schema, data) => {
     }
 };
 
-// ===== VALIDAÇÃO DE DADOS =====
+// ===== VALIDAÇÃO DE DADOS (ATUALIZADA) =====
 
 export const validateOpportunityData = (data) => {
     const errors = {};
@@ -290,6 +472,33 @@ export const validateOpportunityData = (data) => {
         errors.valores = 'Valor mínimo não pode ser maior que o valor máximo';
     }
 
+    // Validação de imóveis
+    if (data.imoveis && data.imoveis.length > 0) {
+        data.imoveis.forEach((imovel, index) => {
+            if (!imovel.referencia) {
+                errors[`imovel_${index}_referencia`] = `Referência do imóvel ${index + 1} é obrigatória`;
+            }
+
+            // Validar visitas
+            if (imovel.visitas) {
+                imovel.visitas.forEach((visita, vIndex) => {
+                    if (!visita.data || !visita.hora) {
+                        errors[`visita_${index}_${vIndex}`] = 'Data e hora da visita são obrigatórias';
+                    }
+                });
+            }
+
+            // Validar ofertas
+            if (imovel.ofertas) {
+                imovel.ofertas.forEach((oferta, oIndex) => {
+                    if (!oferta.valor || oferta.valor <= 0) {
+                        errors[`oferta_${index}_${oIndex}`] = 'Valor da oferta deve ser maior que zero';
+                    }
+                });
+            }
+        });
+    }
+
     // Validações específicas por tipo
     if (data.tipo === OPPORTUNITY_TYPES.BUYER && data.comprador) {
         if (data.comprador.necessitaCredito && !data.comprador.valorCredito) {
@@ -309,7 +518,7 @@ export const validateOpportunityData = (data) => {
     };
 };
 
-// ===== HELPERS PARA TIMELINE =====
+// ===== HELPERS PARA TIMELINE (ATUALIZADO) =====
 
 export const createTimelineEvent = (tipo, descricao, dados = {}) => {
     return {
@@ -329,23 +538,32 @@ export const TIMELINE_EVENT_TYPES = {
     CONTACT_MADE: 'contacto_realizado',
     VISIT_SCHEDULED: 'visita_agendada',
     VISIT_COMPLETED: 'visita_realizada',
+    VISIT_CANCELLED: 'visita_cancelada',
+    VISIT_FEEDBACK: 'feedback_visita',
     PROPOSAL_SENT: 'proposta_enviada',
     PROPOSAL_ACCEPTED: 'proposta_aceita',
     PROPOSAL_REJECTED: 'proposta_rejeitada',
+    COUNTER_OFFER: 'contraproposta',
+    CPCV_CREATED: 'cpcv_criado',
+    CPCV_SIGNED: 'cpcv_assinado',
+    DIP_ISSUED: 'dip_emitido',
+    DEED_SCHEDULED: 'escritura_agendada',
     DOCUMENT_ADDED: 'documento_adicionado',
     NOTE_ADDED: 'nota_adicionada',
     TASK_CREATED: 'tarefa_criada',
-    TASK_COMPLETED: 'tarefa_concluida'
+    TASK_COMPLETED: 'tarefa_concluida',
+    PROPERTY_ADDED: 'imovel_adicionado',
+    PROPERTY_REMOVED: 'imovel_removido'
 };
 
-// ===== HELPERS PARA CÁLCULOS =====
+// ===== HELPERS PARA CÁLCULOS (mantém igual) =====
 
 export const calculateCommission = (valor, percentual = 5) => {
     return (valor * percentual) / 100;
 };
 
 export const calculateDaysInPipeline = (createdAt) => {
-    const created = createdAt.toDate ? createdAt.toDate() : new Date(createdAt);
+    const created = createdAt?.toDate ? createdAt.toDate() : new Date(createdAt);
     const now = new Date();
     const diffTime = Math.abs(now - created);
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
@@ -362,4 +580,115 @@ export const getOpportunityProgress = (estado) => {
         [OPPORTUNITY_STATES.ON_HOLD]: 30
     };
     return progressMap[estado] || 0;
+};
+
+// ===== NOVOS HELPERS PARA IMÓVEIS =====
+
+export const getPropertyBusinessProgress = (estadoNegocio) => {
+    const progressMap = {
+        [PROPERTY_BUSINESS_STATES.PROSPECTING]: 10,
+        [PROPERTY_BUSINESS_STATES.VISITED]: 25,
+        [PROPERTY_BUSINESS_STATES.PROPOSAL]: 40,
+        [PROPERTY_BUSINESS_STATES.NEGOTIATION]: 60,
+        [PROPERTY_BUSINESS_STATES.ACCEPTED]: 75,
+        [PROPERTY_BUSINESS_STATES.CPCV]: 90,
+        [PROPERTY_BUSINESS_STATES.DEED]: 100
+    };
+    return progressMap[estadoNegocio] || 0;
+};
+
+export const calculateVisitConversionRate = (visitas) => {
+    if (!visitas || visitas.length === 0) return 0;
+
+    const completed = visitas.filter(v => v.estado === VISIT_STATES.COMPLETED);
+    const withHighInterest = completed.filter(v =>
+        v.interesseNivel === INTEREST_LEVELS.HIGH ||
+        v.interesseNivel === INTEREST_LEVELS.VERY_HIGH
+    );
+
+    return completed.length > 0
+        ? Math.round((withHighInterest.length / completed.length) * 100)
+        : 0;
+};
+
+export const calculateOfferSuccessRate = (ofertas) => {
+    if (!ofertas || ofertas.length === 0) return 0;
+
+    const submitted = ofertas.filter(o => o.status !== OFFER_STATES.DRAFT);
+    const accepted = ofertas.filter(o => o.status === OFFER_STATES.ACCEPTED);
+
+    return submitted.length > 0
+        ? Math.round((accepted.length / submitted.length) * 100)
+        : 0;
+};
+
+// ===== HELPERS PARA ESTATÍSTICAS DE IMÓVEIS =====
+
+export const getPropertyStatistics = (imoveis) => {
+    if (!imoveis || imoveis.length === 0) {
+        return {
+            total: 0,
+            totalVisitas: 0,
+            visitasEfetuadas: 0,
+            totalOfertas: 0,
+            ofertasAceites: 0,
+            totalCPCVs: 0,
+            valorMedioAnunciado: 0,
+            taxaConversaoVisitas: 0,
+            taxaSucessoOfertas: 0
+        };
+    }
+
+    const stats = {
+        total: imoveis.length,
+        totalVisitas: 0,
+        visitasEfetuadas: 0,
+        totalOfertas: 0,
+        ofertasAceites: 0,
+        totalCPCVs: 0,
+        valorTotalAnunciado: 0
+    };
+
+    imoveis.forEach(imovel => {
+        // Visitas
+        if (imovel.visitas) {
+            stats.totalVisitas += imovel.visitas.length;
+            stats.visitasEfetuadas += imovel.visitas.filter(v =>
+                v.estado === VISIT_STATES.COMPLETED
+            ).length;
+        }
+
+        // Ofertas
+        if (imovel.ofertas) {
+            stats.totalOfertas += imovel.ofertas.length;
+            stats.ofertasAceites += imovel.ofertas.filter(o =>
+                o.status === OFFER_STATES.ACCEPTED
+            ).length;
+        }
+
+        // CPCV
+        if (imovel.cpcv) {
+            stats.totalCPCVs++;
+        }
+
+        // Valor
+        if (imovel.valorAnunciado) {
+            stats.valorTotalAnunciado += parseFloat(imovel.valorAnunciado) || 0;
+        }
+    });
+
+    // Calcular médias e taxas
+    stats.valorMedioAnunciado = stats.total > 0
+        ? Math.round(stats.valorTotalAnunciado / stats.total)
+        : 0;
+
+    stats.taxaConversaoVisitas = stats.totalVisitas > 0
+        ? Math.round((stats.totalOfertas / stats.totalVisitas) * 100)
+        : 0;
+
+    stats.taxaSucessoOfertas = stats.totalOfertas > 0
+        ? Math.round((stats.ofertasAceites / stats.totalOfertas) * 100)
+        : 0;
+
+    return stats;
 };
