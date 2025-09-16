@@ -1041,6 +1041,36 @@ export const listAllOpportunities = async (consultorId, options = {}) => {
     }
 };
 
+// ===== TIMELINE OPERATIONS =====
+
+export const addTimelineEvent = async (consultorId, clienteId, opportunityId, eventData) => {
+    try {
+        const opportunity = await getOpportunity(consultorId, clienteId, opportunityId);
+
+        if (!opportunity) {
+            throw new Error('Oportunidade não encontrada');
+        }
+
+        const newEvent = {
+            ...eventData,
+            data: eventData.data || new Date().toISOString(),
+            usuario: eventData.usuario || 'Sistema',
+            id: Date.now().toString()
+        };
+
+        const updatedTimeline = [...(opportunity.timeline || []), newEvent];
+
+        await updateOpportunity(consultorId, clienteId, opportunityId, {
+            timeline: updatedTimeline
+        });
+
+        return newEvent;
+    } catch (error) {
+        console.error('OpportunityService: Erro ao adicionar evento ao timeline:', error);
+        throw error;
+    }
+};
+
 // ===== EXPORTS PARA MANTER COMPATIBILIDADE =====
 export const createNewOpportunity = createOpportunity;
 export const updateExistingOpportunity = updateOpportunity;

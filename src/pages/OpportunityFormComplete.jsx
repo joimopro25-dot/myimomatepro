@@ -1,6 +1,7 @@
 /**
  * OPPORTUNITY FORM COMPLETE - MyImoMatePro
  * Sistema completo de gestão de oportunidades com tabs
+ * VERSÃO CORRIGIDA COM TODAS AS INTEGRAÇÕES
  * 
  * Caminho: src/pages/OpportunityFormComplete.jsx
  */
@@ -14,6 +15,7 @@ import Layout from '../components/Layout';
 
 // Import dos componentes específicos
 import BasicInfoTab from '../components/opportunities/tabs/BasicInfoTab';
+import PropertiesTab from '../components/opportunities/tabs/PropertiesTab';
 import PipelineTab from '../components/opportunities/tabs/PipelineTab';
 import VisitsTab from '../components/opportunities/tabs/VisitsTab';
 import OffersTab from '../components/opportunities/tabs/OffersTab';
@@ -24,6 +26,7 @@ import TimelineTab from '../components/opportunities/tabs/TimelineTab';
 import {
     ArrowLeftIcon,
     InformationCircleIcon,
+    HomeIcon,
     ChartBarIcon,
     CalendarDaysIcon,
     CurrencyEuroIcon,
@@ -47,11 +50,12 @@ const OpportunityFormComplete = () => {
     } = useOpportunities();
     const { currentClient, fetchClient } = useClients();
 
-    // Estado dos tabs
+    // Estado dos tabs - CORRIGIDO com imoveis
     const [activeTab, setActiveTab] = useState('basic');
     const [visitedTabs, setVisitedTabs] = useState(['basic']);
     const [tabsData, setTabsData] = useState({
         basic: {},
+        imoveis: [], // ADICIONADO - Array de imóveis no nível raiz
         pipeline: {},
         visits: [],
         offers: [],
@@ -65,7 +69,7 @@ const OpportunityFormComplete = () => {
     const [successMessage, setSuccessMessage] = useState('');
     const [validationErrors, setValidationErrors] = useState({});
 
-    // Definição dos tabs
+    // Definição dos tabs - CORRIGIDO com PropertiesTab
     const tabs = [
         {
             id: 'basic',
@@ -73,6 +77,13 @@ const OpportunityFormComplete = () => {
             icon: InformationCircleIcon,
             component: BasicInfoTab,
             required: true
+        },
+        {
+            id: 'imoveis', // ADICIONADO - Tab de imóveis
+            name: 'Imóveis',
+            icon: HomeIcon,
+            component: PropertiesTab,
+            badge: tabsData.imoveis?.length || 0
         },
         {
             id: 'pipeline',
@@ -131,11 +142,12 @@ const OpportunityFormComplete = () => {
         }
     }, [opportunityId, clientId, currentUser]);
 
+    // CORRIGIDO - loadOpportunity com estrutura de imóveis
     const loadOpportunity = async () => {
         try {
             const opportunity = await fetchOpportunity(clientId, opportunityId);
             if (opportunity) {
-                // Distribuir dados pelos tabs
+                // Distribuir dados pelos tabs - ESTRUTURA CORRIGIDA
                 setTabsData({
                     basic: {
                         tipo: opportunity.tipo,
@@ -144,11 +156,15 @@ const OpportunityFormComplete = () => {
                         descricao: opportunity.descricao,
                         valorEstimado: opportunity.valorEstimado,
                         prioridade: opportunity.prioridade,
-                        ...opportunity
+                        // Outros campos básicos, mas SEM imóveis
                     },
+                    imoveis: opportunity.imoveis || [], // IMÓVEIS NO NÍVEL RAIZ
                     pipeline: {
-                        stage: opportunity.pipelineStage,
-                        history: opportunity.pipelineHistory || []
+                        stage: opportunity.pipelineStage || opportunity.estado,
+                        history: opportunity.pipelineHistory || [],
+                        pipelineNotes: opportunity.pipelineNotes || '',
+                        stageHistory: opportunity.stageHistory || [],
+                        estimatedDays: opportunity.estimatedDays || {}
                     },
                     visits: opportunity.visits || [],
                     offers: opportunity.offers || [],
@@ -170,11 +186,30 @@ const OpportunityFormComplete = () => {
         }
     };
 
+    // CORRIGIDO - handleTabDataChange para lidar com imóveis
     const handleTabDataChange = (tabId, data) => {
-        setTabsData(prev => ({
-            ...prev,
-            [tabId]: data
-        }));
+        // Para o PropertiesTab, os dados vêm como array direto
+        if (tabId === 'imoveis' && Array.isArray(data)) {
+            setTabsData(prev => ({
+                ...prev,
+                imoveis: data
+            }));
+        }
+        // Para VisitsTab e OffersTab, precisamos atualizar imóveis
+        else if ((tabId === 'visits' || tabId === 'offers') && data.imoveis) {
+            setTabsData(prev => ({
+                ...prev,
+                imoveis: data.imoveis,
+                [tabId]: data[tabId] || []
+            }));
+        }
+        // Para outros tabs, atualização normal
+        else {
+            setTabsData(prev => ({
+                ...prev,
+                [tabId]: data
+            }));
+        }
     };
 
     const validateAllTabs = () => {
@@ -193,6 +228,7 @@ const OpportunityFormComplete = () => {
         return errors;
     };
 
+    // CORRIGIDO - handleSave com estrutura de imóveis
     const handleSave = async () => {
         setIsSubmitting(true);
         setValidationErrors({});
@@ -202,17 +238,21 @@ const OpportunityFormComplete = () => {
         if (Object.keys(errors).length > 0) {
             setValidationErrors(errors);
             setIsSubmitting(false);
-            // Ir para o primeiro tab com erro
             const firstErrorTab = Object.keys(errors)[0];
             setActiveTab(firstErrorTab);
             return;
         }
 
-        // Compilar todos os dados
+        // Compilar todos os dados - ESTRUTURA CORRIGIDA
         const opportunityData = {
             ...tabsData.basic,
+            imoveis: tabsData.imoveis, // IMÓVEIS DO NÍVEL RAIZ
+            estado: tabsData.pipeline.stage || tabsData.basic.estado,
             pipelineStage: tabsData.pipeline.stage,
             pipelineHistory: tabsData.pipeline.history,
+            pipelineNotes: tabsData.pipeline.pipelineNotes,
+            stageHistory: tabsData.pipeline.stageHistory,
+            estimatedDays: tabsData.pipeline.estimatedDays,
             visits: tabsData.visits,
             offers: tabsData.offers,
             tasks: tabsData.tasks,
@@ -373,17 +413,34 @@ const OpportunityFormComplete = () => {
                         </nav>
                     </div>
 
-                    {/* Tab Content */}
+                    {/* Tab Content - CORRIGIDO */}
                     <div className="p-6">
                         {tabs.map((tab) => {
                             if (activeTab !== tab.id) return null;
 
                             const TabComponent = tab.component;
+
+                            // Preparar dados específicos para cada tab
+                            let tabData = tabsData[tab.id];
+
+                            // CORREÇÃO: Para VisitsTab e OffersTab, passar também os imóveis
+                            if (tab.id === 'visits') {
+                                tabData = {
+                                    imoveis: tabsData.imoveis, // PASSAR IMÓVEIS
+                                    visits: tabsData.visits
+                                };
+                            } else if (tab.id === 'offers') {
+                                tabData = {
+                                    imoveis: tabsData.imoveis, // PASSAR IMÓVEIS
+                                    offers: tabsData.offers
+                                };
+                            }
+
                             return (
                                 <TabComponent
                                     key={tab.id}
-                                    data={tabsData[tab.id]}
-                                    onChange={(data) => handleTabDataChange(tab.id, data)}
+                                    data={tabData}
+                                    onChange={handleTabDataChange.bind(null, tab.id)}
                                     clientId={clientId}
                                     opportunityId={opportunityId}
                                     opportunityType={tabsData.basic.tipo}

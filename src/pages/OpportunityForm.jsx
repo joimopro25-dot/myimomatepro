@@ -49,7 +49,8 @@ import {
     PencilIcon,
     XMarkIcon,
     ChatBubbleLeftRightIcon,
-    DocumentTextIcon
+    DocumentTextIcon,
+    ClipboardDocumentListIcon,
 } from '@heroicons/react/24/outline';
 
 // Estados de Visita
@@ -1064,9 +1065,9 @@ const OpportunityForm = () => {
                                                 <div key={visit.id} className="flex items-center justify-between text-xs bg-white rounded p-2 mb-1">
                                                     <div className="flex-1">
                                                         <span className={`inline-block px-1.5 py-0.5 rounded text-xs mr-2 ${visit.estado === VISIT_STATES.COMPLETED ? 'bg-green-100 text-green-700' :
-                                                                visit.estado === VISIT_STATES.CANCELLED ? 'bg-red-100 text-red-700' :
-                                                                    visit.estado === VISIT_STATES.CONFIRMED ? 'bg-blue-100 text-blue-700' :
-                                                                        'bg-gray-100 text-gray-700'
+                                                            visit.estado === VISIT_STATES.CANCELLED ? 'bg-red-100 text-red-700' :
+                                                                visit.estado === VISIT_STATES.CONFIRMED ? 'bg-blue-100 text-blue-700' :
+                                                                    'bg-gray-100 text-gray-700'
                                                             }`}>
                                                             {VISIT_STATE_LABELS[visit.estado]?.split(' ')[0]}
                                                         </span>
@@ -1239,10 +1240,10 @@ const OpportunityForm = () => {
                                                 <div key={offer.id} className="flex items-center justify-between text-xs bg-white rounded p-2 mb-1">
                                                     <div className="flex-1">
                                                         <span className={`inline-block px-1.5 py-0.5 rounded text-xs mr-2 ${offer.status === OFFER_STATES.ACCEPTED ? 'bg-green-100 text-green-700' :
-                                                                offer.status === OFFER_STATES.REJECTED ? 'bg-red-100 text-red-700' :
-                                                                    offer.status === OFFER_STATES.NEGOTIATION ? 'bg-orange-100 text-orange-700' :
-                                                                        offer.status === OFFER_STATES.COUNTER_OFFER ? 'bg-yellow-100 text-yellow-700' :
-                                                                            'bg-gray-100 text-gray-700'
+                                                            offer.status === OFFER_STATES.REJECTED ? 'bg-red-100 text-red-700' :
+                                                                offer.status === OFFER_STATES.NEGOTIATION ? 'bg-orange-100 text-orange-700' :
+                                                                    offer.status === OFFER_STATES.COUNTER_OFFER ? 'bg-yellow-100 text-yellow-700' :
+                                                                        'bg-gray-100 text-gray-700'
                                                             }`}>
                                                             {OFFER_STATE_LABELS[offer.status]?.split(' ')[0]}
                                                         </span>
