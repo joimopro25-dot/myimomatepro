@@ -177,9 +177,12 @@ export const listClientOpportunities = async (consultorId, clienteId, options = 
             const data = doc.data();
             // Verificar se está ativo (filtro em memória)
             if (data.isActive !== false) { // Incluir documentos sem o campo ou com true
+                // Remover campo id dos dados se existir para evitar sobrescrita
+                const { id: dataId, ...restData } = data;
+
                 opportunities.push({
-                    id: doc.id,
-                    ...data
+                    ...restData,
+                    id: doc.id  // ID do documento SEMPRE por último
                 });
             }
         });
