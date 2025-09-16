@@ -1,6 +1,12 @@
 /**
  * OPPORTUNITY FORM - MyImoMatePro
- * Versão com gestão completa de imóveis
+ * Versão MELHORADA com gestão completa de imóveis, visitas e propostas
+ * 
+ * Melhorias implementadas:
+ * 1. Tipo de oportunidade bloqueado em edição
+ * 2. Sistema de visitas com estados e feedback editável
+ * 3. Sistema de ofertas com contrapropostas
+ * 4. Integração com CPCV
  * 
  * Caminho: src/pages/OpportunityForm.jsx
  */
@@ -38,8 +44,49 @@ import {
     BuildingOfficeIcon,
     EyeIcon,
     DocumentCheckIcon,
-    ClipboardDocumentCheckIcon
+    ClipboardDocumentCheckIcon,
+    LockClosedIcon,
+    PencilIcon,
+    XMarkIcon,
+    ChatBubbleLeftRightIcon,
+    DocumentTextIcon
 } from '@heroicons/react/24/outline';
+
+// Estados de Visita
+const VISIT_STATES = {
+    SCHEDULED: 'agendada',
+    CONFIRMED: 'confirmada',
+    COMPLETED: 'efetuada',
+    CANCELLED: 'cancelada',
+    NO_SHOW: 'nao_compareceu'
+};
+
+const VISIT_STATE_LABELS = {
+    [VISIT_STATES.SCHEDULED]: '📅 Agendada',
+    [VISIT_STATES.CONFIRMED]: '✅ Confirmada',
+    [VISIT_STATES.COMPLETED]: '✔️ Efetuada',
+    [VISIT_STATES.CANCELLED]: '❌ Cancelada',
+    [VISIT_STATES.NO_SHOW]: '⚠️ Não Compareceu'
+};
+
+// Estados de Oferta
+const OFFER_STATES = {
+    DRAFT: 'rascunho',
+    SUBMITTED: 'submetida',
+    NEGOTIATION: 'negociacao',
+    COUNTER_OFFER: 'contraproposta',
+    ACCEPTED: 'aceite',
+    REJECTED: 'rejeitada'
+};
+
+const OFFER_STATE_LABELS = {
+    [OFFER_STATES.DRAFT]: '📝 Rascunho',
+    [OFFER_STATES.SUBMITTED]: '📤 Submetida',
+    [OFFER_STATES.NEGOTIATION]: '🤝 Negociação',
+    [OFFER_STATES.COUNTER_OFFER]: '↔️ Contraproposta',
+    [OFFER_STATES.ACCEPTED]: '✅ Aceite',
+    [OFFER_STATES.REJECTED]: '❌ Rejeitada'
+};
 
 const OpportunityForm = () => {
     const navigate = useNavigate();
@@ -69,7 +116,7 @@ const OpportunityForm = () => {
         valorMaximo: '',
         percentualComissao: 5,
 
-        // NOVO: Imóveis
+        // Imóveis com estrutura melhorada
         imoveis: [],
 
         notas: ''
@@ -79,7 +126,10 @@ const OpportunityForm = () => {
     const [showPropertyForm, setShowPropertyForm] = useState(false);
     const [showVisitForm, setShowVisitForm] = useState(false);
     const [showOfferForm, setShowOfferForm] = useState(false);
+    const [showCPCVForm, setShowCPCVForm] = useState(false);
     const [selectedProperty, setSelectedProperty] = useState(null);
+    const [editingVisit, setEditingVisit] = useState(null);
+    const [editingOffer, setEditingOffer] = useState(null);
 
     // Novo imóvel
     const [newProperty, setNewProperty] = useState({
@@ -99,25 +149,50 @@ const OpportunityForm = () => {
         notas: '',
         visitas: [],
         ofertas: [],
-        estadoNegocio: 'prospeção' // prospeção, visitado, proposta, negociação, aceite, cpcv, escritura
+        cpcv: null,
+        estadoNegocio: 'prospeção'
     });
 
-    // Nova visita
+    // Nova visita melhorada
     const [newVisit, setNewVisit] = useState({
         data: '',
         hora: '',
+        estado: VISIT_STATES.SCHEDULED,
         notas: '',
         feedback: '',
-        interesseNivel: 'medio' // baixo, medio, alto, muito_alto
+        interesseNivel: 'medio',
+        pontosPositivos: '',
+        pontosNegativos: '',
+        proximosPassos: ''
     });
 
-    // Nova oferta
+    // Nova oferta melhorada
     const [newOffer, setNewOffer] = useState({
         valor: '',
         data: '',
         condicoes: '',
-        status: 'rascunho', // rascunho, submetida, negociacao, aceite, rejeitada
-        notas: ''
+        status: OFFER_STATES.DRAFT,
+        notas: '',
+        // Campos para contraproposta
+        isContraproposta: false,
+        valorContraproposta: '',
+        condicoesContraproposta: '',
+        justificacao: ''
+    });
+
+    // Dados do CPCV
+    const [cpcvData, setCpcvData] = useState({
+        numeroContrato: '',
+        dataAssinatura: '',
+        valorVenda: '',
+        sinal: '',
+        sinalPercentagem: 10,
+        dataEscritura: '',
+        financiamento: false,
+        banco: '',
+        valorCredito: '',
+        dipEmitido: false,
+        numeroDIP: ''
     });
 
     const [validationErrors, setValidationErrors] = useState({});
@@ -177,13 +252,16 @@ const OpportunityForm = () => {
     };
 
     const handleTipoChange = (tipo) => {
-        const date = new Date().toLocaleDateString('pt-PT');
-        const typeLabel = OPPORTUNITY_TYPE_LABELS[tipo];
-        setFormData(prev => ({
-            ...prev,
-            tipo,
-            titulo: `${typeLabel} - ${currentClient?.name || 'Cliente'} - ${date}`
-        }));
+        // Só permite mudança se não estiver editando
+        if (!opportunityId) {
+            const date = new Date().toLocaleDateString('pt-PT');
+            const typeLabel = OPPORTUNITY_TYPE_LABELS[tipo];
+            setFormData(prev => ({
+                ...prev,
+                tipo,
+                titulo: `${typeLabel} - ${currentClient?.name || 'Cliente'} - ${date}`
+            }));
+        }
     };
 
     // Gestão de Imóveis
@@ -222,6 +300,7 @@ const OpportunityForm = () => {
             notas: '',
             visitas: [],
             ofertas: [],
+            cpcv: null,
             estadoNegocio: 'prospeção'
         });
         setShowPropertyForm(false);
@@ -236,8 +315,8 @@ const OpportunityForm = () => {
         }
     };
 
-    // Adicionar visita a um imóvel
-    const handleAddVisitToProperty = (propertyId) => {
+    // Sistema de Visitas Melhorado
+    const handleAddOrUpdateVisit = (propertyId) => {
         if (!newVisit.data || !newVisit.hora) {
             alert('Por favor, preencha data e hora da visita');
             return;
@@ -245,33 +324,63 @@ const OpportunityForm = () => {
 
         const visit = {
             ...newVisit,
-            id: Date.now().toString(),
-            createdAt: new Date().toISOString()
+            id: editingVisit?.id || Date.now().toString(),
+            createdAt: editingVisit?.createdAt || new Date().toISOString(),
+            updatedAt: new Date().toISOString()
         };
 
         setFormData(prev => ({
             ...prev,
-            imoveis: prev.imoveis.map(p =>
-                p.id === propertyId
-                    ? { ...p, visitas: [...p.visitas, visit], estadoNegocio: 'visitado' }
-                    : p
-            )
+            imoveis: prev.imoveis.map(p => {
+                if (p.id === propertyId) {
+                    let updatedVisitas;
+                    if (editingVisit) {
+                        // Atualizar visita existente
+                        updatedVisitas = p.visitas.map(v =>
+                            v.id === editingVisit.id ? visit : v
+                        );
+                    } else {
+                        // Adicionar nova visita
+                        updatedVisitas = [...p.visitas, visit];
+                    }
+
+                    // Atualizar estado do negócio se visita foi efetuada
+                    const estadoNegocio = visit.estado === VISIT_STATES.COMPLETED ? 'visitado' : p.estadoNegocio;
+
+                    return { ...p, visitas: updatedVisitas, estadoNegocio };
+                }
+                return p;
+            })
         }));
 
         // Reset
         setNewVisit({
             data: '',
             hora: '',
+            estado: VISIT_STATES.SCHEDULED,
             notas: '',
             feedback: '',
-            interesseNivel: 'medio'
+            interesseNivel: 'medio',
+            pontosPositivos: '',
+            pontosNegativos: '',
+            proximosPassos: ''
         });
+        setEditingVisit(null);
         setShowVisitForm(false);
         setSelectedProperty(null);
     };
 
-    // Adicionar oferta a um imóvel
-    const handleAddOfferToProperty = (propertyId) => {
+    const handleEditVisit = (property, visit) => {
+        setSelectedProperty(property);
+        setEditingVisit(visit);
+        setNewVisit({
+            ...visit
+        });
+        setShowVisitForm(true);
+    };
+
+    // Sistema de Ofertas Melhorado
+    const handleAddOrUpdateOffer = (propertyId) => {
         if (!newOffer.valor) {
             alert('Por favor, preencha o valor da oferta');
             return;
@@ -279,21 +388,47 @@ const OpportunityForm = () => {
 
         const offer = {
             ...newOffer,
-            id: Date.now().toString(),
-            createdAt: new Date().toISOString()
+            id: editingOffer?.id || Date.now().toString(),
+            createdAt: editingOffer?.createdAt || new Date().toISOString(),
+            updatedAt: new Date().toISOString()
         };
 
         setFormData(prev => ({
             ...prev,
-            imoveis: prev.imoveis.map(p =>
-                p.id === propertyId
-                    ? {
-                        ...p,
-                        ofertas: [...p.ofertas, offer],
-                        estadoNegocio: offer.status === 'aceite' ? 'aceite' : 'proposta'
+            imoveis: prev.imoveis.map(p => {
+                if (p.id === propertyId) {
+                    let updatedOfertas;
+                    if (editingOffer) {
+                        // Atualizar oferta existente
+                        updatedOfertas = p.ofertas.map(o =>
+                            o.id === editingOffer.id ? offer : o
+                        );
+                    } else {
+                        // Adicionar nova oferta
+                        updatedOfertas = [...p.ofertas, offer];
                     }
-                    : p
-            )
+
+                    // Atualizar estado do negócio baseado no status da oferta
+                    let estadoNegocio = p.estadoNegocio;
+                    if (offer.status === OFFER_STATES.ACCEPTED) {
+                        estadoNegocio = 'aceite';
+                        // Mostrar formulário CPCV
+                        setShowCPCVForm(true);
+                        setCpcvData(prev => ({
+                            ...prev,
+                            valorVenda: offer.valor,
+                            sinal: (parseFloat(offer.valor) * 0.1).toString() // 10% default
+                        }));
+                    } else if (offer.status === OFFER_STATES.SUBMITTED) {
+                        estadoNegocio = 'proposta';
+                    } else if (offer.status === OFFER_STATES.NEGOTIATION || offer.status === OFFER_STATES.COUNTER_OFFER) {
+                        estadoNegocio = 'negociação';
+                    }
+
+                    return { ...p, ofertas: updatedOfertas, estadoNegocio };
+                }
+                return p;
+            })
         }));
 
         // Reset
@@ -301,11 +436,62 @@ const OpportunityForm = () => {
             valor: '',
             data: '',
             condicoes: '',
-            status: 'rascunho',
-            notas: ''
+            status: OFFER_STATES.DRAFT,
+            notas: '',
+            isContraproposta: false,
+            valorContraproposta: '',
+            condicoesContraproposta: '',
+            justificacao: ''
         });
+        setEditingOffer(null);
         setShowOfferForm(false);
         setSelectedProperty(null);
+    };
+
+    const handleEditOffer = (property, offer) => {
+        setSelectedProperty(property);
+        setEditingOffer(offer);
+        setNewOffer({
+            ...offer
+        });
+        setShowOfferForm(true);
+    };
+
+    // Sistema CPCV
+    const handleSaveCPCV = (propertyId) => {
+        if (!cpcvData.numeroContrato || !cpcvData.dataAssinatura) {
+            alert('Por favor, preencha os dados obrigatórios do CPCV');
+            return;
+        }
+
+        setFormData(prev => ({
+            ...prev,
+            imoveis: prev.imoveis.map(p => {
+                if (p.id === propertyId) {
+                    return {
+                        ...p,
+                        cpcv: cpcvData,
+                        estadoNegocio: 'cpcv'
+                    };
+                }
+                return p;
+            })
+        }));
+
+        setShowCPCVForm(false);
+        setCpcvData({
+            numeroContrato: '',
+            dataAssinatura: '',
+            valorVenda: '',
+            sinal: '',
+            sinalPercentagem: 10,
+            dataEscritura: '',
+            financiamento: false,
+            banco: '',
+            valorCredito: '',
+            dipEmitido: false,
+            numeroDIP: ''
+        });
     };
 
     // Atualizar estado de negócio do imóvel
@@ -435,31 +621,48 @@ const OpportunityForm = () => {
 
                 {/* Formulário */}
                 <form onSubmit={handleSubmit} className="space-y-8">
-                    {/* Tipo de Oportunidade */}
+                    {/* Tipo de Oportunidade com bloqueio em edição */}
                     <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-                        <h2 className="text-xl font-semibold text-gray-900 mb-4">
-                            Tipo de Oportunidade
-                        </h2>
+                        <div className="flex items-center justify-between mb-4">
+                            <h2 className="text-xl font-semibold text-gray-900">
+                                Tipo de Oportunidade
+                            </h2>
+                            {opportunityId && (
+                                <span className="inline-flex items-center text-sm text-gray-500">
+                                    <LockClosedIcon className="w-4 h-4 mr-1" />
+                                    Não editável após criação
+                                </span>
+                            )}
+                        </div>
                         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                             {Object.entries(OPPORTUNITY_TYPE_LABELS).map(([type, label]) => {
                                 const Icon = getTypeIcon(type);
                                 const isSelected = formData.tipo === type;
+                                const isDisabled = !!opportunityId;
+
                                 return (
                                     <button
                                         key={type}
                                         type="button"
                                         onClick={() => handleTipoChange(type)}
+                                        disabled={isDisabled}
                                         className={`
                                             flex flex-col items-center justify-center p-4 rounded-lg border-2 
                                             transition-all duration-200
+                                            ${isDisabled ? 'cursor-not-allowed' : 'cursor-pointer'}
                                             ${isSelected
                                                 ? 'border-blue-500 bg-blue-50 text-blue-700'
-                                                : 'border-gray-200 hover:border-gray-300 text-gray-600'
+                                                : isDisabled
+                                                    ? 'border-gray-200 bg-gray-50 text-gray-400 opacity-50'
+                                                    : 'border-gray-200 hover:border-gray-300 text-gray-600'
                                             }
                                         `}
                                     >
                                         <Icon className="w-6 h-6 mb-2" />
                                         <span className="text-sm font-medium">{label}</span>
+                                        {isSelected && isDisabled && (
+                                            <LockClosedIcon className="w-3 h-3 mt-1" />
+                                        )}
                                     </button>
                                 );
                             })}
@@ -524,7 +727,7 @@ const OpportunityForm = () => {
                         </div>
                     </div>
 
-                    {/* NOVO: Gestão de Imóveis (só para compradores) */}
+                    {/* Gestão de Imóveis Melhorada (só para compradores) */}
                     {formData.tipo === OPPORTUNITY_TYPES.BUYER && (
                         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
                             <div className="flex justify-between items-center mb-4">
@@ -590,39 +793,6 @@ const OpportunityForm = () => {
                                         </div>
                                         <div>
                                             <label className="block text-sm font-medium text-gray-700 mb-1">
-                                                Casas de Banho
-                                            </label>
-                                            <input
-                                                type="number"
-                                                value={newProperty.casasBanho}
-                                                onChange={(e) => setNewProperty({ ...newProperty, casasBanho: e.target.value })}
-                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                                                min="0"
-                                            />
-                                        </div>
-                                        <div className="flex items-center space-x-4">
-                                            <label className="flex items-center">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={newProperty.temSuite}
-                                                    onChange={(e) => setNewProperty({ ...newProperty, temSuite: e.target.checked })}
-                                                    className="rounded border-gray-300 text-blue-600 mr-2"
-                                                />
-                                                Tem Suite
-                                            </label>
-                                            {newProperty.temSuite && (
-                                                <input
-                                                    type="number"
-                                                    value={newProperty.numeroSuites}
-                                                    onChange={(e) => setNewProperty({ ...newProperty, numeroSuites: e.target.value })}
-                                                    className="w-20 px-2 py-1 border border-gray-300 rounded"
-                                                    placeholder="Nº"
-                                                    min="1"
-                                                />
-                                            )}
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">
                                                 Valor Anunciado (€)
                                             </label>
                                             <input
@@ -657,60 +827,6 @@ const OpportunityForm = () => {
                                                 placeholder="https://..."
                                             />
                                         </div>
-
-                                        {/* Dados do Agente */}
-                                        <div className="md:col-span-2 border-t pt-3">
-                                            <h4 className="font-medium text-gray-700 mb-2">Agente Responsável</h4>
-                                        </div>
-                                        <div>
-                                            <input
-                                                type="text"
-                                                value={newProperty.agenteNome}
-                                                onChange={(e) => setNewProperty({ ...newProperty, agenteNome: e.target.value })}
-                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                                                placeholder="Nome do agente"
-                                            />
-                                        </div>
-                                        <div>
-                                            <input
-                                                type="tel"
-                                                value={newProperty.agenteTelefone}
-                                                onChange={(e) => setNewProperty({ ...newProperty, agenteTelefone: e.target.value })}
-                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                                                placeholder="Telefone"
-                                            />
-                                        </div>
-                                        <div>
-                                            <input
-                                                type="email"
-                                                value={newProperty.agenteEmail}
-                                                onChange={(e) => setNewProperty({ ...newProperty, agenteEmail: e.target.value })}
-                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                                                placeholder="Email"
-                                            />
-                                        </div>
-                                        <div>
-                                            <input
-                                                type="text"
-                                                value={newProperty.agenteAgencia}
-                                                onChange={(e) => setNewProperty({ ...newProperty, agenteAgencia: e.target.value })}
-                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                                                placeholder="Agência"
-                                            />
-                                        </div>
-
-                                        <div className="md:col-span-2">
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                                Notas sobre o imóvel
-                                            </label>
-                                            <textarea
-                                                value={newProperty.notas}
-                                                onChange={(e) => setNewProperty({ ...newProperty, notas: e.target.value })}
-                                                rows={2}
-                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                                                placeholder="Observações sobre o imóvel..."
-                                            />
-                                        </div>
                                     </div>
                                     <div className="mt-3 flex gap-2">
                                         <button
@@ -731,7 +847,7 @@ const OpportunityForm = () => {
                                 </div>
                             )}
 
-                            {/* Lista de Imóveis */}
+                            {/* Lista de Imóveis com Sistema Melhorado */}
                             <div className="space-y-4">
                                 {formData.imoveis.map((property) => (
                                     <div key={property.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
@@ -767,18 +883,13 @@ const OpportunityForm = () => {
                                                 <span className="ml-1 font-medium">{property.area}m²</span>
                                             </div>
                                             <div>
-                                                <span className="text-gray-500">WC:</span>
-                                                <span className="ml-1 font-medium">{property.casasBanho}</span>
-                                                {property.temSuite && <span className="ml-1 text-xs">(+{property.numeroSuites} suite)</span>}
-                                            </div>
-                                            <div>
                                                 <span className="text-gray-500">Valor:</span>
                                                 <span className="ml-1 font-medium text-green-600">
-                                                    €{parseFloat(property.valorAnunciado).toLocaleString('pt-PT')}
+                                                    €{parseFloat(property.valorAnunciado || 0).toLocaleString('pt-PT')}
                                                 </span>
                                             </div>
                                             {property.url && (
-                                                <div>
+                                                <div className="md:col-span-2">
                                                     <a
                                                         href={property.url}
                                                         target="_blank"
@@ -792,209 +903,521 @@ const OpportunityForm = () => {
                                             )}
                                         </div>
 
-                                        {/* Agente */}
-                                        {property.agenteNome && (
-                                            <div className="bg-gray-50 rounded p-2 mb-3 text-sm">
-                                                <p className="font-medium text-gray-700">Agente: {property.agenteNome}</p>
-                                                {property.agenteTelefone && <p className="text-gray-600">📞 {property.agenteTelefone}</p>}
-                                                {property.agenteAgencia && <p className="text-gray-600">🏢 {property.agenteAgencia}</p>}
-                                            </div>
-                                        )}
-
-                                        {/* Ações */}
-                                        <div className="flex gap-2 border-t pt-3">
-                                            {/* Visitas */}
-                                            <div className="flex-1">
-                                                <div className="flex items-center justify-between mb-2">
-                                                    <span className="text-sm font-medium text-gray-700">
-                                                        📅 Visitas ({property.visitas.length})
-                                                    </span>
-                                                    {selectedProperty?.id === property.id && showVisitForm ? (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => {
-                                                                setShowVisitForm(false);
-                                                                setSelectedProperty(null);
-                                                            }}
-                                                            className="text-xs text-red-600"
-                                                        >
-                                                            Cancelar
-                                                        </button>
-                                                    ) : (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => {
-                                                                setSelectedProperty(property);
-                                                                setShowVisitForm(true);
-                                                            }}
-                                                            className="text-xs text-blue-600"
-                                                        >
-                                                            + Agendar
-                                                        </button>
-                                                    )}
-                                                </div>
-
-                                                {/* Form de nova visita inline */}
-                                                {selectedProperty?.id === property.id && showVisitForm && (
-                                                    <div className="bg-blue-50 rounded p-2 mb-2">
-                                                        <div className="grid grid-cols-2 gap-2">
-                                                            <input
-                                                                type="date"
-                                                                value={newVisit.data}
-                                                                onChange={(e) => setNewVisit({ ...newVisit, data: e.target.value })}
-                                                                className="px-2 py-1 text-sm border rounded"
-                                                            />
-                                                            <input
-                                                                type="time"
-                                                                value={newVisit.hora}
-                                                                onChange={(e) => setNewVisit({ ...newVisit, hora: e.target.value })}
-                                                                className="px-2 py-1 text-sm border rounded"
-                                                            />
-                                                            <select
-                                                                value={newVisit.interesseNivel}
-                                                                onChange={(e) => setNewVisit({ ...newVisit, interesseNivel: e.target.value })}
-                                                                className="px-2 py-1 text-sm border rounded col-span-2"
-                                                            >
-                                                                <option value="baixo">😐 Baixo Interesse</option>
-                                                                <option value="medio">🙂 Médio Interesse</option>
-                                                                <option value="alto">😊 Alto Interesse</option>
-                                                                <option value="muito_alto">🤩 Muito Alto Interesse</option>
-                                                            </select>
-                                                            <textarea
-                                                                value={newVisit.notas}
-                                                                onChange={(e) => setNewVisit({ ...newVisit, notas: e.target.value })}
-                                                                className="px-2 py-1 text-sm border rounded col-span-2"
-                                                                rows={2}
-                                                                placeholder="Notas da visita..."
-                                                            />
-                                                        </div>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => handleAddVisitToProperty(property.id)}
-                                                            className="mt-2 px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
-                                                        >
-                                                            Adicionar Visita
-                                                        </button>
-                                                    </div>
+                                        {/* Sistema de Visitas Melhorado */}
+                                        <div className="border-t pt-3">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <span className="text-sm font-medium text-gray-700">
+                                                    📅 Visitas ({property.visitas.length})
+                                                </span>
+                                                {selectedProperty?.id === property.id && showVisitForm && !editingVisit ? (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setShowVisitForm(false);
+                                                            setSelectedProperty(null);
+                                                        }}
+                                                        className="text-xs text-red-600"
+                                                    >
+                                                        Cancelar
+                                                    </button>
+                                                ) : (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setSelectedProperty(property);
+                                                            setShowVisitForm(true);
+                                                            setEditingVisit(null);
+                                                            setNewVisit({
+                                                                data: '',
+                                                                hora: '',
+                                                                estado: VISIT_STATES.SCHEDULED,
+                                                                notas: '',
+                                                                feedback: '',
+                                                                interesseNivel: 'medio',
+                                                                pontosPositivos: '',
+                                                                pontosNegativos: '',
+                                                                proximosPassos: ''
+                                                            });
+                                                        }}
+                                                        className="text-xs text-blue-600"
+                                                    >
+                                                        + Agendar Visita
+                                                    </button>
                                                 )}
+                                            </div>
 
-                                                {/* Lista de visitas */}
-                                                {property.visitas.map((visit, idx) => (
-                                                    <div key={visit.id} className="text-xs bg-white rounded p-1 mb-1">
+                                            {/* Formulário de Visita Melhorado */}
+                                            {selectedProperty?.id === property.id && showVisitForm && (
+                                                <div className="bg-blue-50 rounded p-3 mb-2">
+                                                    <h4 className="font-medium text-sm mb-2">
+                                                        {editingVisit ? 'Editar Visita' : 'Nova Visita'}
+                                                    </h4>
+                                                    <div className="grid grid-cols-2 gap-2">
+                                                        <input
+                                                            type="date"
+                                                            value={newVisit.data}
+                                                            onChange={(e) => setNewVisit({ ...newVisit, data: e.target.value })}
+                                                            className="px-2 py-1 text-sm border rounded"
+                                                        />
+                                                        <input
+                                                            type="time"
+                                                            value={newVisit.hora}
+                                                            onChange={(e) => setNewVisit({ ...newVisit, hora: e.target.value })}
+                                                            className="px-2 py-1 text-sm border rounded"
+                                                        />
+                                                        <select
+                                                            value={newVisit.estado}
+                                                            onChange={(e) => setNewVisit({ ...newVisit, estado: e.target.value })}
+                                                            className="px-2 py-1 text-sm border rounded col-span-2"
+                                                        >
+                                                            {Object.entries(VISIT_STATE_LABELS).map(([state, label]) => (
+                                                                <option key={state} value={state}>{label}</option>
+                                                            ))}
+                                                        </select>
+
+                                                        {/* Campos de Feedback (só aparecem se visita foi efetuada) */}
+                                                        {newVisit.estado === VISIT_STATES.COMPLETED && (
+                                                            <>
+                                                                <div className="col-span-2 border-t pt-2 mt-2">
+                                                                    <label className="text-xs font-medium text-gray-600">Feedback da Visita</label>
+                                                                </div>
+                                                                <select
+                                                                    value={newVisit.interesseNivel}
+                                                                    onChange={(e) => setNewVisit({ ...newVisit, interesseNivel: e.target.value })}
+                                                                    className="px-2 py-1 text-sm border rounded col-span-2"
+                                                                >
+                                                                    <option value="sem_interesse">😐 Sem Interesse</option>
+                                                                    <option value="baixo">😔 Baixo Interesse</option>
+                                                                    <option value="medio">🙂 Médio Interesse</option>
+                                                                    <option value="alto">😊 Alto Interesse</option>
+                                                                    <option value="muito_alto">🤩 Muito Alto Interesse</option>
+                                                                </select>
+                                                                <textarea
+                                                                    value={newVisit.pontosPositivos}
+                                                                    onChange={(e) => setNewVisit({ ...newVisit, pontosPositivos: e.target.value })}
+                                                                    className="px-2 py-1 text-sm border rounded col-span-2"
+                                                                    rows={2}
+                                                                    placeholder="Pontos positivos..."
+                                                                />
+                                                                <textarea
+                                                                    value={newVisit.pontosNegativos}
+                                                                    onChange={(e) => setNewVisit({ ...newVisit, pontosNegativos: e.target.value })}
+                                                                    className="px-2 py-1 text-sm border rounded col-span-2"
+                                                                    rows={2}
+                                                                    placeholder="Pontos negativos..."
+                                                                />
+                                                                <textarea
+                                                                    value={newVisit.proximosPassos}
+                                                                    onChange={(e) => setNewVisit({ ...newVisit, proximosPassos: e.target.value })}
+                                                                    className="px-2 py-1 text-sm border rounded col-span-2"
+                                                                    rows={2}
+                                                                    placeholder="Próximos passos..."
+                                                                />
+                                                            </>
+                                                        )}
+
+                                                        <textarea
+                                                            value={newVisit.notas}
+                                                            onChange={(e) => setNewVisit({ ...newVisit, notas: e.target.value })}
+                                                            className="px-2 py-1 text-sm border rounded col-span-2"
+                                                            rows={2}
+                                                            placeholder="Notas gerais..."
+                                                        />
+                                                    </div>
+                                                    <div className="mt-2 flex gap-2">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleAddOrUpdateVisit(property.id)}
+                                                            className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
+                                                        >
+                                                            {editingVisit ? 'Atualizar' : 'Adicionar'} Visita
+                                                        </button>
+                                                        {editingVisit && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setEditingVisit(null);
+                                                                    setShowVisitForm(false);
+                                                                    setNewVisit({
+                                                                        data: '',
+                                                                        hora: '',
+                                                                        estado: VISIT_STATES.SCHEDULED,
+                                                                        notas: '',
+                                                                        feedback: '',
+                                                                        interesseNivel: 'medio',
+                                                                        pontosPositivos: '',
+                                                                        pontosNegativos: '',
+                                                                        proximosPassos: ''
+                                                                    });
+                                                                }}
+                                                                className="px-3 py-1 border border-gray-300 text-gray-700 text-sm rounded hover:bg-gray-50"
+                                                            >
+                                                                Cancelar Edição
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Lista de visitas com opção de editar */}
+                                            {property.visitas.map((visit) => (
+                                                <div key={visit.id} className="flex items-center justify-between text-xs bg-white rounded p-2 mb-1">
+                                                    <div className="flex-1">
+                                                        <span className={`inline-block px-1.5 py-0.5 rounded text-xs mr-2 ${visit.estado === VISIT_STATES.COMPLETED ? 'bg-green-100 text-green-700' :
+                                                                visit.estado === VISIT_STATES.CANCELLED ? 'bg-red-100 text-red-700' :
+                                                                    visit.estado === VISIT_STATES.CONFIRMED ? 'bg-blue-100 text-blue-700' :
+                                                                        'bg-gray-100 text-gray-700'
+                                                            }`}>
+                                                            {VISIT_STATE_LABELS[visit.estado]?.split(' ')[0]}
+                                                        </span>
                                                         {visit.data} às {visit.hora}
                                                         {visit.interesseNivel === 'muito_alto' && ' 🤩'}
                                                         {visit.interesseNivel === 'alto' && ' 😊'}
                                                         {visit.interesseNivel === 'medio' && ' 🙂'}
-                                                        {visit.interesseNivel === 'baixo' && ' 😐'}
+                                                        {visit.interesseNivel === 'baixo' && ' 😔'}
+                                                        {visit.feedback && <ChatBubbleLeftRightIcon className="w-3 h-3 inline ml-1 text-gray-400" />}
                                                     </div>
-                                                ))}
-                                            </div>
-
-                                            {/* Ofertas */}
-                                            <div className="flex-1">
-                                                <div className="flex items-center justify-between mb-2">
-                                                    <span className="text-sm font-medium text-gray-700">
-                                                        💶 Ofertas ({property.ofertas.length})
-                                                    </span>
-                                                    {selectedProperty?.id === property.id && showOfferForm ? (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => {
-                                                                setShowOfferForm(false);
-                                                                setSelectedProperty(null);
-                                                            }}
-                                                            className="text-xs text-red-600"
-                                                        >
-                                                            Cancelar
-                                                        </button>
-                                                    ) : (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => {
-                                                                setSelectedProperty(property);
-                                                                setShowOfferForm(true);
-                                                            }}
-                                                            className="text-xs text-green-600"
-                                                        >
-                                                            + Nova Oferta
-                                                        </button>
-                                                    )}
-                                                </div>
-
-                                                {/* Form de nova oferta inline */}
-                                                {selectedProperty?.id === property.id && showOfferForm && (
-                                                    <div className="bg-green-50 rounded p-2 mb-2">
-                                                        <div className="grid grid-cols-2 gap-2">
-                                                            <input
-                                                                type="number"
-                                                                value={newOffer.valor}
-                                                                onChange={(e) => setNewOffer({ ...newOffer, valor: e.target.value })}
-                                                                className="px-2 py-1 text-sm border rounded"
-                                                                placeholder="Valor €"
-                                                            />
-                                                            <select
-                                                                value={newOffer.status}
-                                                                onChange={(e) => setNewOffer({ ...newOffer, status: e.target.value })}
-                                                                className="px-2 py-1 text-sm border rounded"
-                                                            >
-                                                                <option value="rascunho">📝 Rascunho</option>
-                                                                <option value="submetida">📤 Submetida</option>
-                                                                <option value="negociacao">🤝 Negociação</option>
-                                                                <option value="aceite">✅ Aceite</option>
-                                                                <option value="rejeitada">❌ Rejeitada</option>
-                                                            </select>
-                                                            <textarea
-                                                                value={newOffer.condicoes}
-                                                                onChange={(e) => setNewOffer({ ...newOffer, condicoes: e.target.value })}
-                                                                className="px-2 py-1 text-sm border rounded col-span-2"
-                                                                rows={2}
-                                                                placeholder="Condições da oferta..."
-                                                            />
-                                                        </div>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => handleAddOfferToProperty(property.id)}
-                                                            className="mt-2 px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700"
-                                                        >
-                                                            Adicionar Oferta
-                                                        </button>
-                                                    </div>
-                                                )}
-
-                                                {/* Lista de ofertas */}
-                                                {property.ofertas.map((offer) => (
-                                                    <div key={offer.id} className="text-xs bg-white rounded p-1 mb-1">
-                                                        €{parseFloat(offer.valor).toLocaleString('pt-PT')} - {offer.status}
-                                                        {offer.status === 'aceite' && ' ✅'}
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-
-                                        {/* Estado de Negócio - Fase de Fecho */}
-                                        {property.ofertas.some(o => o.status === 'aceite') && (
-                                            <div className="border-t mt-3 pt-3">
-                                                <p className="text-sm font-medium text-gray-700 mb-2">📋 Fase de Fecho</p>
-                                                <div className="flex gap-2">
                                                     <button
                                                         type="button"
-                                                        onClick={() => handleUpdatePropertyStatus(property.id, 'cpcv')}
-                                                        className={`px-2 py-1 text-xs rounded ${property.estadoNegocio === 'cpcv'
-                                                                ? 'bg-purple-600 text-white'
-                                                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                                                            }`}
+                                                        onClick={() => handleEditVisit(property, visit)}
+                                                        className="p-1 text-blue-600 hover:bg-blue-50 rounded"
                                                     >
-                                                        CPCV
+                                                        <PencilIcon className="w-3 h-3" />
                                                     </button>
+                                                </div>
+                                            ))}
+                                        </div>
+
+                                        {/* Sistema de Ofertas Melhorado */}
+                                        <div className="border-t pt-3 mt-3">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <span className="text-sm font-medium text-gray-700">
+                                                    💶 Ofertas/Propostas ({property.ofertas.length})
+                                                </span>
+                                                {selectedProperty?.id === property.id && showOfferForm && !editingOffer ? (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setShowOfferForm(false);
+                                                            setSelectedProperty(null);
+                                                        }}
+                                                        className="text-xs text-red-600"
+                                                    >
+                                                        Cancelar
+                                                    </button>
+                                                ) : (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setSelectedProperty(property);
+                                                            setShowOfferForm(true);
+                                                            setEditingOffer(null);
+                                                            setNewOffer({
+                                                                valor: '',
+                                                                data: '',
+                                                                condicoes: '',
+                                                                status: OFFER_STATES.DRAFT,
+                                                                notas: '',
+                                                                isContraproposta: false,
+                                                                valorContraproposta: '',
+                                                                condicoesContraproposta: '',
+                                                                justificacao: ''
+                                                            });
+                                                        }}
+                                                        className="text-xs text-green-600"
+                                                    >
+                                                        + Nova Oferta
+                                                    </button>
+                                                )}
+                                            </div>
+
+                                            {/* Formulário de Oferta Melhorado */}
+                                            {selectedProperty?.id === property.id && showOfferForm && (
+                                                <div className="bg-green-50 rounded p-3 mb-2">
+                                                    <h4 className="font-medium text-sm mb-2">
+                                                        {editingOffer ? 'Editar Oferta' : 'Nova Oferta'}
+                                                    </h4>
+                                                    <div className="grid grid-cols-2 gap-2">
+                                                        <input
+                                                            type="number"
+                                                            value={newOffer.valor}
+                                                            onChange={(e) => setNewOffer({ ...newOffer, valor: e.target.value })}
+                                                            className="px-2 py-1 text-sm border rounded"
+                                                            placeholder="Valor €"
+                                                        />
+                                                        <input
+                                                            type="date"
+                                                            value={newOffer.data}
+                                                            onChange={(e) => setNewOffer({ ...newOffer, data: e.target.value })}
+                                                            className="px-2 py-1 text-sm border rounded"
+                                                        />
+                                                        <select
+                                                            value={newOffer.status}
+                                                            onChange={(e) => setNewOffer({ ...newOffer, status: e.target.value })}
+                                                            className="px-2 py-1 text-sm border rounded col-span-2"
+                                                        >
+                                                            {Object.entries(OFFER_STATE_LABELS).map(([state, label]) => (
+                                                                <option key={state} value={state}>{label}</option>
+                                                            ))}
+                                                        </select>
+
+                                                        {/* Campos de Contraproposta */}
+                                                        {newOffer.status === OFFER_STATES.COUNTER_OFFER && (
+                                                            <>
+                                                                <div className="col-span-2 border-t pt-2 mt-2">
+                                                                    <label className="text-xs font-medium text-gray-600">Dados da Contraproposta</label>
+                                                                </div>
+                                                                <input
+                                                                    type="number"
+                                                                    value={newOffer.valorContraproposta}
+                                                                    onChange={(e) => setNewOffer({ ...newOffer, valorContraproposta: e.target.value })}
+                                                                    className="px-2 py-1 text-sm border rounded col-span-2"
+                                                                    placeholder="Valor contraproposta €"
+                                                                />
+                                                                <textarea
+                                                                    value={newOffer.condicoesContraproposta}
+                                                                    onChange={(e) => setNewOffer({ ...newOffer, condicoesContraproposta: e.target.value })}
+                                                                    className="px-2 py-1 text-sm border rounded col-span-2"
+                                                                    rows={2}
+                                                                    placeholder="Condições da contraproposta..."
+                                                                />
+                                                                <textarea
+                                                                    value={newOffer.justificacao}
+                                                                    onChange={(e) => setNewOffer({ ...newOffer, justificacao: e.target.value })}
+                                                                    className="px-2 py-1 text-sm border rounded col-span-2"
+                                                                    rows={2}
+                                                                    placeholder="Justificação..."
+                                                                />
+                                                            </>
+                                                        )}
+
+                                                        <textarea
+                                                            value={newOffer.condicoes}
+                                                            onChange={(e) => setNewOffer({ ...newOffer, condicoes: e.target.value })}
+                                                            className="px-2 py-1 text-sm border rounded col-span-2"
+                                                            rows={2}
+                                                            placeholder="Condições gerais..."
+                                                        />
+                                                    </div>
+                                                    <div className="mt-2 flex gap-2">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleAddOrUpdateOffer(property.id)}
+                                                            className="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700"
+                                                        >
+                                                            {editingOffer ? 'Atualizar' : 'Adicionar'} Oferta
+                                                        </button>
+                                                        {editingOffer && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setEditingOffer(null);
+                                                                    setShowOfferForm(false);
+                                                                    setNewOffer({
+                                                                        valor: '',
+                                                                        data: '',
+                                                                        condicoes: '',
+                                                                        status: OFFER_STATES.DRAFT,
+                                                                        notas: '',
+                                                                        isContraproposta: false,
+                                                                        valorContraproposta: '',
+                                                                        condicoesContraproposta: '',
+                                                                        justificacao: ''
+                                                                    });
+                                                                }}
+                                                                className="px-3 py-1 border border-gray-300 text-gray-700 text-sm rounded hover:bg-gray-50"
+                                                            >
+                                                                Cancelar Edição
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Lista de ofertas com opção de editar */}
+                                            {property.ofertas.map((offer) => (
+                                                <div key={offer.id} className="flex items-center justify-between text-xs bg-white rounded p-2 mb-1">
+                                                    <div className="flex-1">
+                                                        <span className={`inline-block px-1.5 py-0.5 rounded text-xs mr-2 ${offer.status === OFFER_STATES.ACCEPTED ? 'bg-green-100 text-green-700' :
+                                                                offer.status === OFFER_STATES.REJECTED ? 'bg-red-100 text-red-700' :
+                                                                    offer.status === OFFER_STATES.NEGOTIATION ? 'bg-orange-100 text-orange-700' :
+                                                                        offer.status === OFFER_STATES.COUNTER_OFFER ? 'bg-yellow-100 text-yellow-700' :
+                                                                            'bg-gray-100 text-gray-700'
+                                                            }`}>
+                                                            {OFFER_STATE_LABELS[offer.status]?.split(' ')[0]}
+                                                        </span>
+                                                        €{parseFloat(offer.valor || 0).toLocaleString('pt-PT')}
+                                                        {offer.valorContraproposta && ` → €${parseFloat(offer.valorContraproposta).toLocaleString('pt-PT')}`}
+                                                        {offer.data && ` em ${offer.data}`}
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleEditOffer(property, offer)}
+                                                        className="p-1 text-blue-600 hover:bg-blue-50 rounded"
+                                                    >
+                                                        <PencilIcon className="w-3 h-3" />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+
+                                        {/* Sistema CPCV */}
+                                        {property.ofertas.some(o => o.status === OFFER_STATES.ACCEPTED) && !property.cpcv && (
+                                            <div className="border-t mt-3 pt-3">
+                                                <div className="bg-yellow-50 border border-yellow-200 rounded p-2 mb-2">
+                                                    <p className="text-xs text-yellow-800 flex items-center">
+                                                        <ExclamationCircleIcon className="w-4 h-4 mr-1" />
+                                                        Proposta aceite - Criar CPCV
+                                                    </p>
+                                                </div>
+                                                {showCPCVForm && selectedProperty?.id === property.id ? (
+                                                    <div className="bg-purple-50 rounded p-3">
+                                                        <h4 className="font-medium text-sm mb-2">📋 Dados do CPCV</h4>
+                                                        <div className="grid grid-cols-2 gap-2">
+                                                            <input
+                                                                type="text"
+                                                                value={cpcvData.numeroContrato}
+                                                                onChange={(e) => setCpcvData({ ...cpcvData, numeroContrato: e.target.value })}
+                                                                className="px-2 py-1 text-sm border rounded"
+                                                                placeholder="Nº Contrato"
+                                                            />
+                                                            <input
+                                                                type="date"
+                                                                value={cpcvData.dataAssinatura}
+                                                                onChange={(e) => setCpcvData({ ...cpcvData, dataAssinatura: e.target.value })}
+                                                                className="px-2 py-1 text-sm border rounded"
+                                                                placeholder="Data Assinatura"
+                                                            />
+                                                            <input
+                                                                type="number"
+                                                                value={cpcvData.valorVenda}
+                                                                onChange={(e) => setCpcvData({ ...cpcvData, valorVenda: e.target.value })}
+                                                                className="px-2 py-1 text-sm border rounded"
+                                                                placeholder="Valor Venda €"
+                                                            />
+                                                            <input
+                                                                type="number"
+                                                                value={cpcvData.sinal}
+                                                                onChange={(e) => setCpcvData({ ...cpcvData, sinal: e.target.value })}
+                                                                className="px-2 py-1 text-sm border rounded"
+                                                                placeholder="Sinal €"
+                                                            />
+                                                            <input
+                                                                type="date"
+                                                                value={cpcvData.dataEscritura}
+                                                                onChange={(e) => setCpcvData({ ...cpcvData, dataEscritura: e.target.value })}
+                                                                className="px-2 py-1 text-sm border rounded col-span-2"
+                                                                placeholder="Data Escritura"
+                                                            />
+                                                            <div className="col-span-2">
+                                                                <label className="flex items-center">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={cpcvData.financiamento}
+                                                                        onChange={(e) => setCpcvData({ ...cpcvData, financiamento: e.target.checked })}
+                                                                        className="rounded border-gray-300 text-blue-600 mr-2"
+                                                                    />
+                                                                    <span className="text-sm">Necessita Financiamento</span>
+                                                                </label>
+                                                            </div>
+                                                            {cpcvData.financiamento && (
+                                                                <>
+                                                                    <input
+                                                                        type="text"
+                                                                        value={cpcvData.banco}
+                                                                        onChange={(e) => setCpcvData({ ...cpcvData, banco: e.target.value })}
+                                                                        className="px-2 py-1 text-sm border rounded"
+                                                                        placeholder="Banco"
+                                                                    />
+                                                                    <input
+                                                                        type="number"
+                                                                        value={cpcvData.valorCredito}
+                                                                        onChange={(e) => setCpcvData({ ...cpcvData, valorCredito: e.target.value })}
+                                                                        className="px-2 py-1 text-sm border rounded"
+                                                                        placeholder="Valor Crédito €"
+                                                                    />
+                                                                    <div className="col-span-2">
+                                                                        <label className="flex items-center">
+                                                                            <input
+                                                                                type="checkbox"
+                                                                                checked={cpcvData.dipEmitido}
+                                                                                onChange={(e) => setCpcvData({ ...cpcvData, dipEmitido: e.target.checked })}
+                                                                                className="rounded border-gray-300 text-blue-600 mr-2"
+                                                                            />
+                                                                            <span className="text-sm">DIP Emitido</span>
+                                                                        </label>
+                                                                    </div>
+                                                                    {cpcvData.dipEmitido && (
+                                                                        <input
+                                                                            type="text"
+                                                                            value={cpcvData.numeroDIP}
+                                                                            onChange={(e) => setCpcvData({ ...cpcvData, numeroDIP: e.target.value })}
+                                                                            className="px-2 py-1 text-sm border rounded col-span-2"
+                                                                            placeholder="Número DIP"
+                                                                        />
+                                                                    )}
+                                                                </>
+                                                            )}
+                                                        </div>
+                                                        <div className="mt-2 flex gap-2">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleSaveCPCV(property.id)}
+                                                                className="px-3 py-1 bg-purple-600 text-white text-sm rounded hover:bg-purple-700"
+                                                            >
+                                                                Guardar CPCV
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setShowCPCVForm(false)}
+                                                                className="px-3 py-1 border border-gray-300 text-gray-700 text-sm rounded hover:bg-gray-50"
+                                                            >
+                                                                Cancelar
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setSelectedProperty(property);
+                                                            setShowCPCVForm(true);
+                                                            setCpcvData(prev => ({
+                                                                ...prev,
+                                                                valorVenda: property.ofertas.find(o => o.status === OFFER_STATES.ACCEPTED)?.valor || ''
+                                                            }));
+                                                        }}
+                                                        className="px-3 py-1.5 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 flex items-center gap-1"
+                                                    >
+                                                        <DocumentTextIcon className="w-4 h-4" />
+                                                        Criar CPCV
+                                                    </button>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {/* Mostrar dados do CPCV se existir */}
+                                        {property.cpcv && (
+                                            <div className="border-t mt-3 pt-3">
+                                                <div className="bg-purple-50 rounded p-2">
+                                                    <p className="text-sm font-medium text-purple-900 mb-1">
+                                                        📋 CPCV - {property.cpcv.numeroContrato}
+                                                    </p>
+                                                    <div className="text-xs text-purple-700 space-y-1">
+                                                        <p>Assinatura: {property.cpcv.dataAssinatura}</p>
+                                                        <p>Valor: €{parseFloat(property.cpcv.valorVenda || 0).toLocaleString('pt-PT')}</p>
+                                                        <p>Sinal: €{parseFloat(property.cpcv.sinal || 0).toLocaleString('pt-PT')}</p>
+                                                        <p>Escritura: {property.cpcv.dataEscritura}</p>
+                                                        {property.cpcv.dipEmitido && (
+                                                            <p className="text-green-700">✓ DIP Emitido: {property.cpcv.numeroDIP}</p>
+                                                        )}
+                                                    </div>
                                                     <button
                                                         type="button"
                                                         onClick={() => handleUpdatePropertyStatus(property.id, 'escritura')}
-                                                        className={`px-2 py-1 text-xs rounded ${property.estadoNegocio === 'escritura'
-                                                                ? 'bg-indigo-600 text-white'
-                                                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                                                            }`}
+                                                        className="mt-2 px-2 py-1 bg-indigo-600 text-white text-xs rounded hover:bg-indigo-700"
                                                     >
-                                                        Escritura
+                                                        Marcar Escritura Realizada
                                                     </button>
                                                 </div>
                                             </div>

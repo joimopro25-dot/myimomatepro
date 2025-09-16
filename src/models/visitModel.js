@@ -1,197 +1,194 @@
 /**
  * VISIT MODEL - MyImoMatePro
- * Schema para Gestão de Visitas a Imóveis
+ * Schema para gestão de visitas
  * 
  * Caminho: src/models/visitModel.js
  */
 
 import { Timestamp } from 'firebase/firestore';
 
-// ===== ENUMS E CONSTANTES =====
-
-export const VISIT_STATUS = {
+// ===== ESTADOS DE VISITA =====
+export const VISIT_STATES = {
     SCHEDULED: 'agendada',
     CONFIRMED: 'confirmada',
-    COMPLETED: 'realizada',
+    COMPLETED: 'efetuada',
     CANCELLED: 'cancelada',
     NO_SHOW: 'nao_compareceu',
     RESCHEDULED: 'reagendada'
 };
 
+export const VISIT_STATE_LABELS = {
+    [VISIT_STATES.SCHEDULED]: 'Agendada',
+    [VISIT_STATES.CONFIRMED]: 'Confirmada',
+    [VISIT_STATES.COMPLETED]: 'Efetuada',
+    [VISIT_STATES.CANCELLED]: 'Cancelada',
+    [VISIT_STATES.NO_SHOW]: 'Não Compareceu',
+    [VISIT_STATES.RESCHEDULED]: 'Reagendada'
+};
+
+// ===== TIPOS DE VISITA =====
 export const VISIT_TYPES = {
     FIRST_VISIT: 'primeira_visita',
     SECOND_VISIT: 'segunda_visita',
     TECHNICAL_VISIT: 'visita_tecnica',
-    EVALUATION: 'avaliacao',
-    VIRTUAL: 'virtual',
-    WITH_FAMILY: 'com_familia',
-    WITH_TECHNICIAN: 'com_tecnico'
-};
-
-export const FEEDBACK_RATING = {
-    VERY_NEGATIVE: 1,
-    NEGATIVE: 2,
-    NEUTRAL: 3,
-    POSITIVE: 4,
-    VERY_POSITIVE: 5
-};
-
-export const VISIT_INTEREST_LEVEL = {
-    NO_INTEREST: 'sem_interesse',
-    LOW: 'baixo',
-    MEDIUM: 'medio',
-    HIGH: 'alto',
-    VERY_HIGH: 'muito_alto',
-    READY_TO_OFFER: 'pronto_para_oferta'
-};
-
-// ===== LABELS =====
-
-export const VISIT_STATUS_LABELS = {
-    [VISIT_STATUS.SCHEDULED]: 'Agendada',
-    [VISIT_STATUS.CONFIRMED]: 'Confirmada',
-    [VISIT_STATUS.COMPLETED]: 'Realizada',
-    [VISIT_STATUS.CANCELLED]: 'Cancelada',
-    [VISIT_STATUS.NO_SHOW]: 'Não Compareceu',
-    [VISIT_STATUS.RESCHEDULED]: 'Reagendada'
+    FINAL_VISIT: 'visita_final',
+    OPEN_HOUSE: 'open_house'
 };
 
 export const VISIT_TYPE_LABELS = {
     [VISIT_TYPES.FIRST_VISIT]: 'Primeira Visita',
     [VISIT_TYPES.SECOND_VISIT]: 'Segunda Visita',
     [VISIT_TYPES.TECHNICAL_VISIT]: 'Visita Técnica',
-    [VISIT_TYPES.EVALUATION]: 'Avaliação',
-    [VISIT_TYPES.VIRTUAL]: 'Visita Virtual',
-    [VISIT_TYPES.WITH_FAMILY]: 'Visita com Família',
-    [VISIT_TYPES.WITH_TECHNICIAN]: 'Visita com Técnico'
+    [VISIT_TYPES.FINAL_VISIT]: 'Visita Final',
+    [VISIT_TYPES.OPEN_HOUSE]: 'Open House'
+};
+
+// ===== NÍVEIS DE INTERESSE =====
+export const INTEREST_LEVELS = {
+    NO_INTEREST: 'sem_interesse',
+    LOW: 'baixo',
+    MEDIUM: 'medio',
+    HIGH: 'alto',
+    VERY_HIGH: 'muito_alto'
 };
 
 export const INTEREST_LEVEL_LABELS = {
-    [VISIT_INTEREST_LEVEL.NO_INTEREST]: 'Sem Interesse',
-    [VISIT_INTEREST_LEVEL.LOW]: 'Baixo',
-    [VISIT_INTEREST_LEVEL.MEDIUM]: 'Médio',
-    [VISIT_INTEREST_LEVEL.HIGH]: 'Alto',
-    [VISIT_INTEREST_LEVEL.VERY_HIGH]: 'Muito Alto',
-    [VISIT_INTEREST_LEVEL.READY_TO_OFFER]: 'Pronto para Oferta'
+    [INTEREST_LEVELS.NO_INTEREST]: '😐 Sem Interesse',
+    [INTEREST_LEVELS.LOW]: '😔 Baixo',
+    [INTEREST_LEVELS.MEDIUM]: '🙂 Médio',
+    [INTEREST_LEVELS.HIGH]: '😊 Alto',
+    [INTEREST_LEVELS.VERY_HIGH]: '🤩 Muito Alto'
+};
+
+// ===== FEEDBACK CATEGORIES =====
+export const FEEDBACK_CATEGORIES = {
+    PRICE: 'preco',
+    LOCATION: 'localizacao',
+    CONDITION: 'estado',
+    SIZE: 'tamanho',
+    FEATURES: 'caracteristicas',
+    NEIGHBORHOOD: 'vizinhanca',
+    DOCUMENTATION: 'documentacao',
+    OTHER: 'outro'
+};
+
+export const FEEDBACK_CATEGORY_LABELS = {
+    [FEEDBACK_CATEGORIES.PRICE]: 'Preço',
+    [FEEDBACK_CATEGORIES.LOCATION]: 'Localização',
+    [FEEDBACK_CATEGORIES.CONDITION]: 'Estado do Imóvel',
+    [FEEDBACK_CATEGORIES.SIZE]: 'Tamanho',
+    [FEEDBACK_CATEGORIES.FEATURES]: 'Características',
+    [FEEDBACK_CATEGORIES.NEIGHBORHOOD]: 'Vizinhança',
+    [FEEDBACK_CATEGORIES.DOCUMENTATION]: 'Documentação',
+    [FEEDBACK_CATEGORIES.OTHER]: 'Outro'
 };
 
 // ===== SCHEMA DA VISITA =====
-
-export const createVisitSchema = (visitData) => {
+export const createVisitSchema = (visitData = {}) => {
     return {
         // Metadados
         id: null,
         opportunityId: visitData.opportunityId || null,
-        clienteId: visitData.clienteId || null,
+        propertyId: visitData.propertyId || null,
+        clientId: visitData.clientId || null,
         consultorId: visitData.consultorId || null,
-        propertyId: visitData.propertyId || null, // Se houver sistema de imóveis
         createdAt: Timestamp.now(),
         updatedAt: Timestamp.now(),
 
         // Informações da Visita
         tipo: visitData.tipo || VISIT_TYPES.FIRST_VISIT,
-        status: visitData.status || VISIT_STATUS.SCHEDULED,
-
-        // Agendamento
+        estado: visitData.estado || VISIT_STATES.SCHEDULED,
         dataVisita: visitData.dataVisita || null,
         horaInicio: visitData.horaInicio || '',
         horaFim: visitData.horaFim || '',
         duracao: visitData.duracao || 30, // minutos
 
-        // Local
-        endereco: visitData.endereco || '',
-        pontoEncontro: visitData.pontoEncontro || '', // Ex: "Na portaria do prédio"
-        coordenadas: {
-            latitude: visitData.coordenadas?.latitude || null,
-            longitude: visitData.coordenadas?.longitude || null
-        },
+        // Dados do Imóvel
+        imovelReferencia: visitData.imovelReferencia || '',
+        imovelEndereco: visitData.imovelEndereco || '',
+        imovelTipologia: visitData.imovelTipologia || '',
 
         // Participantes
-        participantes: {
+        participantes: visitData.participantes || {
             cliente: {
                 nome: visitData.participantes?.cliente?.nome || '',
                 telefone: visitData.participantes?.cliente?.telefone || '',
                 confirmado: visitData.participantes?.cliente?.confirmado || false
             },
-            acompanhantes: visitData.participantes?.acompanhantes || [], // Array de pessoas
             agente: {
                 nome: visitData.participantes?.agente?.nome || '',
-                telefone: visitData.participantes?.agente?.telefone || '',
-                agencia: visitData.participantes?.agente?.agencia || ''
+                telefone: visitData.participantes?.agente?.telefone || ''
             },
-            proprietario: {
-                presente: visitData.participantes?.proprietario?.presente || false,
-                nome: visitData.participantes?.proprietario?.nome || '',
-                telefone: visitData.participantes?.proprietario?.telefone || ''
-            }
+            acompanhantes: visitData.participantes?.acompanhantes || []
         },
 
         // Preparação
-        preparacao: {
-            chavesRecolhidas: visitData.preparacao?.chavesRecolhidas || false,
-            localChaves: visitData.preparacao?.localChaves || '',
-            documentosNecessarios: visitData.preparacao?.documentosNecessarios || [],
-            instrucoesEspeciais: visitData.preparacao?.instrucoesEspeciais || ''
+        preparacao: visitData.preparacao || {
+            chavesRecolhidas: false,
+            imovelPreparado: false,
+            documentosImpressos: false,
+            rotaPlanada: false,
+            clienteConfirmado: false,
+            lembreteEnviado: false
         },
 
         // Feedback (preenchido após a visita)
-        feedback: {
-            realizada: visitData.feedback?.realizada || false,
-            rating: visitData.feedback?.rating || null,
-            interesseNivel: visitData.feedback?.interesseNivel || '',
+        feedback: visitData.feedback || {
+            realizada: false,
+            interesseNivel: null,
+            pontosPositivos: [],
+            pontosNegativos: [],
+            objecoes: [],
+            categoriasPrincipais: [],
+            comentarioGeral: '',
+            proximosPassos: '',
+            probabilidadeCompra: 0, // 0-100%
 
-            // Pontos Positivos e Negativos
-            pontosPositivos: visitData.feedback?.pontosPositivos || [],
-            pontosNegativos: visitData.feedback?.pontosNegativos || [],
+            // Detalhes específicos
+            precoAdequado: null, // true/false/null
+            localizacaoAprovada: null,
+            tamanhoAdequado: null,
+            estadoAprovado: null,
 
-            // Questões do Cliente
-            questoes: visitData.feedback?.questoes || [],
-            objecoes: visitData.feedback?.objecoes || [],
-
-            // Próximos Passos
-            proximosPassos: visitData.feedback?.proximosPassos || '',
-            necessitaSegundaVisita: visitData.feedback?.necessitaSegundaVisita || false,
-            prontoParaOferta: visitData.feedback?.prontoParaOferta || false,
-
-            // Comparação com outros imóveis
-            comparacoes: visitData.feedback?.comparacoes || [],
-
-            // Observações
-            observacoes: visitData.feedback?.observacoes || ''
+            // Questões levantadas
+            questoes: [],
+            documentosSolicitados: []
         },
 
         // Follow-up
-        followUp: {
-            necessario: visitData.followUp?.necessario || true,
-            dataContacto: visitData.followUp?.dataContacto || null,
-            metodoContacto: visitData.followUp?.metodoContacto || 'telefone', // telefone, email, whatsapp
-            notas: visitData.followUp?.notas || '',
-            realizado: visitData.followUp?.realizado || false,
-            resultadoContacto: visitData.followUp?.resultadoContacto || ''
+        followUp: visitData.followUp || {
+            necessario: false,
+            dataContacto: null,
+            tipoContacto: '', // email, telefone, whatsapp
+            notas: '',
+            tarefasCriadas: []
         },
 
-        // Notificações e Lembretes
-        notificacoes: {
-            lembrete24h: visitData.notificacoes?.lembrete24h || true,
-            lembrete2h: visitData.notificacoes?.lembrete2h || true,
-            smsCliente: visitData.notificacoes?.smsCliente || false,
-            emailCliente: visitData.notificacoes?.emailCliente || false
+        // Cancelamento (se aplicável)
+        cancelamento: visitData.cancelamento || {
+            motivo: '',
+            data: null,
+            reagendada: false,
+            novaData: null
         },
 
-        // Histórico de Alterações
-        historico: visitData.historico || [],
+        // Observações
+        observacoes: visitData.observacoes || '',
+        notasPrivadas: visitData.notasPrivadas || '', // Notas internas não visíveis ao cliente
 
-        // Notas Gerais
-        notas: visitData.notas || ''
+        // Anexos
+        anexos: visitData.anexos || [],
+        fotos: visitData.fotos || [],
+
+        // Controle
+        isActive: true
     };
 };
 
 // ===== VALIDAÇÃO =====
-
 export const validateVisitData = (data) => {
     const errors = {};
 
-    // Validações obrigatórias
     if (!data.dataVisita) {
         errors.dataVisita = 'Data da visita é obrigatória';
     }
@@ -200,23 +197,20 @@ export const validateVisitData = (data) => {
         errors.horaInicio = 'Hora de início é obrigatória';
     }
 
-    if (!data.endereco && !data.propertyId) {
-        errors.endereco = 'Endereço ou imóvel é obrigatório';
+    if (!data.imovelReferencia) {
+        errors.imovelReferencia = 'Referência do imóvel é obrigatória';
     }
 
-    // Validar participantes
     if (!data.participantes?.cliente?.nome) {
         errors.clienteNome = 'Nome do cliente é obrigatório';
     }
 
-    // Validar datas
-    if (data.dataVisita) {
+    // Validação de datas futuras para visitas agendadas
+    if (data.estado === VISIT_STATES.SCHEDULED) {
         const visitDate = new Date(data.dataVisita);
         const now = new Date();
-        now.setHours(0, 0, 0, 0);
-
         if (visitDate < now) {
-            errors.dataVisita = 'Data da visita não pode ser no passado';
+            errors.dataVisita = 'Não é possível agendar visitas no passado';
         }
     }
 
@@ -228,101 +222,132 @@ export const validateVisitData = (data) => {
 
 // ===== HELPERS =====
 
+// Calcular duração da visita
 export const calculateVisitDuration = (horaInicio, horaFim) => {
-    if (!horaInicio || !horaFim) return 30; // default 30 minutos
+    const [inicioHora, inicioMinuto] = horaInicio.split(':').map(Number);
+    const [fimHora, fimMinuto] = horaFim.split(':').map(Number);
 
-    const [inicioHoras, inicioMinutos] = horaInicio.split(':').map(Number);
-    const [fimHoras, fimMinutos] = horaFim.split(':').map(Number);
+    const inicioEmMinutos = inicioHora * 60 + inicioMinuto;
+    const fimEmMinutos = fimHora * 60 + fimMinuto;
 
-    const inicioTotal = inicioHoras * 60 + inicioMinutos;
-    const fimTotal = fimHoras * 60 + fimMinutos;
-
-    return fimTotal - inicioTotal;
+    return fimEmMinutos - inicioEmMinutos;
 };
 
-export const getVisitStatusColor = (status) => {
-    const colors = {
-        [VISIT_STATUS.SCHEDULED]: 'blue',
-        [VISIT_STATUS.CONFIRMED]: 'green',
-        [VISIT_STATUS.COMPLETED]: 'gray',
-        [VISIT_STATUS.CANCELLED]: 'red',
-        [VISIT_STATUS.NO_SHOW]: 'orange',
-        [VISIT_STATUS.RESCHEDULED]: 'yellow'
+// Formatar data e hora para exibição
+export const formatVisitDateTime = (data, hora) => {
+    if (!data) return '';
+
+    const date = data.toDate ? data.toDate() : new Date(data);
+    const formatted = date.toLocaleDateString('pt-PT');
+
+    if (hora) {
+        return `${formatted} às ${hora}`;
+    }
+
+    return formatted;
+};
+
+// Calcular taxa de conversão de visitas
+export const calculateConversionRate = (visits) => {
+    if (!visits || visits.length === 0) return 0;
+
+    const completed = visits.filter(v => v.estado === VISIT_STATES.COMPLETED);
+    const withHighInterest = completed.filter(v =>
+        v.feedback?.interesseNivel === INTEREST_LEVELS.HIGH ||
+        v.feedback?.interesseNivel === INTEREST_LEVELS.VERY_HIGH
+    );
+
+    return completed.length > 0
+        ? Math.round((withHighInterest.length / completed.length) * 100)
+        : 0;
+};
+
+// Gerar lembrete de visita
+export const generateVisitReminder = (visit) => {
+    const visitDate = formatVisitDateTime(visit.dataVisita, visit.horaInicio);
+
+    return {
+        titulo: `Visita agendada - ${visit.imovelReferencia}`,
+        mensagem: `Lembrete: Visita ao imóvel ${visit.imovelReferencia} agendada para ${visitDate}`,
+        tipo: 'visita',
+        dados: {
+            visitId: visit.id,
+            clienteNome: visit.participantes?.cliente?.nome,
+            imovelEndereco: visit.imovelEndereco
+        }
     };
-    return colors[status] || 'gray';
 };
 
-export const getInterestLevelColor = (level) => {
-    const colors = {
-        [VISIT_INTEREST_LEVEL.NO_INTEREST]: 'red',
-        [VISIT_INTEREST_LEVEL.LOW]: 'orange',
-        [VISIT_INTEREST_LEVEL.MEDIUM]: 'yellow',
-        [VISIT_INTEREST_LEVEL.HIGH]: 'green',
-        [VISIT_INTEREST_LEVEL.VERY_HIGH]: 'emerald',
-        [VISIT_INTEREST_LEVEL.READY_TO_OFFER]: 'blue'
+// Calcular próximas ações baseadas no feedback
+export const suggestNextActions = (feedback) => {
+    const actions = [];
+
+    if (feedback.interesseNivel === INTEREST_LEVELS.VERY_HIGH) {
+        actions.push('Preparar proposta');
+        actions.push('Agendar segunda visita');
+    } else if (feedback.interesseNivel === INTEREST_LEVELS.HIGH) {
+        actions.push('Enviar mais informações');
+        actions.push('Agendar visita a imóveis similares');
+    } else if (feedback.interesseNivel === INTEREST_LEVELS.MEDIUM) {
+        actions.push('Manter contacto regular');
+        actions.push('Procurar alternativas');
+    }
+
+    if (feedback.objecoes?.includes('preco')) {
+        actions.push('Negociar preço com proprietário');
+    }
+
+    if (feedback.documentosSolicitados?.length > 0) {
+        actions.push('Providenciar documentos solicitados');
+    }
+
+    return actions;
+};
+
+// Status de preparação da visita
+export const getVisitPreparationStatus = (preparacao) => {
+    const total = Object.keys(preparacao).length;
+    const completed = Object.values(preparacao).filter(v => v === true).length;
+
+    return {
+        percentage: Math.round((completed / total) * 100),
+        completed,
+        total,
+        isReady: completed === total
     };
-    return colors[level] || 'gray';
 };
 
-// ===== TEMPLATES DE FEEDBACK =====
+// Exportar helpers de estatísticas
+export const getVisitStatistics = (visits) => {
+    const stats = {
+        total: visits.length,
+        scheduled: visits.filter(v => v.estado === VISIT_STATES.SCHEDULED).length,
+        completed: visits.filter(v => v.estado === VISIT_STATES.COMPLETED).length,
+        cancelled: visits.filter(v => v.estado === VISIT_STATES.CANCELLED).length,
+        conversionRate: calculateConversionRate(visits),
+        averageInterest: 0
+    };
 
-export const FEEDBACK_TEMPLATES = {
-    pontosPositivos: [
-        'Localização',
-        'Luminosidade',
-        'Área/Espaço',
-        'Vista',
-        'Estado de Conservação',
-        'Acabamentos',
-        'Garagem',
-        'Varanda/Terraço',
-        'Arrecadação',
-        'Condomínio',
-        'Transportes',
-        'Comércio Próximo',
-        'Escolas Próximas'
-    ],
+    // Calcular interesse médio
+    const completedWithFeedback = visits.filter(v =>
+        v.estado === VISIT_STATES.COMPLETED && v.feedback?.interesseNivel
+    );
 
-    pontosNegativos: [
-        'Preço',
-        'Necessita Obras',
-        'Barulho',
-        'Falta de Luz Natural',
-        'Área Pequena',
-        'Sem Garagem',
-        'Sem Elevador',
-        'Andar Baixo',
-        'Orientação Solar',
-        'Vizinhança',
-        'Despesas Condomínio'
-    ],
+    if (completedWithFeedback.length > 0) {
+        const interestMap = {
+            [INTEREST_LEVELS.NO_INTEREST]: 0,
+            [INTEREST_LEVELS.LOW]: 25,
+            [INTEREST_LEVELS.MEDIUM]: 50,
+            [INTEREST_LEVELS.HIGH]: 75,
+            [INTEREST_LEVELS.VERY_HIGH]: 100
+        };
 
-    objecoes: [
-        'Preço acima do orçamento',
-        'Necessita muitas obras',
-        'Localização não ideal',
-        'Área insuficiente',
-        'Não gostou do prédio',
-        'Preferência por outro tipo de imóvel',
-        'Ainda não está decidido',
-        'Quer ver mais opções',
-        'Aguarda aprovação de crédito',
-        'Precisa vender imóvel atual primeiro'
-    ]
-};
+        const totalInterest = completedWithFeedback.reduce((sum, v) =>
+            sum + (interestMap[v.feedback.interesseNivel] || 0), 0
+        );
 
-// ===== MENSAGENS AUTOMÁTICAS =====
+        stats.averageInterest = Math.round(totalInterest / completedWithFeedback.length);
+    }
 
-export const VISIT_MESSAGES = {
-    confirmacao: (visitData) =>
-        `Confirmação de visita agendada para ${visitData.dataVisita} às ${visitData.horaInicio} no endereço ${visitData.endereco}.`,
-
-    lembrete24h: (visitData) =>
-        `Lembrete: Tem uma visita agendada amanhã às ${visitData.horaInicio} no endereço ${visitData.endereco}.`,
-
-    lembrete2h: (visitData) =>
-        `Sua visita está agendada para daqui a 2 horas às ${visitData.horaInicio}. Endereço: ${visitData.endereco}.`,
-
-    followUp: (clientName) =>
-        `Olá ${clientName}, como foi sua experiência na visita de hoje? Gostaria de agendar uma segunda visita ou tem alguma questão?`
+    return stats;
 };

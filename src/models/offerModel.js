@@ -1,172 +1,166 @@
 /**
  * OFFER MODEL - MyImoMatePro
- * Schema para Gestão de Ofertas e Propostas
+ * Schema para gestão de propostas/ofertas
  * 
  * Caminho: src/models/offerModel.js
  */
 
 import { Timestamp } from 'firebase/firestore';
 
-// ===== ENUMS E CONSTANTES =====
-
-export const OFFER_STATUS = {
+// ===== ESTADOS DE PROPOSTA =====
+export const OFFER_STATES = {
     DRAFT: 'rascunho',
     SUBMITTED: 'submetida',
-    IN_NEGOTIATION: 'em_negociacao',
+    UNDER_REVIEW: 'em_analise',
+    COUNTER_OFFER: 'contraproposta',
     ACCEPTED: 'aceite',
-    REJECTED: 'rejeitada',
-    COUNTERED: 'contraproposta',
+    REJECTED: 'recusada',
     EXPIRED: 'expirada',
-    WITHDRAWN: 'retirada'
+    WITHDRAWN: 'retirada',
+    CPCV_PENDING: 'cpcv_pendente',
+    CPCV_SIGNED: 'cpcv_assinado'
 };
 
+export const OFFER_STATE_LABELS = {
+    [OFFER_STATES.DRAFT]: 'Rascunho',
+    [OFFER_STATES.SUBMITTED]: 'Submetida',
+    [OFFER_STATES.UNDER_REVIEW]: 'Em Análise',
+    [OFFER_STATES.COUNTER_OFFER]: 'Contraproposta',
+    [OFFER_STATES.ACCEPTED]: 'Aceite',
+    [OFFER_STATES.REJECTED]: 'Recusada',
+    [OFFER_STATES.EXPIRED]: 'Expirada',
+    [OFFER_STATES.WITHDRAWN]: 'Retirada',
+    [OFFER_STATES.CPCV_PENDING]: 'CPCV Pendente',
+    [OFFER_STATES.CPCV_SIGNED]: 'CPCV Assinado'
+};
+
+// ===== TIPOS DE PROPOSTA =====
 export const OFFER_TYPES = {
     PURCHASE: 'compra',
+    SALE: 'venda',
     RENT: 'arrendamento',
-    CPCV: 'cpcv', // Contrato Promessa Compra e Venda
-    RESERVATION: 'reserva'
+    RENT_TO_OWN: 'arrendamento_com_opcao'
 };
 
-export const PAYMENT_METHODS = {
-    BANK_TRANSFER: 'transferencia',
-    BANK_LOAN: 'credito_habitacao',
-    CASH: 'dinheiro',
-    CHECK: 'cheque',
-    MIXED: 'misto'
+export const OFFER_TYPE_LABELS = {
+    [OFFER_TYPES.PURCHASE]: 'Proposta de Compra',
+    [OFFER_TYPES.SALE]: 'Proposta de Venda',
+    [OFFER_TYPES.RENT]: 'Proposta de Arrendamento',
+    [OFFER_TYPES.RENT_TO_OWN]: 'Arrendamento com Opção de Compra'
 };
 
-export const NEGOTIATION_POINTS = {
-    PRICE: 'preco',
-    PAYMENT_TERMS: 'condicoes_pagamento',
-    CLOSING_DATE: 'data_escritura',
-    INCLUSIONS: 'incluidos',
-    REPAIRS: 'reparacoes',
-    DEPOSIT: 'sinal',
-    COMMISSION: 'comissao'
+// ===== CONDIÇÕES DE PAGAMENTO =====
+export const PAYMENT_CONDITIONS = {
+    CASH: 'pronto_pagamento',
+    BANK_LOAN: 'credito_bancario',
+    MIXED: 'misto',
+    INSTALLMENTS: 'prestacoes'
 };
 
-// ===== LABELS =====
-
-export const OFFER_STATUS_LABELS = {
-    [OFFER_STATUS.DRAFT]: 'Rascunho',
-    [OFFER_STATUS.SUBMITTED]: 'Submetida',
-    [OFFER_STATUS.IN_NEGOTIATION]: 'Em Negociação',
-    [OFFER_STATUS.ACCEPTED]: 'Aceite',
-    [OFFER_STATUS.REJECTED]: 'Rejeitada',
-    [OFFER_STATUS.COUNTERED]: 'Contraproposta',
-    [OFFER_STATUS.EXPIRED]: 'Expirada',
-    [OFFER_STATUS.WITHDRAWN]: 'Retirada'
+export const PAYMENT_CONDITION_LABELS = {
+    [PAYMENT_CONDITIONS.CASH]: 'Pronto Pagamento',
+    [PAYMENT_CONDITIONS.BANK_LOAN]: 'Crédito Bancário',
+    [PAYMENT_CONDITIONS.MIXED]: 'Misto',
+    [PAYMENT_CONDITIONS.INSTALLMENTS]: 'Prestações'
 };
 
-export const PAYMENT_METHOD_LABELS = {
-    [PAYMENT_METHODS.BANK_TRANSFER]: 'Transferência Bancária',
-    [PAYMENT_METHODS.BANK_LOAN]: 'Crédito Habitação',
-    [PAYMENT_METHODS.CASH]: 'Dinheiro',
-    [PAYMENT_METHODS.CHECK]: 'Cheque',
-    [PAYMENT_METHODS.MIXED]: 'Misto'
-};
-
-// ===== SCHEMA DA OFERTA =====
-
-export const createOfferSchema = (offerData) => {
+// ===== SCHEMA DA PROPOSTA =====
+export const createOfferSchema = (offerData = {}) => {
     return {
         // Metadados
         id: null,
         opportunityId: offerData.opportunityId || null,
-        clienteId: offerData.clienteId || null,
-        consultorId: offerData.consultorId || null,
         propertyId: offerData.propertyId || null,
+        clientId: offerData.clientId || null,
+        consultorId: offerData.consultorId || null,
         createdAt: Timestamp.now(),
         updatedAt: Timestamp.now(),
 
-        // Informações da Oferta
+        // Informações da Proposta
         tipo: offerData.tipo || OFFER_TYPES.PURCHASE,
-        status: offerData.status || OFFER_STATUS.DRAFT,
-        numeroOferta: offerData.numeroOferta || generateOfferNumber(),
+        estado: offerData.estado || OFFER_STATES.DRAFT,
+        numeroProposta: offerData.numeroProposta || generateProposalNumber(),
+        dataSubmissao: offerData.dataSubmissao || null,
+        dataValidade: offerData.dataValidade || null,
+        dataResposta: offerData.dataResposta || null,
 
         // Valores
         valores: {
             valorProposto: offerData.valores?.valorProposto || 0,
-            valorBase: offerData.valores?.valorBase || 0, // Preço pedido
+            valorOriginal: offerData.valores?.valorOriginal || 0, // Valor pedido inicial
             percentagemDesconto: offerData.valores?.percentagemDesconto || 0,
 
-            // Sinal e Entrada
+            // Detalhamento
             sinal: offerData.valores?.sinal || 0,
-            percentagemSinal: offerData.valores?.percentagemSinal || 10,
-            dataPagamentoSinal: offerData.valores?.dataPagamentoSinal || null,
-
-            // CPCV
+            sinalPercentagem: offerData.valores?.sinalPercentagem || 10,
+            reforcoSinal: offerData.valores?.reforcoSinal || 0,
             valorCPCV: offerData.valores?.valorCPCV || 0,
-            percentagemCPCV: offerData.valores?.percentagemCPCV || 30,
-            dataCPCV: offerData.valores?.dataCPCV || null,
+            valorEscritura: offerData.valores?.valorEscritura || 0,
 
-            // Restante
-            valorRestante: offerData.valores?.valorRestante || 0,
-            dataEscritura: offerData.valores?.dataEscritura || null
+            // Custos adicionais
+            comissaoImobiliaria: offerData.valores?.comissaoImobiliaria || 0,
+            impostosEstimados: offerData.valores?.impostosEstimados || 0,
+            outrosCustos: offerData.valores?.outrosCustos || 0,
+            valorTotalComCustos: offerData.valores?.valorTotalComCustos || 0
         },
 
         // Condições de Pagamento
-        condicoesPagamento: {
-            metodoPagamento: offerData.condicoesPagamento?.metodoPagamento || PAYMENT_METHODS.BANK_LOAN,
+        pagamento: {
+            condicao: offerData.pagamento?.condicao || PAYMENT_CONDITIONS.BANK_LOAN,
 
-            // Se for crédito
-            creditoHabitacao: {
-                necessita: offerData.condicoesPagamento?.creditoHabitacao?.necessita || false,
-                banco: offerData.condicoesPagamento?.creditoHabitacao?.banco || '',
-                valorCredito: offerData.condicoesPagamento?.creditoHabitacao?.valorCredito || 0,
-                preAprovado: offerData.condicoesPagamento?.creditoHabitacao?.preAprovado || false,
-                dataAprovacao: offerData.condicoesPagamento?.creditoHabitacao?.dataAprovacao || null,
-                condicoesAprovacao: offerData.condicoesPagamento?.creditoHabitacao?.condicoesAprovacao || ''
-            },
+            // Crédito Bancário
+            creditoAprovado: offerData.pagamento?.creditoAprovado || false,
+            bancoCredito: offerData.pagamento?.bancoCredito || '',
+            valorCredito: offerData.pagamento?.valorCredito || 0,
+            prazoCredito: offerData.pagamento?.prazoCredito || 30, // anos
+            taxaJuro: offerData.pagamento?.taxaJuro || 0,
+            preAprovacao: offerData.pagamento?.preAprovacao || false,
+            dataPreAprovacao: offerData.pagamento?.dataPreAprovacao || null,
 
-            // Outras condições
-            entradaFundosProprios: offerData.condicoesPagamento?.entradaFundosProprios || 0,
-            comprovativos: offerData.condicoesPagamento?.comprovativos || [],
-            observacoes: offerData.condicoesPagamento?.observacoes || ''
+            // Entrada/Fundos Próprios
+            fundosProprios: offerData.pagamento?.fundosProprios || 0,
+            comprovativos: offerData.pagamento?.comprovativos || []
         },
 
         // Condições Especiais
-        condicoesEspeciais: {
-            dependeVenda: offerData.condicoesEspeciais?.dependeVenda || false,
-            imovelParaVender: offerData.condicoesEspeciais?.imovelParaVender || '',
-
-            incluidos: offerData.condicoesEspeciais?.incluidos || [], // Móveis, eletrodomésticos, etc
-            excluidos: offerData.condicoesEspeciais?.excluidos || [],
-
-            reparacoes: offerData.condicoesEspeciais?.reparacoes || [],
-            inspecoes: offerData.condicoesEspeciais?.inspecoes || [],
-
-            clausulasAdicionais: offerData.condicoesEspeciais?.clausulasAdicionais || [],
-            observacoes: offerData.condicoesEspeciais?.observacoes || ''
+        condicoes: {
+            sujeitoVenda: offerData.condicoes?.sujeitoVenda || false, // Sujeito à venda de outro imóvel
+            imovelVenda: offerData.condicoes?.imovelVenda || '',
+            sujeitoCredito: offerData.condicoes?.sujeitoCredito || true,
+            prazoCredito: offerData.condicoes?.prazoCredito || 60, // dias
+            incluiMobilia: offerData.condicoes?.incluiMobilia || false,
+            incluiEquipamentos: offerData.condicoes?.incluiEquipamentos || false,
+            obrasNecessarias: offerData.condicoes?.obrasNecessarias || false,
+            descricaoObras: offerData.condicoes?.descricaoObras || '',
+            dataMudanca: offerData.condicoes?.dataMudanca || null,
+            clausulasEspeciais: offerData.condicoes?.clausulasEspeciais || []
         },
 
         // Prazos
         prazos: {
-            validadeOferta: offerData.prazos?.validadeOferta || 7, // dias
-            dataExpiracao: offerData.prazos?.dataExpiracao || null,
-            prazoResposta: offerData.prazos?.prazoResposta || 48, // horas
-            dataLimiteResposta: offerData.prazos?.dataLimiteResposta || null,
-
-            prazoCPCV: offerData.prazos?.prazoCPCV || 30, // dias após aceitação
-            prazoEscritura: offerData.prazos?.prazoEscritura || 60, // dias após CPCV
-            prazoEntregaChaves: offerData.prazos?.prazoEntregaChaves || 'na_escritura'
+            respostaAte: offerData.prazos?.respostaAte || null,
+            assinaturaCPCV: offerData.prazos?.assinaturaCPCV || null,
+            escritura: offerData.prazos?.escritura || null,
+            entregaChaves: offerData.prazos?.entregaChaves || null
         },
 
-        // Negociação
+        // Negociação (para contrapropostas)
         negociacao: {
-            pontosPrincipais: offerData.negociacao?.pontosPrincipais || [],
-            margemNegociacao: {
-                minimo: offerData.negociacao?.margemNegociacao?.minimo || 0,
-                maximo: offerData.negociacao?.margemNegociacao?.maximo || 0,
-                ideal: offerData.negociacao?.margemNegociacao?.ideal || 0
-            },
+            isContraproposta: offerData.negociacao?.isContraproposta || false,
+            propostaOriginalId: offerData.negociacao?.propostaOriginalId || null,
+            numeroRonda: offerData.negociacao?.numeroRonda || 1,
+            historico: offerData.negociacao?.historico || [],
 
-            historico: offerData.negociacao?.historico || [], // Array de eventos de negociação
+            // Pontos de negociação
+            pontosNegociacao: offerData.negociacao?.pontosNegociacao || [],
+            concessoes: offerData.negociacao?.concessoes || [],
 
+            // Contraproposta
             contraproposta: {
-                recebida: offerData.negociacao?.contraproposta?.recebida || false,
                 valor: offerData.negociacao?.contraproposta?.valor || 0,
                 condicoes: offerData.negociacao?.contraproposta?.condicoes || '',
+                justificacao: offerData.negociacao?.contraproposta?.justificacao || '',
+                dataContraproposta: offerData.negociacao?.contraproposta?.dataContraproposta || null,
                 resposta: offerData.negociacao?.contraproposta?.resposta || ''
             }
         },
@@ -212,60 +206,59 @@ export const createOfferSchema = (offerData) => {
             percentagemTotal: offerData.comissoes?.percentagemTotal || 5,
             valorTotal: offerData.comissoes?.valorTotal || 0,
 
-            distribuicao: {
-                agenciaCompradora: offerData.comissoes?.distribuicao?.agenciaCompradora || 50,
-                agenciaVendedora: offerData.comissoes?.distribuicao?.agenciaVendedora || 50,
-                agenteComprador: offerData.comissoes?.distribuicao?.agenteComprador || 0,
-                agenteVendedor: offerData.comissoes?.distribuicao?.agenteVendedor || 0
-            },
+            // Partilha
+            agenciaCompradora: offerData.comissoes?.agenciaCompradora || 0,
+            agenciaVendedora: offerData.comissoes?.agenciaVendedora || 0,
+            agenteComprador: offerData.comissoes?.agenteComprador || 0,
+            agenteVendedor: offerData.comissoes?.agenteVendedor || 0,
 
-            pagamento: {
-                naCPCV: offerData.comissoes?.pagamento?.naCPCV || false,
-                naEscritura: offerData.comissoes?.pagamento?.naEscritura || true,
-                valorCPCV: offerData.comissoes?.pagamento?.valorCPCV || 0,
-                valorEscritura: offerData.comissoes?.pagamento?.valorEscritura || 0
-            }
+            // Pagamento
+            quandoPaga: offerData.comissoes?.quandoPaga || 'escritura', // cpcv, escritura
+            condicoesPagamento: offerData.comissoes?.condicoesPagamento || ''
         },
 
-        // Histórico
-        historico: offerData.historico || [],
+        // Observações
+        observacoes: offerData.observacoes || '',
+        notasInternas: offerData.notasInternas || '',
+        motivoRejeicao: offerData.motivoRejeicao || '',
 
-        // Notas
-        notas: offerData.notas || '',
-        notasInternas: offerData.notasInternas || '' // Não visível para o cliente
+        // Anexos
+        anexos: offerData.anexos || [],
+
+        // Controle
+        isActive: true
     };
 };
 
 // ===== VALIDAÇÃO =====
-
 export const validateOfferData = (data) => {
     const errors = {};
 
-    // Validações obrigatórias
     if (!data.valores?.valorProposto || data.valores.valorProposto <= 0) {
-        errors.valorProposto = 'Valor da proposta é obrigatório e deve ser maior que zero';
+        errors.valorProposto = 'Valor da proposta é obrigatório';
     }
 
-    if (!data.tipo) {
-        errors.tipo = 'Tipo de oferta é obrigatório';
+    if (!data.dataValidade) {
+        errors.dataValidade = 'Data de validade é obrigatória';
     }
 
-    // Validar percentagens
-    if (data.valores?.percentagemSinal && (data.valores.percentagemSinal < 0 || data.valores.percentagemSinal > 100)) {
-        errors.percentagemSinal = 'Percentagem do sinal deve estar entre 0 e 100';
+    if (!data.intervenientes?.comprador?.nome) {
+        errors.compradorNome = 'Nome do comprador é obrigatório';
+    }
+
+    if (!data.intervenientes?.vendedor?.nome) {
+        errors.vendedorNome = 'Nome do vendedor é obrigatório';
+    }
+
+    // Validar percentagem de sinal
+    if (data.valores?.sinalPercentagem < 0 || data.valores?.sinalPercentagem > 100) {
+        errors.sinalPercentagem = 'Percentagem do sinal deve estar entre 0 e 100';
     }
 
     // Validar datas
-    if (data.prazos?.dataExpiracao) {
-        const expDate = new Date(data.prazos.dataExpiracao);
-        if (expDate < new Date()) {
-            errors.dataExpiracao = 'Data de expiração não pode ser no passado';
-        }
-    }
-
-    // Validar intervenientes
-    if (!data.intervenientes?.comprador?.nome) {
-        errors.compradorNome = 'Nome do comprador é obrigatório';
+    const hoje = new Date();
+    if (data.dataValidade && new Date(data.dataValidade) < hoje) {
+        errors.dataValidade = 'Data de validade não pode ser no passado';
     }
 
     return {
@@ -276,65 +269,174 @@ export const validateOfferData = (data) => {
 
 // ===== HELPERS =====
 
-export const generateOfferNumber = () => {
+// Gerar número de proposta único
+export function generateProposalNumber() {
     const year = new Date().getFullYear();
     const month = String(new Date().getMonth() + 1).padStart(2, '0');
-    const random = Math.floor(Math.random() * 10000);
-    return `OF-${year}${month}-${String(random).padStart(4, '0')}`;
-};
+    const random = Math.floor(Math.random() * 9999).toString().padStart(4, '0');
+    return `PROP-${year}${month}-${random}`;
+}
 
-export const calculateOfferPercentage = (offerValue, askingPrice) => {
-    if (!askingPrice || askingPrice === 0) return 0;
-    return ((offerValue / askingPrice) * 100).toFixed(2);
-};
+// Calcular valores
+export const calculateOfferValues = (valorProposto, percentagemSinal = 10, percentagemReforco = 0) => {
+    const sinal = valorProposto * (percentagemSinal / 100);
+    const reforco = valorProposto * (percentagemReforco / 100);
+    const valorCPCV = sinal + reforco;
+    const valorEscritura = valorProposto - valorCPCV;
 
-export const calculateCommission = (salePrice, percentage) => {
-    return (salePrice * percentage / 100).toFixed(2);
-};
-
-export const getOfferStatusColor = (status) => {
-    const colors = {
-        [OFFER_STATUS.DRAFT]: 'gray',
-        [OFFER_STATUS.SUBMITTED]: 'blue',
-        [OFFER_STATUS.IN_NEGOTIATION]: 'yellow',
-        [OFFER_STATUS.ACCEPTED]: 'green',
-        [OFFER_STATUS.REJECTED]: 'red',
-        [OFFER_STATUS.COUNTERED]: 'orange',
-        [OFFER_STATUS.EXPIRED]: 'gray',
-        [OFFER_STATUS.WITHDRAWN]: 'gray'
+    return {
+        sinal,
+        reforco,
+        valorCPCV,
+        valorEscritura
     };
-    return colors[status] || 'gray';
 };
 
-// ===== TEMPLATES DE NEGOCIAÇÃO =====
+// Calcular comissões
+export const calculateCommissions = (valorVenda, percentagemComissao = 5, partilha = { comprador: 50, vendedor: 50 }) => {
+    const valorTotal = valorVenda * (percentagemComissao / 100);
+    const agenciaCompradora = valorTotal * (partilha.comprador / 100);
+    const agenciaVendedora = valorTotal * (partilha.vendedor / 100);
 
-export const NEGOTIATION_TEMPLATES = {
-    condicoes: [
-        'Sujeito a aprovação de crédito',
-        'Sujeito a venda de imóvel próprio',
-        'Inclusão de móveis e equipamentos',
-        'Reparação de defeitos identificados',
-        'Prazo de escritura flexível',
-        'Entrada em data a acordar',
-        'Dispensa de fiador',
-        'Pagamento faseado do sinal'
-    ],
+    return {
+        valorTotal,
+        agenciaCompradora,
+        agenciaVendedora
+    };
+};
 
-    clausulas: [
-        'Cláusula de arrependimento',
-        'Cláusula de não concorrência',
-        'Direito de preferência',
-        'Penalização por atraso',
-        'Condição suspensiva',
-        'Condição resolutiva'
-    ],
+// Verificar se proposta expirou
+export const isOfferExpired = (dataValidade) => {
+    if (!dataValidade) return false;
+    const validade = dataValidade.toDate ? dataValidade.toDate() : new Date(dataValidade);
+    return validade < new Date();
+};
 
-    respostasRejeicao: [
-        'Valor proposto abaixo das expectativas',
-        'Condições de pagamento inadequadas',
-        'Prazo de escritura muito longo',
-        'Oferta melhor de outro interessado',
-        'Vendedor decidiu não vender',
-        'Documentação incompleta'
-    ]
+// Calcular dias até expiração
+export const daysUntilExpiration = (dataValidade) => {
+    if (!dataValidade) return null;
+    const validade = dataValidade.toDate ? dataValidade.toDate() : new Date(dataValidade);
+    const hoje = new Date();
+    const diff = validade - hoje;
+    return Math.ceil(diff / (1000 * 60 * 60 * 24));
+};
+
+// Formatar valor monetário
+export const formatCurrency = (value) => {
+    return new Intl.NumberFormat('pt-PT', {
+        style: 'currency',
+        currency: 'EUR',
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0
+    }).format(value);
+};
+
+// Calcular percentagem de desconto
+export const calculateDiscountPercentage = (valorOriginal, valorProposto) => {
+    if (!valorOriginal || valorOriginal === 0) return 0;
+    return ((valorOriginal - valorProposto) / valorOriginal * 100).toFixed(2);
+};
+
+// Gerar timeline de negociação
+export const generateNegotiationTimeline = (offer) => {
+    const timeline = [];
+
+    if (offer.createdAt) {
+        timeline.push({
+            date: offer.createdAt,
+            event: 'Proposta criada',
+            value: offer.valores?.valorProposto
+        });
+    }
+
+    if (offer.dataSubmissao) {
+        timeline.push({
+            date: offer.dataSubmissao,
+            event: 'Proposta submetida',
+            value: offer.valores?.valorProposto
+        });
+    }
+
+    if (offer.negociacao?.historico) {
+        offer.negociacao.historico.forEach(item => {
+            timeline.push(item);
+        });
+    }
+
+    if (offer.dataResposta) {
+        timeline.push({
+            date: offer.dataResposta,
+            event: `Proposta ${offer.estado}`,
+            value: offer.valores?.valorProposto
+        });
+    }
+
+    return timeline.sort((a, b) => {
+        const dateA = a.date.toDate ? a.date.toDate() : new Date(a.date);
+        const dateB = b.date.toDate ? b.date.toDate() : new Date(b.date);
+        return dateA - dateB;
+    });
+};
+
+// Verificar documentação completa
+export const isDocumentationComplete = (documentacao) => {
+    const requiredDocs = [
+        'propostaAssinada',
+        'preAprovacaoCredito',
+        'declaracoesIRS',
+        'recibosVencimento'
+    ];
+
+    return requiredDocs.every(doc => documentacao[doc] === true);
+};
+
+// Exportar estatísticas de propostas
+export const getOfferStatistics = (offers) => {
+    const stats = {
+        total: offers.length,
+        draft: offers.filter(o => o.estado === OFFER_STATES.DRAFT).length,
+        submitted: offers.filter(o => o.estado === OFFER_STATES.SUBMITTED).length,
+        accepted: offers.filter(o => o.estado === OFFER_STATES.ACCEPTED).length,
+        rejected: offers.filter(o => o.estado === OFFER_STATES.REJECTED).length,
+        inNegotiation: offers.filter(o => o.estado === OFFER_STATES.COUNTER_OFFER).length,
+
+        // Valores
+        averageValue: 0,
+        totalValue: 0,
+        highestOffer: 0,
+        lowestOffer: Infinity,
+
+        // Taxa de sucesso
+        successRate: 0
+    };
+
+    // Calcular valores
+    const activeOffers = offers.filter(o => o.estado !== OFFER_STATES.DRAFT);
+
+    if (activeOffers.length > 0) {
+        activeOffers.forEach(offer => {
+            const value = offer.valores?.valorProposto || 0;
+            stats.totalValue += value;
+            stats.highestOffer = Math.max(stats.highestOffer, value);
+            stats.lowestOffer = Math.min(stats.lowestOffer, value);
+        });
+
+        stats.averageValue = stats.totalValue / activeOffers.length;
+
+        // Taxa de sucesso
+        const completed = offers.filter(o =>
+            o.estado === OFFER_STATES.ACCEPTED ||
+            o.estado === OFFER_STATES.REJECTED
+        );
+
+        if (completed.length > 0) {
+            stats.successRate = Math.round((stats.accepted / completed.length) * 100);
+        }
+    }
+
+    if (stats.lowestOffer === Infinity) {
+        stats.lowestOffer = 0;
+    }
+
+    return stats;
 };
