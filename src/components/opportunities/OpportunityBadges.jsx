@@ -310,9 +310,9 @@ export default function OpportunityBadges({
     };
 
     // Handler para adicionar nova oportunidade
-    const handleAddClick = () => {
+    const handleAddClick = (e) => {
         if (onAddClick) {
-            onAddClick();
+            onAddClick(e);
         } else {
             navigate(`/clients/${clientId}/opportunities/new`);
         }
