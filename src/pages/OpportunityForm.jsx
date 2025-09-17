@@ -1,12 +1,11 @@
 /**
  * OPPORTUNITY FORM - MyImoMatePro
- * Versão MELHORADA com gestão completa de imóveis, visitas e propostas
- * 
- * Melhorias implementadas:
- * 1. Tipo de oportunidade bloqueado em edição
- * 2. Sistema de visitas com estados e feedback editável
- * 3. Sistema de ofertas com contrapropostas
- * 4. Integração com CPCV
+ * Versão ATUALIZADA com correção da edição do CPCV
+ * 1. ✅ Editar imóvel depois de criado
+ * 2. ✅ Campo DIP como Sim/Não
+ * 3. ✅ Editar CPCV depois de concluído (CORRIGIDO)
+ * 4. ✅ Modal para escritura com data e notas
+ * 5. ✅ Sistema completo de comissões
  * 
  * Caminho: src/pages/OpportunityForm.jsx
  */
@@ -51,6 +50,8 @@ import {
     ChatBubbleLeftRightIcon,
     DocumentTextIcon,
     ClipboardDocumentListIcon,
+    DocumentArrowUpIcon,
+    PaperClipIcon,
 } from '@heroicons/react/24/outline';
 
 // Estados de Visita
@@ -111,11 +112,17 @@ const OpportunityForm = () => {
         titulo: '',
         descricao: '',
 
-        // Valores
+        // Valores e Comissões (ALTERAÇÃO 5)
         valorEstimado: '',
         valorMinimo: '',
         valorMaximo: '',
+        tipoComissao: 'percentual', // 'percentual' ou 'fixo'
         percentualComissao: 5,
+        valorComissaoFixo: '',
+        minhaPercentagem: 100, // Percentagem que o agente recebe da comissão
+        comissaoPaga: false,
+        documentoPagamento: null,
+        comprovanteTransferencia: null,
 
         // Imóveis com estrutura melhorada
         imoveis: [],
@@ -128,9 +135,12 @@ const OpportunityForm = () => {
     const [showVisitForm, setShowVisitForm] = useState(false);
     const [showOfferForm, setShowOfferForm] = useState(false);
     const [showCPCVForm, setShowCPCVForm] = useState(false);
+    const [showEscrituraForm, setShowEscrituraForm] = useState(false); // ALTERAÇÃO 4
     const [selectedProperty, setSelectedProperty] = useState(null);
     const [editingVisit, setEditingVisit] = useState(null);
     const [editingOffer, setEditingOffer] = useState(null);
+    const [editingProperty, setEditingProperty] = useState(null); // ALTERAÇÃO 1
+    const [editingCPCV, setEditingCPCV] = useState(null); // ALTERAÇÃO 3
 
     // Novo imóvel
     const [newProperty, setNewProperty] = useState({
@@ -181,7 +191,7 @@ const OpportunityForm = () => {
         justificacao: ''
     });
 
-    // Dados do CPCV
+    // Dados do CPCV (ALTERAÇÃO 2 - DIP como Sim/Não)
     const [cpcvData, setCpcvData] = useState({
         numeroContrato: '',
         dataAssinatura: '',
@@ -192,8 +202,13 @@ const OpportunityForm = () => {
         financiamento: false,
         banco: '',
         valorCredito: '',
-        dipEmitido: false,
-        numeroDIP: ''
+        dipEmitido: false // Agora é só Sim/Não, sem campo de número
+    });
+
+    // Dados da Escritura (ALTERAÇÃO 4)
+    const [escrituraData, setEscrituraData] = useState({
+        dataRealizacao: '',
+        notas: ''
     });
 
     const [validationErrors, setValidationErrors] = useState({});
@@ -223,6 +238,7 @@ const OpportunityForm = () => {
                     valorEstimado: opportunity.valorEstimado?.toString() || '',
                     valorMinimo: opportunity.valorMinimo?.toString() || '',
                     valorMaximo: opportunity.valorMaximo?.toString() || '',
+                    valorComissaoFixo: opportunity.valorComissaoFixo?.toString() || '',
                     imoveis: opportunity.imoveis || []
                 });
             }
@@ -265,7 +281,33 @@ const OpportunityForm = () => {
         }
     };
 
-    // Gestão de Imóveis
+    // ALTERAÇÃO 1: Função para editar imóvel
+    const handleEditProperty = (property) => {
+        setEditingProperty(property);
+        setNewProperty({
+            referencia: property.referencia,
+            tipologia: property.tipologia,
+            area: property.area,
+            casasBanho: property.casasBanho,
+            temSuite: property.temSuite,
+            numeroSuites: property.numeroSuites,
+            url: property.url,
+            localizacao: property.localizacao,
+            valorAnunciado: property.valorAnunciado,
+            agenteNome: property.agenteNome,
+            agenteTelefone: property.agenteTelefone,
+            agenteEmail: property.agenteEmail,
+            agenteAgencia: property.agenteAgencia,
+            notas: property.notas,
+            visitas: property.visitas || [],
+            ofertas: property.ofertas || [],
+            cpcv: property.cpcv || null,
+            estadoNegocio: property.estadoNegocio || 'prospeção'
+        });
+        setShowPropertyForm(true);
+    };
+
+    // ALTERAÇÃO 1: Modificar handleAddProperty para suportar edição
     const handleAddProperty = () => {
         if (!newProperty.referencia) {
             alert('Por favor, adicione uma referência para o imóvel');
@@ -274,14 +316,25 @@ const OpportunityForm = () => {
 
         const property = {
             ...newProperty,
-            id: Date.now().toString(),
-            createdAt: new Date().toISOString()
+            id: editingProperty ? editingProperty.id : Date.now().toString(),
+            createdAt: editingProperty ? editingProperty.createdAt : new Date().toISOString()
         };
 
-        setFormData(prev => ({
-            ...prev,
-            imoveis: [...prev.imoveis, property]
-        }));
+        if (editingProperty) {
+            // Se estamos editando, atualizar o imóvel existente
+            setFormData(prev => ({
+                ...prev,
+                imoveis: prev.imoveis.map(p =>
+                    p.id === editingProperty.id ? property : p
+                )
+            }));
+        } else {
+            // Se é novo, adicionar à lista
+            setFormData(prev => ({
+                ...prev,
+                imoveis: [...prev.imoveis, property]
+            }));
+        }
 
         // Reset form
         setNewProperty({
@@ -305,6 +358,7 @@ const OpportunityForm = () => {
             estadoNegocio: 'prospeção'
         });
         setShowPropertyForm(false);
+        setEditingProperty(null);
     };
 
     const handleRemoveProperty = (propertyId) => {
@@ -458,7 +512,26 @@ const OpportunityForm = () => {
         setShowOfferForm(true);
     };
 
-    // Sistema CPCV
+    // ALTERAÇÃO 3 CORRIGIDA: Função para editar CPCV
+    const handleEditCPCV = (property) => {
+        setEditingCPCV(property);
+        setCpcvData({
+            numeroContrato: property.cpcv.numeroContrato || '',
+            dataAssinatura: property.cpcv.dataAssinatura || '',
+            valorVenda: property.cpcv.valorVenda || '',
+            sinal: property.cpcv.sinal || '',
+            sinalPercentagem: property.cpcv.sinalPercentagem || 10,
+            dataEscritura: property.cpcv.dataEscritura || '',
+            financiamento: property.cpcv.financiamento || false,
+            banco: property.cpcv.banco || '',
+            valorCredito: property.cpcv.valorCredito || '',
+            dipEmitido: property.cpcv.dipEmitido || false
+        });
+        setSelectedProperty(property);
+        setShowCPCVForm(true);
+    };
+
+    // Sistema CPCV (Modificado para ALTERAÇÃO 2 e 3)
     const handleSaveCPCV = (propertyId) => {
         if (!cpcvData.numeroContrato || !cpcvData.dataAssinatura) {
             alert('Por favor, preencha os dados obrigatórios do CPCV');
@@ -480,6 +553,8 @@ const OpportunityForm = () => {
         }));
 
         setShowCPCVForm(false);
+        setEditingCPCV(null);
+        setSelectedProperty(null);
         setCpcvData({
             numeroContrato: '',
             dataAssinatura: '',
@@ -490,21 +565,76 @@ const OpportunityForm = () => {
             financiamento: false,
             banco: '',
             valorCredito: '',
-            dipEmitido: false,
-            numeroDIP: ''
+            dipEmitido: false
         });
     };
 
-    // Atualizar estado de negócio do imóvel
-    const handleUpdatePropertyStatus = (propertyId, newStatus) => {
+    // ALTERAÇÃO 4: Função para marcar escritura realizada
+    const handleMarkEscritura = (propertyId) => {
+        if (!escrituraData.dataRealizacao) {
+            alert('Por favor, preencha a data de realização da escritura');
+            return;
+        }
+
         setFormData(prev => ({
             ...prev,
             imoveis: prev.imoveis.map(p =>
                 p.id === propertyId
-                    ? { ...p, estadoNegocio: newStatus }
+                    ? {
+                        ...p,
+                        estadoNegocio: 'escritura',
+                        escritura: {
+                            dataRealizacao: escrituraData.dataRealizacao,
+                            notas: escrituraData.notas
+                        }
+                    }
                     : p
             )
         }));
+
+        setShowEscrituraForm(false);
+        setEscrituraData({
+            dataRealizacao: '',
+            notas: ''
+        });
+        setSelectedProperty(null);
+    };
+
+    // Atualizar estado de negócio do imóvel
+    const handleUpdatePropertyStatus = (propertyId, newStatus) => {
+        if (newStatus === 'escritura') {
+            // ALTERAÇÃO 4: Abrir modal para escritura
+            setSelectedProperty({ id: propertyId });
+            setShowEscrituraForm(true);
+        } else {
+            setFormData(prev => ({
+                ...prev,
+                imoveis: prev.imoveis.map(p =>
+                    p.id === propertyId
+                        ? { ...p, estadoNegocio: newStatus }
+                        : p
+                )
+            }));
+        }
+    };
+
+    // ALTERAÇÃO 5: Calcular comissões
+    const calculateComissao = () => {
+        const valor = parseFloat(formData.valorEstimado) || 0;
+        let comissaoTotal = 0;
+
+        if (formData.tipoComissao === 'percentual') {
+            comissaoTotal = valor * (formData.percentualComissao / 100);
+        } else {
+            comissaoTotal = parseFloat(formData.valorComissaoFixo) || 0;
+        }
+
+        const minhaComissao = comissaoTotal * (formData.minhaPercentagem / 100);
+
+        return {
+            total: comissaoTotal,
+            minha: minhaComissao
+        };
     };
 
     // Submit
@@ -514,12 +644,16 @@ const OpportunityForm = () => {
         setValidationErrors({});
         setSuccessMessage('');
 
+        const comissoes = calculateComissao();
+
         const dataToSubmit = {
             ...formData,
             valorEstimado: parseFloat(formData.valorEstimado) || 0,
             valorMinimo: parseFloat(formData.valorMinimo) || 0,
             valorMaximo: parseFloat(formData.valorMaximo) || 0,
-            comissaoEstimada: (parseFloat(formData.valorEstimado) || 0) * (formData.percentualComissao / 100)
+            valorComissaoFixo: parseFloat(formData.valorComissaoFixo) || 0,
+            comissaoEstimada: comissoes.total,
+            minhaComissaoEstimada: comissoes.minha
         };
 
         const validation = validateOpportunityData(dataToSubmit);
@@ -577,6 +711,8 @@ const OpportunityForm = () => {
         };
         return badges[status] || badges['prospeção'];
     };
+
+    const comissoes = calculateComissao();
 
     return (
         <Layout>
@@ -745,10 +881,12 @@ const OpportunityForm = () => {
                                 </button>
                             </div>
 
-                            {/* Formulário de Novo Imóvel */}
+                            {/* Formulário de Novo/Editar Imóvel - ALTERAÇÃO 1 */}
                             {showPropertyForm && (
                                 <div className="bg-blue-50 rounded-lg p-4 mb-4">
-                                    <h3 className="font-semibold text-gray-900 mb-3">Novo Imóvel</h3>
+                                    <h3 className="font-semibold text-gray-900 mb-3">
+                                        {editingProperty ? 'Editar Imóvel' : 'Novo Imóvel'}
+                                    </h3>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                         <div>
                                             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -835,11 +973,34 @@ const OpportunityForm = () => {
                                             onClick={handleAddProperty}
                                             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                                         >
-                                            Adicionar Imóvel
+                                            {editingProperty ? 'Salvar Alterações' : 'Adicionar Imóvel'}
                                         </button>
                                         <button
                                             type="button"
-                                            onClick={() => setShowPropertyForm(false)}
+                                            onClick={() => {
+                                                setShowPropertyForm(false);
+                                                setEditingProperty(null);
+                                                setNewProperty({
+                                                    referencia: '',
+                                                    tipologia: 'T2',
+                                                    area: '',
+                                                    casasBanho: 1,
+                                                    temSuite: false,
+                                                    numeroSuites: 0,
+                                                    url: '',
+                                                    localizacao: '',
+                                                    valorAnunciado: '',
+                                                    agenteNome: '',
+                                                    agenteTelefone: '',
+                                                    agenteEmail: '',
+                                                    agenteAgencia: '',
+                                                    notas: '',
+                                                    visitas: [],
+                                                    ofertas: [],
+                                                    cpcv: null,
+                                                    estadoNegocio: 'prospeção'
+                                                });
+                                            }}
                                             className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
                                         >
                                             Cancelar
@@ -852,7 +1013,7 @@ const OpportunityForm = () => {
                             <div className="space-y-4">
                                 {formData.imoveis.map((property) => (
                                     <div key={property.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
-                                        {/* Header do Imóvel */}
+                                        {/* Header do Imóvel - ALTERAÇÃO 1 */}
                                         <div className="flex justify-between items-start mb-3">
                                             <div>
                                                 <div className="flex items-center gap-2 mb-1">
@@ -868,13 +1029,24 @@ const OpportunityForm = () => {
                                                     {property.localizacao}
                                                 </p>
                                             </div>
-                                            <button
-                                                type="button"
-                                                onClick={() => handleRemoveProperty(property.id)}
-                                                className="p-1 text-red-600 hover:bg-red-50 rounded"
-                                            >
-                                                <TrashIcon className="w-4 h-4" />
-                                            </button>
+                                            <div className="flex gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleEditProperty(property)}
+                                                    className="p-1 text-blue-600 hover:bg-blue-50 rounded"
+                                                    title="Editar imóvel"
+                                                >
+                                                    <PencilIcon className="w-4 h-4" />
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleRemoveProperty(property.id)}
+                                                    className="p-1 text-red-600 hover:bg-red-50 rounded"
+                                                    title="Remover imóvel"
+                                                >
+                                                    <TrashIcon className="w-4 h-4" />
+                                                </button>
+                                            </div>
                                         </div>
 
                                         {/* Info do Imóvel */}
@@ -1262,7 +1434,8 @@ const OpportunityForm = () => {
                                             ))}
                                         </div>
 
-                                        {/* Sistema CPCV */}
+                                        {/* Sistema CPCV - CORREÇÃO: Mostrar formulário quando clicar em editar */}
+                                        {/* Condicação para criar novo CPCV */}
                                         {property.ofertas.some(o => o.status === OFFER_STATES.ACCEPTED) && !property.cpcv && (
                                             <div className="border-t mt-3 pt-3">
                                                 <div className="bg-yellow-50 border border-yellow-200 rounded p-2 mb-2">
@@ -1337,6 +1510,7 @@ const OpportunityForm = () => {
                                                                         className="px-2 py-1 text-sm border rounded"
                                                                         placeholder="Valor Crédito €"
                                                                     />
+                                                                    {/* ALTERAÇÃO 2: DIP como Sim/Não */}
                                                                     <div className="col-span-2">
                                                                         <label className="flex items-center">
                                                                             <input
@@ -1348,15 +1522,6 @@ const OpportunityForm = () => {
                                                                             <span className="text-sm">DIP Emitido</span>
                                                                         </label>
                                                                     </div>
-                                                                    {cpcvData.dipEmitido && (
-                                                                        <input
-                                                                            type="text"
-                                                                            value={cpcvData.numeroDIP}
-                                                                            onChange={(e) => setCpcvData({ ...cpcvData, numeroDIP: e.target.value })}
-                                                                            className="px-2 py-1 text-sm border rounded col-span-2"
-                                                                            placeholder="Número DIP"
-                                                                        />
-                                                                    )}
                                                                 </>
                                                             )}
                                                         </div>
@@ -1370,7 +1535,10 @@ const OpportunityForm = () => {
                                                             </button>
                                                             <button
                                                                 type="button"
-                                                                onClick={() => setShowCPCVForm(false)}
+                                                                onClick={() => {
+                                                                    setShowCPCVForm(false);
+                                                                    setEditingCPCV(null);
+                                                                }}
                                                                 className="px-3 py-1 border border-gray-300 text-gray-700 text-sm rounded hover:bg-gray-50"
                                                             >
                                                                 Cancelar
@@ -1397,29 +1565,165 @@ const OpportunityForm = () => {
                                             </div>
                                         )}
 
-                                        {/* Mostrar dados do CPCV se existir */}
-                                        {property.cpcv && (
-                                            <div className="border-t mt-3 pt-3">
-                                                <div className="bg-purple-50 rounded p-2">
-                                                    <p className="text-sm font-medium text-purple-900 mb-1">
-                                                        📋 CPCV - {property.cpcv.numeroContrato}
-                                                    </p>
-                                                    <div className="text-xs text-purple-700 space-y-1">
-                                                        <p>Assinatura: {property.cpcv.dataAssinatura}</p>
-                                                        <p>Valor: €{parseFloat(property.cpcv.valorVenda || 0).toLocaleString('pt-PT')}</p>
-                                                        <p>Sinal: €{parseFloat(property.cpcv.sinal || 0).toLocaleString('pt-PT')}</p>
-                                                        <p>Escritura: {property.cpcv.dataEscritura}</p>
-                                                        {property.cpcv.dipEmitido && (
-                                                            <p className="text-green-700">✓ DIP Emitido: {property.cpcv.numeroDIP}</p>
-                                                        )}
+                                        {/* CORREÇÃO: Formulário de edição do CPCV separado da exibição */}
+                                        {showCPCVForm && selectedProperty?.id === property.id && editingCPCV && property.cpcv && (
+                                            <div className="border-t mt-3 pt-3 bg-purple-50 rounded p-3">
+                                                <h4 className="font-medium text-sm mb-2">📋 Editar CPCV</h4>
+                                                <div className="grid grid-cols-2 gap-2">
+                                                    <input
+                                                        type="text"
+                                                        value={cpcvData.numeroContrato}
+                                                        onChange={(e) => setCpcvData({ ...cpcvData, numeroContrato: e.target.value })}
+                                                        className="px-2 py-1 text-sm border rounded"
+                                                        placeholder="Nº Contrato"
+                                                    />
+                                                    <input
+                                                        type="date"
+                                                        value={cpcvData.dataAssinatura}
+                                                        onChange={(e) => setCpcvData({ ...cpcvData, dataAssinatura: e.target.value })}
+                                                        className="px-2 py-1 text-sm border rounded"
+                                                        placeholder="Data Assinatura"
+                                                    />
+                                                    <input
+                                                        type="number"
+                                                        value={cpcvData.valorVenda}
+                                                        onChange={(e) => setCpcvData({ ...cpcvData, valorVenda: e.target.value })}
+                                                        className="px-2 py-1 text-sm border rounded"
+                                                        placeholder="Valor Venda €"
+                                                    />
+                                                    <input
+                                                        type="number"
+                                                        value={cpcvData.sinal}
+                                                        onChange={(e) => setCpcvData({ ...cpcvData, sinal: e.target.value })}
+                                                        className="px-2 py-1 text-sm border rounded"
+                                                        placeholder="Sinal €"
+                                                    />
+                                                    <input
+                                                        type="date"
+                                                        value={cpcvData.dataEscritura}
+                                                        onChange={(e) => setCpcvData({ ...cpcvData, dataEscritura: e.target.value })}
+                                                        className="px-2 py-1 text-sm border rounded col-span-2"
+                                                        placeholder="Data Escritura"
+                                                    />
+                                                    <div className="col-span-2">
+                                                        <label className="flex items-center">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={cpcvData.financiamento}
+                                                                onChange={(e) => setCpcvData({ ...cpcvData, financiamento: e.target.checked })}
+                                                                className="rounded border-gray-300 text-blue-600 mr-2"
+                                                            />
+                                                            <span className="text-sm">Necessita Financiamento</span>
+                                                        </label>
                                                     </div>
+                                                    {cpcvData.financiamento && (
+                                                        <>
+                                                            <input
+                                                                type="text"
+                                                                value={cpcvData.banco}
+                                                                onChange={(e) => setCpcvData({ ...cpcvData, banco: e.target.value })}
+                                                                className="px-2 py-1 text-sm border rounded"
+                                                                placeholder="Banco"
+                                                            />
+                                                            <input
+                                                                type="number"
+                                                                value={cpcvData.valorCredito}
+                                                                onChange={(e) => setCpcvData({ ...cpcvData, valorCredito: e.target.value })}
+                                                                className="px-2 py-1 text-sm border rounded"
+                                                                placeholder="Valor Crédito €"
+                                                            />
+                                                            <div className="col-span-2">
+                                                                <label className="flex items-center">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={cpcvData.dipEmitido}
+                                                                        onChange={(e) => setCpcvData({ ...cpcvData, dipEmitido: e.target.checked })}
+                                                                        className="rounded border-gray-300 text-blue-600 mr-2"
+                                                                    />
+                                                                    <span className="text-sm">DIP Emitido</span>
+                                                                </label>
+                                                            </div>
+                                                        </>
+                                                    )}
+                                                </div>
+                                                <div className="mt-2 flex gap-2">
                                                     <button
                                                         type="button"
-                                                        onClick={() => handleUpdatePropertyStatus(property.id, 'escritura')}
-                                                        className="mt-2 px-2 py-1 bg-indigo-600 text-white text-xs rounded hover:bg-indigo-700"
+                                                        onClick={() => handleSaveCPCV(property.id)}
+                                                        className="px-3 py-1 bg-purple-600 text-white text-sm rounded hover:bg-purple-700"
                                                     >
-                                                        Marcar Escritura Realizada
+                                                        Salvar Alterações
                                                     </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setShowCPCVForm(false);
+                                                            setEditingCPCV(null);
+                                                            setSelectedProperty(null);
+                                                        }}
+                                                        className="px-3 py-1 border border-gray-300 text-gray-700 text-sm rounded hover:bg-gray-50"
+                                                    >
+                                                        Cancelar
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Mostrar dados do CPCV se existir (sem o formulário de edição) */}
+                                        {property.cpcv && (!showCPCVForm || selectedProperty?.id !== property.id || !editingCPCV) && (
+                                            <div className="border-t mt-3 pt-3">
+                                                <div className="bg-purple-50 rounded p-2">
+                                                    <div className="flex justify-between items-start">
+                                                        <div className="flex-1">
+                                                            <p className="text-sm font-medium text-purple-900 mb-1">
+                                                                📋 CPCV - {property.cpcv.numeroContrato}
+                                                            </p>
+                                                            <div className="text-xs text-purple-700 space-y-1">
+                                                                <p>Assinatura: {property.cpcv.dataAssinatura}</p>
+                                                                <p>Valor: €{parseFloat(property.cpcv.valorVenda || 0).toLocaleString('pt-PT')}</p>
+                                                                <p>Sinal: €{parseFloat(property.cpcv.sinal || 0).toLocaleString('pt-PT')}</p>
+                                                                <p>Escritura: {property.cpcv.dataEscritura}</p>
+                                                                {property.cpcv.dipEmitido && (
+                                                                    <p className="text-green-700">✓ DIP Emitido</p>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                        {/* Botão para editar CPCV */}
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleEditCPCV(property)}
+                                                            className="p-1 text-blue-600 hover:bg-blue-50 rounded"
+                                                            title="Editar CPCV"
+                                                        >
+                                                            <PencilIcon className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
+                                                    {!property.escritura && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleUpdatePropertyStatus(property.id, 'escritura')}
+                                                            className="mt-2 px-2 py-1 bg-indigo-600 text-white text-xs rounded hover:bg-indigo-700"
+                                                        >
+                                                            Marcar Escritura Realizada
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Mostrar dados da escritura se existir - ALTERAÇÃO 4 */}
+                                        {property.escritura && (
+                                            <div className="border-t mt-3 pt-3">
+                                                <div className="bg-indigo-50 rounded p-2">
+                                                    <p className="text-sm font-medium text-indigo-900 mb-1">
+                                                        ✅ Escritura Realizada
+                                                    </p>
+                                                    <div className="text-xs text-indigo-700 space-y-1">
+                                                        <p>Data: {property.escritura.dataRealizacao}</p>
+                                                        {property.escritura.notas && (
+                                                            <p>Notas: {property.escritura.notas}</p>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             </div>
                                         )}
@@ -1437,55 +1741,227 @@ const OpportunityForm = () => {
                         </div>
                     )}
 
-                    {/* Valores Gerais */}
+                    {/* ALTERAÇÃO 4: Modal para Escritura */}
+                    {showEscrituraForm && (
+                        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                            <div className="bg-white rounded-lg p-6 w-full max-w-md">
+                                <h3 className="text-lg font-semibold mb-4">Marcar Escritura Realizada</h3>
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                            Data de Realização da Escritura *
+                                        </label>
+                                        <input
+                                            type="date"
+                                            value={escrituraData.dataRealizacao}
+                                            onChange={(e) => setEscrituraData({ ...escrituraData, dataRealizacao: e.target.value })}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                            required
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                            Notas
+                                        </label>
+                                        <textarea
+                                            value={escrituraData.notas}
+                                            onChange={(e) => setEscrituraData({ ...escrituraData, notas: e.target.value })}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                            rows={4}
+                                            placeholder="Observações sobre a escritura..."
+                                        />
+                                    </div>
+                                </div>
+                                <div className="flex gap-2 mt-6">
+                                    <button
+                                        type="button"
+                                        onClick={() => handleMarkEscritura(selectedProperty.id)}
+                                        className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                                    >
+                                        Confirmar Escritura
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setShowEscrituraForm(false);
+                                            setEscrituraData({ dataRealizacao: '', notas: '' });
+                                            setSelectedProperty(null);
+                                        }}
+                                        className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                                    >
+                                        Cancelar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ALTERAÇÃO 5: Valores e Orçamento com Sistema de Comissões Completo */}
                     <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
                         <h2 className="text-xl font-semibold text-gray-900 mb-4">
                             💰 Valores e Orçamento
                         </h2>
 
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Valor Estimado do Negócio (€)
-                                </label>
-                                <input
-                                    type="number"
-                                    name="valorEstimado"
-                                    value={formData.valorEstimado}
-                                    onChange={handleInputChange}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                                    placeholder="0"
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Comissão (%)
-                                </label>
-                                <input
-                                    type="number"
-                                    name="percentualComissao"
-                                    value={formData.percentualComissao}
-                                    onChange={handleInputChange}
-                                    min="0"
-                                    max="100"
-                                    step="0.5"
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                                />
-                            </div>
-
-                            {formData.valorEstimado && formData.percentualComissao && (
+                        <div className="space-y-4">
+                            {/* Valor do Negócio */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Comissão Estimada
+                                        Valor Estimado do Negócio (€)
                                     </label>
-                                    <div className="px-3 py-2 bg-green-50 border border-green-200 rounded-lg">
-                                        <span className="font-semibold text-green-700">
-                                            €{((parseFloat(formData.valorEstimado) || 0) * (formData.percentualComissao / 100)).toFixed(2)}
+                                    <input
+                                        type="number"
+                                        name="valorEstimado"
+                                        value={formData.valorEstimado}
+                                        onChange={handleInputChange}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                        placeholder="0"
+                                    />
+                                </div>
+
+                                {/* Tipo de Comissão */}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Tipo de Comissão
+                                    </label>
+                                    <select
+                                        name="tipoComissao"
+                                        value={formData.tipoComissao}
+                                        onChange={handleInputChange}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                    >
+                                        <option value="percentual">Percentual (%)</option>
+                                        <option value="fixo">Valor Fixo (€)</option>
+                                    </select>
+                                </div>
+
+                                {/* Valor ou Percentual da Comissão */}
+                                {formData.tipoComissao === 'percentual' ? (
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                            Comissão (%)
+                                        </label>
+                                        <input
+                                            type="number"
+                                            name="percentualComissao"
+                                            value={formData.percentualComissao}
+                                            onChange={handleInputChange}
+                                            min="0"
+                                            max="100"
+                                            step="0.5"
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                        />
+                                    </div>
+                                ) : (
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                            Valor Fixo da Comissão (€)
+                                        </label>
+                                        <input
+                                            type="number"
+                                            name="valorComissaoFixo"
+                                            value={formData.valorComissaoFixo}
+                                            onChange={handleInputChange}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                            placeholder="0"
+                                        />
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Linha de cálculo de comissões */}
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-4 border-t">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Comissão Total Estimada
+                                    </label>
+                                    <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg">
+                                        <span className="font-semibold text-gray-700">
+                                            €{comissoes.total.toFixed(2)}
                                         </span>
                                     </div>
                                 </div>
-                            )}
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Minha % da Comissão
+                                    </label>
+                                    <input
+                                        type="number"
+                                        name="minhaPercentagem"
+                                        value={formData.minhaPercentagem}
+                                        onChange={handleInputChange}
+                                        min="0"
+                                        max="100"
+                                        step="0.5"
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Minha Comissão a Receber
+                                    </label>
+                                    <div className="px-3 py-2 bg-green-50 border border-green-200 rounded-lg">
+                                        <span className="font-semibold text-green-700">
+                                            €{comissoes.minha.toFixed(2)}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Status do Pagamento
+                                    </label>
+                                    <label className="flex items-center">
+                                        <input
+                                            type="checkbox"
+                                            name="comissaoPaga"
+                                            checked={formData.comissaoPaga}
+                                            onChange={handleInputChange}
+                                            className="rounded border-gray-300 text-green-600 mr-2"
+                                        />
+                                        <span className={`text-sm ${formData.comissaoPaga ? 'text-green-600 font-semibold' : 'text-gray-600'}`}>
+                                            {formData.comissaoPaga ? 'Comissão Paga' : 'Comissão Não Paga'}
+                                        </span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            {/* Botões para anexar documentos de pagamento */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Documento de Pagamento da Comissão
+                                    </label>
+                                    <button
+                                        type="button"
+                                        className="inline-flex items-center gap-2 px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-gray-400 hover:text-gray-700 transition-colors"
+                                    >
+                                        <DocumentArrowUpIcon className="w-5 h-5" />
+                                        <span>Anexar Documento</span>
+                                    </button>
+                                    {formData.documentoPagamento && (
+                                        <p className="text-sm text-green-600 mt-2">✓ Documento anexado</p>
+                                    )}
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Comprovante de Transferência
+                                    </label>
+                                    <button
+                                        type="button"
+                                        className="inline-flex items-center gap-2 px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-gray-400 hover:text-gray-700 transition-colors"
+                                    >
+                                        <PaperClipIcon className="w-5 h-5" />
+                                        <span>Anexar Comprovante</span>
+                                    </button>
+                                    {formData.comprovanteTransferencia && (
+                                        <p className="text-sm text-green-600 mt-2">✓ Comprovante anexado</p>
+                                    )}
+                                </div>
+                            </div>
                         </div>
                     </div>
 
