@@ -56,52 +56,29 @@ export function useOpportunities() {
 
 // ===== ESTADO INICIAL =====
 const initialState = {
-    // Dados
+    // Lista de oportunidades
     opportunities: [],
-    currentOpportunity: null,
+
+    // Oportunidades por cliente
     clientOpportunities: {},
 
-    // NOVO: Estados para gestão de imóveis
+    // Oportunidade atual
+    currentOpportunity: null,
+
+    // NOVO: Entidades de detalhe
     currentProperty: null,
     currentVisit: null,
     currentOffer: null,
     currentCPCV: null,
 
-    stats: {
-        client: null,
-        consultor: null,
-        properties: null // NOVO: Estatísticas de imóveis
-    },
-
-    // Paginação
-    pagination: {
-        page: 1,
-        pageSize: 20,
-        hasMore: false,
-        lastDoc: null,
-        total: null
-    },
-
-    // Filtros
-    filters: {
-        tipo: null,
-        estado: null,
-        prioridade: null,
-        clienteId: null,
-        // NOVO: Filtros adicionais
-        temVisitas: null,
-        temOfertas: null,
-        temCPCV: null
-    },
-
-    // Estados de loading
+    // Estados de carregamento
     loading: {
         list: false,
         create: false,
         update: false,
         delete: false,
         stats: false,
-        // NOVO: Loading states adicionais
+        // NOVO: Estados adicionais
         property: false,
         visit: false,
         offer: false,
@@ -120,53 +97,68 @@ const initialState = {
         visit: null,
         offer: null,
         cpcv: null
+    },
+
+    // Estatísticas
+    stats: {
+        client: null,
+        consultor: null
+    },
+
+    // Filtros e paginação
+    filters: {
+        estado: null,
+        tipo: null,
+        dataInicio: null,
+        dataFim: null,
+        search: '',
+        // NOVO: Filtros adicionais
+        propriedadeEstado: null,
+        valorMin: null,
+        valorMax: null
+    },
+
+    pagination: {
+        page: 1,
+        limit: 10,
+        total: 0,
+        totalPages: 0
     }
 };
 
-// ===== ACTIONS =====
+// ===== TYPES DE AÇÕES =====
 const ActionTypes = {
-    // Loading states
+    // Loading e Errors
     SET_LOADING: 'SET_LOADING',
     SET_ERROR: 'SET_ERROR',
 
-    // Data operations
+    // Opportunities
     SET_OPPORTUNITIES: 'SET_OPPORTUNITIES',
     ADD_OPPORTUNITY: 'ADD_OPPORTUNITY',
     UPDATE_OPPORTUNITY: 'UPDATE_OPPORTUNITY',
     REMOVE_OPPORTUNITY: 'REMOVE_OPPORTUNITY',
     SET_CURRENT_OPPORTUNITY: 'SET_CURRENT_OPPORTUNITY',
 
-    // Client opportunities
+    // Client Opportunities
     SET_CLIENT_OPPORTUNITIES: 'SET_CLIENT_OPPORTUNITIES',
     ADD_CLIENT_OPPORTUNITY: 'ADD_CLIENT_OPPORTUNITY',
 
-    // NOVO: Actions para imóveis
-    SET_CURRENT_PROPERTY: 'SET_CURRENT_PROPERTY',
+    // NOVO: Properties
     ADD_PROPERTY: 'ADD_PROPERTY',
     UPDATE_PROPERTY: 'UPDATE_PROPERTY',
     REMOVE_PROPERTY: 'REMOVE_PROPERTY',
+    SET_CURRENT_PROPERTY: 'SET_CURRENT_PROPERTY',
 
-    // NOVO: Actions para visitas
+    // NOVO: Visits, Offers, CPCV
     SET_CURRENT_VISIT: 'SET_CURRENT_VISIT',
-    ADD_VISIT: 'ADD_VISIT',
-    UPDATE_VISIT: 'UPDATE_VISIT',
-
-    // NOVO: Actions para ofertas
     SET_CURRENT_OFFER: 'SET_CURRENT_OFFER',
-    ADD_OFFER: 'ADD_OFFER',
-    UPDATE_OFFER: 'UPDATE_OFFER',
-
-    // NOVO: Actions para CPCV
     SET_CURRENT_CPCV: 'SET_CURRENT_CPCV',
-    ADD_CPCV: 'ADD_CPCV',
-    UPDATE_CPCV: 'UPDATE_CPCV',
 
     // Stats
     SET_CLIENT_STATS: 'SET_CLIENT_STATS',
     SET_CONSULTOR_STATS: 'SET_CONSULTOR_STATS',
-    SET_PROPERTY_STATS: 'SET_PROPERTY_STATS', // NOVO
 
-    // Filters and pagination
+    // Filters e Pagination
     SET_FILTERS: 'SET_FILTERS',
     SET_PAGINATION: 'SET_PAGINATION',
     RESET_FILTERS: 'RESET_FILTERS',
@@ -256,97 +248,87 @@ function opportunityReducer(state, action) {
                 ...state,
                 clientOpportunities: {
                     ...state.clientOpportunities,
-                    [action.payload.clienteId]: action.payload.opportunities
-                }
+                    [action.payload.clientId]: action.payload.opportunities
+                },
+                pagination: action.payload.pagination || state.pagination
             };
 
         case ActionTypes.ADD_CLIENT_OPPORTUNITY:
             const clientId = action.payload.clienteId;
-            const currentClientOpps = state.clientOpportunities[clientId] || [];
             return {
                 ...state,
                 clientOpportunities: {
                     ...state.clientOpportunities,
-                    [clientId]: [action.payload, ...currentClientOpps]
+                    [clientId]: [
+                        action.payload,
+                        ...(state.clientOpportunities[clientId] || [])
+                    ]
                 }
             };
 
-        // NOVO: Property Actions
+        // NOVO: Properties
+        case ActionTypes.ADD_PROPERTY:
+            return {
+                ...state,
+                currentOpportunity: state.currentOpportunity
+                    ? {
+                        ...state.currentOpportunity,
+                        imoveis: [...(state.currentOpportunity.imoveis || []), action.payload]
+                    }
+                    : null
+            };
+
+        case ActionTypes.UPDATE_PROPERTY:
+            return {
+                ...state,
+                currentOpportunity: state.currentOpportunity
+                    ? {
+                        ...state.currentOpportunity,
+                        imoveis: state.currentOpportunity.imoveis.map(p =>
+                            p.id === action.payload.id ? action.payload : p
+                        )
+                    }
+                    : null,
+                currentProperty: state.currentProperty?.id === action.payload.id
+                    ? action.payload
+                    : state.currentProperty
+            };
+
+        case ActionTypes.REMOVE_PROPERTY:
+            return {
+                ...state,
+                currentOpportunity: state.currentOpportunity
+                    ? {
+                        ...state.currentOpportunity,
+                        imoveis: state.currentOpportunity.imoveis.filter(p => p.id !== action.payload)
+                    }
+                    : null
+            };
+
         case ActionTypes.SET_CURRENT_PROPERTY:
             return {
                 ...state,
                 currentProperty: action.payload
             };
 
-        case ActionTypes.ADD_PROPERTY:
-            return {
-                ...state,
-                currentOpportunity: state.currentOpportunity ? {
-                    ...state.currentOpportunity,
-                    imoveis: [...(state.currentOpportunity.imoveis || []), action.payload]
-                } : state.currentOpportunity
-            };
-
-        case ActionTypes.UPDATE_PROPERTY:
-            return {
-                ...state,
-                currentOpportunity: state.currentOpportunity ? {
-                    ...state.currentOpportunity,
-                    imoveis: (state.currentOpportunity.imoveis || []).map(prop =>
-                        prop.id === action.payload.id ? action.payload : prop
-                    )
-                } : state.currentOpportunity
-            };
-
-        case ActionTypes.REMOVE_PROPERTY:
-            return {
-                ...state,
-                currentOpportunity: state.currentOpportunity ? {
-                    ...state.currentOpportunity,
-                    imoveis: (state.currentOpportunity.imoveis || []).filter(prop =>
-                        prop.id !== action.payload
-                    )
-                } : state.currentOpportunity
-            };
-
-        // NOVO: Visit Actions
+        // NOVO: Visits, Offers, CPCV
         case ActionTypes.SET_CURRENT_VISIT:
             return {
                 ...state,
                 currentVisit: action.payload
             };
 
-        case ActionTypes.ADD_VISIT:
-            return state;
-
-        case ActionTypes.UPDATE_VISIT:
-            return state;
-
-        // NOVO: Offer Actions
         case ActionTypes.SET_CURRENT_OFFER:
             return {
                 ...state,
                 currentOffer: action.payload
             };
 
-        case ActionTypes.ADD_OFFER:
-            return state;
-
-        case ActionTypes.UPDATE_OFFER:
-            return state;
-
-        // NOVO: CPCV Actions
         case ActionTypes.SET_CURRENT_CPCV:
             return {
                 ...state,
                 currentCPCV: action.payload
             };
-
-        case ActionTypes.ADD_CPCV:
-            return state;
-
-        case ActionTypes.UPDATE_CPCV:
-            return state;
 
         // Stats
         case ActionTypes.SET_CLIENT_STATS:
@@ -364,15 +346,6 @@ function opportunityReducer(state, action) {
                 stats: {
                     ...state.stats,
                     consultor: action.payload
-                }
-            };
-
-        case ActionTypes.SET_PROPERTY_STATS:
-            return {
-                ...state,
-                stats: {
-                    ...state.stats,
-                    properties: action.payload
                 }
             };
 
@@ -508,7 +481,7 @@ export function OpportunityProvider({ children }) {
         }
     }, [currentUser, setLoading, setError]);
 
-    const fetchClientOpportunities = useCallback(async (clienteId, options = {}) => {
+    const fetchClientOpportunities = useCallback(async (clienteId) => {
         if (!currentUser?.uid) {
             throw new Error('Utilizador não autenticado');
         }
@@ -517,34 +490,29 @@ export function OpportunityProvider({ children }) {
         setError('list', null);
 
         try {
-            const result = await listClientOpportunities(
+            const { opportunities, pagination } = await listClientOpportunities(
                 currentUser.uid,
                 clienteId,
-                {
-                    ...options,
-                    ...state.filters
-                }
+                state.filters,
+                state.pagination
             );
 
             dispatch({
                 type: ActionTypes.SET_CLIENT_OPPORTUNITIES,
-                payload: {
-                    clienteId,
-                    opportunities: result.opportunities
-                }
+                payload: { clientId: clienteId, opportunities, pagination }
             });
 
             setLoading('list', false);
-            return result;
+            return opportunities;
 
         } catch (error) {
             setError('list', error.message);
             setLoading('list', false);
             throw error;
         }
-    }, [currentUser, state.filters, setLoading, setError]);
+    }, [currentUser, state.filters, state.pagination, setLoading, setError]);
 
-    const fetchAllOpportunities = useCallback(async (options = {}) => {
+    const fetchAllOpportunities = useCallback(async () => {
         if (!currentUser?.uid) {
             throw new Error('Utilizador não autenticado');
         }
@@ -553,34 +521,26 @@ export function OpportunityProvider({ children }) {
         setError('list', null);
 
         try {
-            const result = await listAllOpportunities(
+            const { opportunities, pagination } = await listAllOpportunities(
                 currentUser.uid,
-                {
-                    ...options,
-                    ...state.filters
-                }
+                state.filters,
+                state.pagination
             );
 
             dispatch({
                 type: ActionTypes.SET_OPPORTUNITIES,
-                payload: {
-                    opportunities: result.opportunities,
-                    pagination: {
-                        total: result.total,
-                        hasMore: result.hasMore
-                    }
-                }
+                payload: { opportunities, pagination }
             });
 
             setLoading('list', false);
-            return result;
+            return opportunities;
 
         } catch (error) {
             setError('list', error.message);
             setLoading('list', false);
             throw error;
         }
-    }, [currentUser, state.filters, setLoading, setError]);
+    }, [currentUser, state.filters, state.pagination, setLoading, setError]);
 
     // ===== UPDATE OPERATIONS =====
 
@@ -610,6 +570,37 @@ export function OpportunityProvider({ children }) {
             throw error;
         }
     }, [currentUser, setLoading, setError]);
+
+    // ===== TIMELINE OPERATIONS (MOVIDO PARA ANTES DOS PROPERTY OPERATIONS) =====
+
+    const changeOpportunityState = useCallback(async (clienteId, opportunityId, newState) => {
+        return updateExistingOpportunity(clienteId, opportunityId, { estado: newState });
+    }, [updateExistingOpportunity]);
+
+    const addEventToTimeline = useCallback(async (clienteId, opportunityId, eventData) => {
+        if (!currentUser?.uid) {
+            throw new Error('Utilizador não autenticado');
+        }
+
+        try {
+            const newEvent = await addTimelineEvent(
+                currentUser.uid,
+                clienteId,
+                opportunityId,
+                eventData
+            );
+
+            dispatch({
+                type: ActionTypes.ADD_TIMELINE_EVENT,
+                payload: { opportunityId, event: newEvent }
+            });
+
+            return newEvent;
+
+        } catch (error) {
+            throw error;
+        }
+    }, [currentUser]);
 
     // ===== NOVO: PROPERTY OPERATIONS =====
 
@@ -646,7 +637,7 @@ export function OpportunityProvider({ children }) {
             setLoading('property', false);
             throw error;
         }
-    }, [currentUser, setLoading, setError]);
+    }, [currentUser, addEventToTimeline, setLoading, setError]);
 
     const updateProperty = useCallback(async (clienteId, opportunityId, propertyId, updates) => {
         if (!currentUser?.uid) {
@@ -945,37 +936,6 @@ export function OpportunityProvider({ children }) {
         }
     }, [currentUser, fetchOpportunity, addEventToTimeline, setLoading, setError]);
 
-    // ===== EXISTING OPERATIONS (mantém igual) =====
-
-    const changeOpportunityState = useCallback(async (clienteId, opportunityId, newState) => {
-        return updateExistingOpportunity(clienteId, opportunityId, { estado: newState });
-    }, [updateExistingOpportunity]);
-
-    const addEventToTimeline = useCallback(async (clienteId, opportunityId, eventData) => {
-        if (!currentUser?.uid) {
-            throw new Error('Utilizador não autenticado');
-        }
-
-        try {
-            const newEvent = await addTimelineEvent(
-                currentUser.uid,
-                clienteId,
-                opportunityId,
-                eventData
-            );
-
-            dispatch({
-                type: ActionTypes.ADD_TIMELINE_EVENT,
-                payload: { opportunityId, event: newEvent }
-            });
-
-            return newEvent;
-
-        } catch (error) {
-            throw error;
-        }
-    }, [currentUser]);
-
     // ===== DELETE OPERATIONS =====
 
     const removeOpportunity = useCallback(async (clienteId, opportunityId, permanent = false) => {
@@ -1115,7 +1075,7 @@ export function OpportunityProvider({ children }) {
         }
     }, [currentUser, setLoading, setError]);
 
-    // ===== FILTERS & SEARCH =====
+    // ===== FILTER OPERATIONS =====
 
     const setFilters = useCallback((filters) => {
         dispatch({ type: ActionTypes.SET_FILTERS, payload: filters });
@@ -1129,7 +1089,7 @@ export function OpportunityProvider({ children }) {
         dispatch({ type: ActionTypes.SET_PAGINATION, payload: pagination });
     }, []);
 
-    // ===== HELPERS =====
+    // ===== NOVO: HELPERS =====
 
     const setCurrentProperty = useCallback((property) => {
         dispatch({ type: ActionTypes.SET_CURRENT_PROPERTY, payload: property });
