@@ -20,7 +20,7 @@ import ClientList from './pages/ClientList';
 import ClientForm from './pages/ClientForm';
 import ClientDetail from './pages/ClientDetail';
 import OpportunityList from './pages/OpportunityList';
-import OpportunityForm from './pages/OpportunityForm';
+import OpportunityForm from './pages/opportunities/OpportunityForm';
 import OpportunityDetail from './pages/OpportunityDetail';
 import './index.css';
 
