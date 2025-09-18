@@ -795,12 +795,12 @@ const SellerOpportunity = ({
                             <div className="flex items-center justify-between">
                                 <span className="text-sm font-medium text-gray-700">{label}</span>
                                 <span className={`px-2 py-1 text-xs rounded-full ${propertyData.documentos[key].status === DOC_STATUS.COMPLETED
-                                        ? 'bg-green-100 text-green-700'
-                                        : propertyData.documentos[key].status === DOC_STATUS.IN_PROGRESS
-                                            ? 'bg-yellow-100 text-yellow-700'
-                                            : propertyData.documentos[key].status === DOC_STATUS.EXPIRED
-                                                ? 'bg-red-100 text-red-700'
-                                                : 'bg-gray-100 text-gray-700'
+                                    ? 'bg-green-100 text-green-700'
+                                    : propertyData.documentos[key].status === DOC_STATUS.IN_PROGRESS
+                                        ? 'bg-yellow-100 text-yellow-700'
+                                        : propertyData.documentos[key].status === DOC_STATUS.EXPIRED
+                                            ? 'bg-red-100 text-red-700'
+                                            : 'bg-gray-100 text-gray-700'
                                     }`}>
                                     {DOC_STATUS_LABELS[propertyData.documentos[key].status]}
                                 </span>
@@ -841,8 +841,8 @@ const SellerOpportunity = ({
                                 key={channel}
                                 onClick={() => handleMarketingChannelToggle(channel)}
                                 className={`px-3 py-1 rounded-full text-sm transition-colors ${propertyData.canaisMarketing.includes(channel)
-                                        ? 'bg-purple-500 text-white'
-                                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                    ? 'bg-purple-500 text-white'
+                                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                                     }`}
                             >
                                 {label}
@@ -946,12 +946,12 @@ const SellerOpportunity = ({
                                         </span>
                                     </div>
                                     <span className={`px-2 py-1 text-xs rounded-full ${visit.status === BUYER_VISIT_STATUS.INTERESTED
-                                            ? 'bg-green-100 text-green-700'
-                                            : visit.status === BUYER_VISIT_STATUS.NOT_INTERESTED
-                                                ? 'bg-red-100 text-red-700'
-                                                : visit.status === BUYER_VISIT_STATUS.SECOND_VISIT
-                                                    ? 'bg-blue-100 text-blue-700'
-                                                    : 'bg-gray-100 text-gray-700'
+                                        ? 'bg-green-100 text-green-700'
+                                        : visit.status === BUYER_VISIT_STATUS.NOT_INTERESTED
+                                            ? 'bg-red-100 text-red-700'
+                                            : visit.status === BUYER_VISIT_STATUS.SECOND_VISIT
+                                                ? 'bg-blue-100 text-blue-700'
+                                                : 'bg-gray-100 text-gray-700'
                                         }`}>
                                         {BUYER_VISIT_LABELS[visit.status]}
                                     </span>
@@ -1022,20 +1022,20 @@ const SellerOpportunity = ({
                                         </span>
                                         {offer.valorOferta && propertyData.precoVenda && (
                                             <span className={`text-sm ${parseFloat(offer.valorOferta) >= parseFloat(propertyData.precoVenda)
-                                                    ? 'text-green-600'
-                                                    : 'text-orange-600'
+                                                ? 'text-green-600'
+                                                : 'text-orange-600'
                                                 }`}>
                                                 ({((parseFloat(offer.valorOferta) / parseFloat(propertyData.precoVenda)) * 100).toFixed(1)}% do pedido)
                                             </span>
                                         )}
                                     </div>
                                     <span className={`px-2 py-1 text-xs rounded-full ${offer.status === RECEIVED_OFFER_STATUS.ACCEPTED
-                                            ? 'bg-green-100 text-green-700'
-                                            : offer.status === RECEIVED_OFFER_STATUS.REJECTED
-                                                ? 'bg-red-100 text-red-700'
-                                                : offer.status === RECEIVED_OFFER_STATUS.COUNTER_PROPOSED
-                                                    ? 'bg-yellow-100 text-yellow-700'
-                                                    : 'bg-blue-100 text-blue-700'
+                                        ? 'bg-green-100 text-green-700'
+                                        : offer.status === RECEIVED_OFFER_STATUS.REJECTED
+                                            ? 'bg-red-100 text-red-700'
+                                            : offer.status === RECEIVED_OFFER_STATUS.COUNTER_PROPOSED
+                                                ? 'bg-yellow-100 text-yellow-700'
+                                                : 'bg-blue-100 text-blue-700'
                                         }`}>
                                         {RECEIVED_OFFER_LABELS[offer.status]}
                                     </span>
