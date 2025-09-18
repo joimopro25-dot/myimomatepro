@@ -15,6 +15,8 @@ import {
     DocumentTextIcon,
     ChatBubbleLeftRightIcon
 } from '@heroicons/react/24/outline';
+import { useAuth } from '../../../contexts/AuthContext';
+import NegocioPlenoLinker from './NegocioPlenoLinker';
 
 // Estados de Visita
 const VISIT_STATES = {
@@ -59,6 +61,8 @@ const BuyerOpportunity = ({
     clientId,
     opportunityId
 }) => {
+    // Hooks
+    const { currentUser } = useAuth();
 
     // Estados dos modals
     const [showPropertyForm, setShowPropertyForm] = useState(false);
@@ -473,6 +477,50 @@ const BuyerOpportunity = ({
 
     return (
         <>
+            {/* NEGÓCIO PLENO SECTION */}
+            <div className="mb-6">
+                <NegocioPlenoLinker
+                    currentOpportunity={formData}
+                    onLink={async (targetOpportunity) => {
+                        // Implementar lógica de linking
+                        const linkData = {
+                            linkedOpportunityId: targetOpportunity.id,
+                            linkedOpportunityClientId: targetOpportunity.clienteId,
+                            linkedOpportunityClientName: targetOpportunity.clienteName,
+                            linkedType: 'comprador_para_vendedor',
+                            isNegocioPleno: true,
+                            negocioPlenoStatus: 'linkado',
+                            negocioPlenoData: {
+                                linkedAt: new Date(),
+                                linkedBy: currentUser?.uid,
+                                lastSync: new Date(),
+                                discrepancies: [],
+                                totalComissao: 0,
+                                comissaoVendedor: 0,
+                                comissaoComprador: 0,
+                            }
+                        };
+                        updateFormData(linkData);
+                    }}
+                    onUnlink={async () => {
+                        // Implementar lógica de unlinking
+                        updateFormData({
+                            linkedOpportunityId: null,
+                            linkedOpportunityClientId: null,
+                            linkedOpportunityClientName: null,
+                            linkedType: null,
+                            isNegocioPleno: false,
+                            negocioPlenoStatus: null,
+                            negocioPlenoData: null
+                        });
+                    }}
+                    onSync={async () => {
+                        // Implementar lógica de sincronização
+                        console.log('Sincronizando Negócio Pleno...');
+                    }}
+                />
+            </div>
+
             {/* SEÇÃO DE GESTÃO DE IMÓVEIS */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
                 <div className="flex justify-between items-center mb-4">
@@ -844,9 +892,9 @@ const BuyerOpportunity = ({
                                     <div key={visit.id} className="flex items-center justify-between text-xs bg-white rounded p-2 mb-1">
                                         <div className="flex-1">
                                             <span className={`inline-block px-1.5 py-0.5 rounded text-xs mr-2 ${visit.estado === VISIT_STATES.COMPLETED ? 'bg-green-100 text-green-700' :
-                                                    visit.estado === VISIT_STATES.CANCELLED ? 'bg-red-100 text-red-700' :
-                                                        visit.estado === VISIT_STATES.CONFIRMED ? 'bg-blue-100 text-blue-700' :
-                                                            'bg-gray-100 text-gray-700'
+                                                visit.estado === VISIT_STATES.CANCELLED ? 'bg-red-100 text-red-700' :
+                                                    visit.estado === VISIT_STATES.CONFIRMED ? 'bg-blue-100 text-blue-700' :
+                                                        'bg-gray-100 text-gray-700'
                                                 }`}>
                                                 {VISIT_STATE_LABELS[visit.estado]?.split(' ')[0]}
                                             </span>
@@ -1018,10 +1066,10 @@ const BuyerOpportunity = ({
                                     <div key={offer.id} className="flex items-center justify-between text-xs bg-white rounded p-2 mb-1">
                                         <div className="flex-1">
                                             <span className={`inline-block px-1.5 py-0.5 rounded text-xs mr-2 ${offer.status === OFFER_STATES.ACCEPTED ? 'bg-green-100 text-green-700' :
-                                                    offer.status === OFFER_STATES.REJECTED ? 'bg-red-100 text-red-700' :
-                                                        offer.status === OFFER_STATES.NEGOTIATION ? 'bg-orange-100 text-orange-700' :
-                                                            offer.status === OFFER_STATES.COUNTER_OFFER ? 'bg-yellow-100 text-yellow-700' :
-                                                                'bg-gray-100 text-gray-700'
+                                                offer.status === OFFER_STATES.REJECTED ? 'bg-red-100 text-red-700' :
+                                                    offer.status === OFFER_STATES.NEGOTIATION ? 'bg-orange-100 text-orange-700' :
+                                                        offer.status === OFFER_STATES.COUNTER_OFFER ? 'bg-yellow-100 text-yellow-700' :
+                                                            'bg-gray-100 text-gray-700'
                                                 }`}>
                                                 {OFFER_STATE_LABELS[offer.status]?.split(' ')[0]}
                                             </span>
