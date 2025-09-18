@@ -1,7 +1,7 @@
 /**
  * OPPORTUNITY LIST PAGE - MyImoMatePro
  * Página para listar oportunidades de um cliente com ações
- * VERSÃO CORRIGIDA - Com filtro de tipo funcional
+ * VERSÃO ATUALIZADA - Com suporte para Negócios Plenos
  * 
  * Caminho: src/pages/OpportunityList.jsx
  */
@@ -22,6 +22,8 @@ import {
     OPPORTUNITY_STATE_LABELS,
     OPPORTUNITY_PRIORITIES
 } from '../models/opportunityModel';
+// NOVO: Import do componente de Negócio Pleno
+import NegocioPlenoBadge from '../components/opportunities/NegocioPlenoBadge';
 import Layout from '../components/Layout';
 import {
     ArrowLeftIcon,
@@ -37,7 +39,9 @@ import {
     CurrencyEuroIcon,
     UserGroupIcon,
     ExclamationTriangleIcon,
-    DocumentTextIcon
+    DocumentTextIcon,
+    SparklesIcon,  // NOVO: Ícone para indicar Negócio Pleno
+    LinkIcon        // NOVO: Ícone alternativo
 } from '@heroicons/react/24/outline';
 
 // Labels de prioridade locais (caso não existam no modelo)
@@ -222,7 +226,7 @@ const OpportunityList = () => {
         }).format(value);
     };
 
-    // Handler para clique na oportunidade - SIMPLIFICADO
+    // Handler para clique na oportunidade - Modificado para navegar para detalhes em vez de editar
     const handleOpportunityClick = (opportunity) => {
         console.log('Click handler called');
         console.log('Opportunity:', opportunity);
@@ -232,14 +236,10 @@ const OpportunityList = () => {
             return;
         }
 
-        const editUrl = `/clients/${clientId}/opportunities/${opportunity.id}/edit`;
-        console.log('Navigating to:', editUrl);
-
-        // Força navegação
-        window.location.href = `#${editUrl}`;
-        setTimeout(() => {
-            navigate(editUrl);
-        }, 100);
+        // ALTERADO: Navegar para página de detalhes em vez de editar
+        const detailUrl = `/clients/${clientId}/opportunities/${opportunity.id}`;
+        console.log('Navigating to:', detailUrl);
+        navigate(detailUrl);
     };
 
     // Eliminar oportunidade
@@ -271,7 +271,9 @@ const OpportunityList = () => {
             o.estado !== 'fechado_ganho' &&
             o.estado !== 'fechado_perdido'
         ).length,
-        valorTotal: opportunities.reduce((sum, o) => sum + (o.valorEstimado || 0), 0)
+        valorTotal: opportunities.reduce((sum, o) => sum + (o.valorEstimado || 0), 0),
+        // NOVO: Contar negócios plenos
+        negociosPlenos: opportunities.filter(o => o.isNegocioPleno).length
     };
 
     if (loading) {
@@ -315,6 +317,13 @@ const OpportunityList = () => {
                             <div className="mt-2 flex items-center gap-4 text-sm text-gray-600">
                                 <span>{stats.total} {filters.tipo ? `de ${OPPORTUNITY_TYPE_LABELS[filters.tipo]}` : 'oportunidades'}</span>
                                 <span className="text-green-600">{stats.abertas} abertas</span>
+                                {/* NOVO: Mostrar contador de negócios plenos */}
+                                {stats.negociosPlenos > 0 && (
+                                    <span className="text-purple-600 font-semibold">
+                                        <SparklesIcon className="w-4 h-4 inline mr-1" />
+                                        {stats.negociosPlenos} {stats.negociosPlenos === 1 ? 'negócio pleno' : 'negócios plenos'}
+                                    </span>
+                                )}
                                 <span className="font-semibold">{formatCurrency(stats.valorTotal)}</span>
                             </div>
                         </div>
@@ -423,12 +432,12 @@ const OpportunityList = () => {
                     </div>
                 ) : (
                     <>
-                        {/* Instrução */}
+                        {/* Instrução - ALTERADA */}
                         <div className="text-sm text-gray-500 mb-3 flex items-center gap-2">
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
-                            <span>Clique em qualquer oportunidade para editar</span>
+                            <span>Clique em qualquer oportunidade para ver detalhes</span>
                         </div>
 
                         {/* Lista */}
@@ -440,13 +449,21 @@ const OpportunityList = () => {
                                 return (
                                     <div
                                         key={uniqueKey}
-                                        onClick={() => {
-                                            if (opportunity.id && !opportunity.id.startsWith('temp-')) {
-                                                navigate(`/clients/${clientId}/opportunities/${opportunity.id}/edit`);
-                                            }
-                                        }}
-                                        className="bg-white rounded-lg shadow-sm border border-gray-200 p-5 hover:shadow-md hover:border-blue-300 transition-all cursor-pointer"
+                                        onClick={() => handleOpportunityClick(opportunity)}
+                                        className={`bg-white rounded-lg shadow-sm border p-5 hover:shadow-md transition-all cursor-pointer relative ${opportunity.isNegocioPleno
+                                                ? 'border-purple-300 hover:border-purple-400 bg-gradient-to-r from-purple-50/50 to-indigo-50/50'
+                                                : 'border-gray-200 hover:border-blue-300'
+                                            }`}
                                     >
+                                        {/* NOVO: Indicador de Negócio Pleno no canto */}
+                                        {opportunity.isNegocioPleno && (
+                                            <div className="absolute -top-2 -right-2 z-10">
+                                                <div className="bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-full p-2 shadow-lg">
+                                                    <SparklesIcon className="w-4 h-4" />
+                                                </div>
+                                            </div>
+                                        )}
+
                                         {/* Cabeçalho da oportunidade */}
                                         <div className="flex items-start justify-between mb-3">
                                             <div className="flex items-start gap-3">
@@ -454,9 +471,18 @@ const OpportunityList = () => {
                                                     <Icon className="w-5 h-5" />
                                                 </div>
                                                 <div className="flex-1">
-                                                    <h3 className="font-semibold text-gray-900 text-lg">
-                                                        {opportunity.titulo || 'Sem título'}
-                                                    </h3>
+                                                    <div className="flex items-start gap-2">
+                                                        <h3 className="font-semibold text-gray-900 text-lg">
+                                                            {opportunity.titulo || 'Sem título'}
+                                                        </h3>
+                                                        {/* NOVO: Badge de Negócio Pleno inline */}
+                                                        {opportunity.isNegocioPleno && (
+                                                            <NegocioPlenoBadge
+                                                                opportunity={opportunity}
+                                                                size="small"
+                                                            />
+                                                        )}
+                                                    </div>
                                                     <div className="flex items-center gap-3 mt-1">
                                                         <span className={`text-sm px-2 py-0.5 rounded-full ${getTypeColorClasses(opportunity.tipo)}`}>
                                                             {OPPORTUNITY_TYPE_LABELS[opportunity.tipo] || opportunity.tipo}
@@ -470,6 +496,15 @@ const OpportunityList = () => {
                                                             </span>
                                                         )}
                                                     </div>
+                                                    {/* NOVO: Mostrar com quem está linkado */}
+                                                    {opportunity.isNegocioPleno && opportunity.linkedOpportunityClientName && (
+                                                        <div className="mt-1 text-sm text-purple-600 flex items-center gap-1">
+                                                            <LinkIcon className="w-3 h-3" />
+                                                            <span>
+                                                                Linkado com: {opportunity.linkedOpportunityClientName}
+                                                            </span>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
 
@@ -528,10 +563,28 @@ const OpportunityList = () => {
                                                     ✓ Escritura
                                                 </span>
                                             )}
+
+                                            {/* NOVO: Indicador especial para Negócio Pleno */}
+                                            {opportunity.isNegocioPleno && (
+                                                <span className="text-sm font-bold text-purple-600 flex items-center gap-1">
+                                                    <SparklesIcon className="w-4 h-4" />
+                                                    Negócio Pleno
+                                                </span>
+                                            )}
                                         </div>
 
-                                        {/* Botão de ações no canto */}
+                                        {/* Botões de ação */}
                                         <div className="flex justify-end mt-3 gap-2">
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    navigate(`/clients/${clientId}/opportunities/${opportunity.id}/edit`);
+                                                }}
+                                                className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                                title="Editar"
+                                            >
+                                                <PencilIcon className="w-4 h-4" />
+                                            </button>
                                             <button
                                                 onClick={(e) => {
                                                     e.stopPropagation();
@@ -540,6 +593,7 @@ const OpportunityList = () => {
                                                     }
                                                 }}
                                                 className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                                title="Eliminar"
                                             >
                                                 <TrashIcon className="w-4 h-4" />
                                             </button>

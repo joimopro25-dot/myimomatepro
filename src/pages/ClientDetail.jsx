@@ -1,7 +1,7 @@
 /**
  * CLIENT DETAIL PAGE - MyImoMatePro
  * Página de visualização completa dos dados do cliente
- * ✅ VERSÃO LIMPA - Console logs de debug removidos
+ * VERSÃO ATUALIZADA - Com suporte para Negócios Plenos e Oportunidades
  * 
  * Caminho: src/pages/ClientDetail.jsx
  * Funcionalidade: Ver todas as informações do cliente (ícone olho)
@@ -10,8 +10,11 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useClients } from '../contexts/ClientContext';
+import { useNegocioPleno } from '../contexts/NegocioPlenoContext';
 import { CLIENT_CONTACT_PREFERENCES, CLIENT_MARITAL_STATUS, CLIENT_MARRIAGE_REGIMES, CLIENT_CREDIT_TYPES, CLIENT_LEAD_SOURCES, CLIENT_AVAILABLE_TAGS } from '../models/clientModel';
 import Layout from '../components/Layout';
+// NOVO: Import do componente de badges atualizado
+import OpportunityBadges from '../components/opportunities/OpportunityBadges';
 import {
     ArrowLeftIcon,
     PencilIcon,
@@ -28,11 +31,16 @@ import {
     CalendarIcon,
     IdentificationIcon,
     BuildingOfficeIcon,
-    InformationCircleIcon
+    InformationCircleIcon,
+    ChartBarIcon,      // NOVO: Para oportunidades
+    SparklesIcon,      // NOVO: Para Negócios Plenos
+    LinkIcon,          // NOVO: Para indicar linking
+    PlusIcon           // NOVO: Para adicionar
 } from '@heroicons/react/24/outline';
 import {
     StarIcon as StarIconSolid,
-    HeartIcon as HeartIconSolid
+    HeartIcon as HeartIconSolid,
+    SparklesIcon as SparklesIconSolid  // NOVO: Versão sólida
 } from '@heroicons/react/24/solid';
 
 const ClientDetail = () => {
@@ -48,8 +56,19 @@ const ClientDetail = () => {
         clearCurrentClient
     } = useClients();
 
+    // NOVO: Context de Negócios Plenos
+    const { fetchClientNegociosPlenos } = useNegocioPleno();
+
     // Estados locais
     const [activeTab, setActiveTab] = useState('personal');
+    // NOVO: Estado para Negócios Plenos do cliente
+    const [clientNegociosPlenos, setClientNegociosPlenos] = useState([]);
+    const [negocioPlenoStats, setNegocioPlenoStats] = useState({
+        total: 0,
+        emProgresso: 0,
+        concluidos: 0,
+        valorTotal: 0
+    });
 
     // Helper function para formatação de datas
     const formatDate = (dateValue) => {
@@ -72,12 +91,39 @@ const ClientDetail = () => {
         }
     };
 
+    // NOVO: Carregar Negócios Plenos do cliente
+    const loadClientNegociosPlenos = async () => {
+        if (clientId && fetchClientNegociosPlenos) {
+            try {
+                const negocios = await fetchClientNegociosPlenos(clientId);
+                setClientNegociosPlenos(negocios);
+
+                // Calcular estatísticas
+                const stats = {
+                    total: negocios.length,
+                    emProgresso: negocios.filter(n =>
+                        !['completed', 'cancelled'].includes(n.status)
+                    ).length,
+                    concluidos: negocios.filter(n => n.status === 'completed').length,
+                    valorTotal: negocios.reduce((sum, n) =>
+                        sum + (n.valores?.valorAcordado || 0), 0
+                    )
+                };
+                setNegocioPlenoStats(stats);
+            } catch (error) {
+                console.error('Erro ao carregar Negócios Plenos:', error);
+            }
+        }
+    };
+
     // Carregar dados do cliente ao montar componente
     useEffect(() => {
         const loadClient = async () => {
             if (clientId) {
                 try {
                     await fetchClient(clientId);
+                    // NOVO: Carregar também os Negócios Plenos
+                    await loadClientNegociosPlenos();
                 } catch (error) {
                     console.error('ClientDetail: Erro ao carregar cliente:', error);
                 }
@@ -142,15 +188,176 @@ const ClientDetail = () => {
 
     const client = currentClient;
 
-    // Tabs de navegação
+    // NOVO: Função para obter cor do status do Negócio Pleno
+    const getNegocioPlenoStatusColor = (status) => {
+        const colors = {
+            'linked': 'bg-purple-100 text-purple-800',
+            'negotiation': 'bg-yellow-100 text-yellow-800',
+            'proposal': 'bg-orange-100 text-orange-800',
+            'accepted': 'bg-green-100 text-green-800',
+            'cpcv_signed': 'bg-blue-100 text-blue-800',
+            'deed_scheduled': 'bg-indigo-100 text-indigo-800',
+            'completed': 'bg-emerald-100 text-emerald-800',
+            'cancelled': 'bg-red-100 text-red-800'
+        };
+        return colors[status] || 'bg-gray-100 text-gray-800';
+    };
+
+    // NOVO: Função para obter label do status
+    const getNegocioPlenoStatusLabel = (status) => {
+        const labels = {
+            'linked': 'Linkado',
+            'negotiation': 'Em Negociação',
+            'proposal': 'Proposta',
+            'accepted': 'Aceite',
+            'cpcv_signed': 'CPCV Assinado',
+            'deed_scheduled': 'Escritura Agendada',
+            'completed': 'Concluído',
+            'cancelled': 'Cancelado'
+        };
+        return labels[status] || status;
+    };
+
+    // Tabs de navegação - ATUALIZADO com nova tab
     const tabs = [
         { id: 'personal', name: 'Dados Pessoais', icon: UserIcon },
+        { id: 'opportunities', name: 'Oportunidades', icon: ChartBarIcon, badge: negocioPlenoStats.total }, // NOVO
         { id: 'financial', name: 'Informações Financeiras', icon: CurrencyEuroIcon },
         { id: 'documents', name: 'Documentação', icon: ClipboardDocumentCheckIcon },
         { id: 'relationship', name: 'Relacionamento', icon: HeartIcon }
     ];
 
-    // Renderizar dados pessoais
+    // NOVO: Renderizar tab de Oportunidades e Negócios Plenos
+    const renderOpportunitiesData = () => (
+        <div className="space-y-6">
+            {/* Estatísticas de Negócios Plenos */}
+            {negocioPlenoStats.total > 0 && (
+                <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-xl p-6">
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                            <SparklesIconSolid className="w-6 h-6 text-purple-600" />
+                            <h3 className="text-lg font-semibold text-gray-900">
+                                Negócios Plenos
+                            </h3>
+                        </div>
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-bold bg-purple-600 text-white">
+                            {negocioPlenoStats.total} Total
+                        </span>
+                    </div>
+
+                    {/* Métricas */}
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                        <div className="bg-white rounded-lg p-3">
+                            <p className="text-xs text-gray-500">Total</p>
+                            <p className="text-2xl font-bold text-purple-900">{negocioPlenoStats.total}</p>
+                        </div>
+                        <div className="bg-white rounded-lg p-3">
+                            <p className="text-xs text-gray-500">Em Progresso</p>
+                            <p className="text-2xl font-bold text-yellow-600">{negocioPlenoStats.emProgresso}</p>
+                        </div>
+                        <div className="bg-white rounded-lg p-3">
+                            <p className="text-xs text-gray-500">Concluídos</p>
+                            <p className="text-2xl font-bold text-green-600">{negocioPlenoStats.concluidos}</p>
+                        </div>
+                        <div className="bg-white rounded-lg p-3">
+                            <p className="text-xs text-gray-500">Valor Total</p>
+                            <p className="text-xl font-bold text-purple-900">
+                                €{negocioPlenoStats.valorTotal.toLocaleString('pt-PT')}
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Lista de Negócios Plenos */}
+                    <div className="space-y-3">
+                        {clientNegociosPlenos.map((negocio) => (
+                            <div
+                                key={negocio.id}
+                                onClick={() => navigate(`/negocio-pleno/${negocio.id}`)}
+                                className="bg-white rounded-lg p-4 hover:shadow-md transition-all cursor-pointer border border-purple-100"
+                            >
+                                <div className="flex items-center justify-between mb-2">
+                                    <div className="flex items-center gap-2">
+                                        <LinkIcon className="w-5 h-5 text-purple-600" />
+                                        <span className="font-semibold text-gray-900">
+                                            {negocio.tipo === 'comprador'
+                                                ? `Compra de ${negocio.vendedorNome}`
+                                                : `Venda para ${negocio.compradorNome}`
+                                            }
+                                        </span>
+                                    </div>
+                                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getNegocioPlenoStatusColor(negocio.status)
+                                        }`}>
+                                        {getNegocioPlenoStatusLabel(negocio.status)}
+                                    </span>
+                                </div>
+                                <div className="grid grid-cols-3 gap-4 text-sm">
+                                    <div>
+                                        <p className="text-gray-500">Valor</p>
+                                        <p className="font-medium">€{(negocio.valores?.valorAcordado || 0).toLocaleString('pt-PT')}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-gray-500">Imóvel</p>
+                                        <p className="font-medium">{negocio.imovel?.morada || 'N/D'}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-gray-500">Data Criação</p>
+                                        <p className="font-medium">{formatDate(negocio.createdAt)}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* Oportunidades do Cliente */}
+            <div className="bg-white rounded-lg border border-gray-200 p-6">
+                <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+                        <ChartBarIcon className="w-5 h-5 mr-2" />
+                        Oportunidades
+                    </h3>
+                    <button
+                        onClick={() => navigate(`/clients/${clientId}/opportunities/new`)}
+                        className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                        <PlusIcon className="w-4 h-4" />
+                        Nova Oportunidade
+                    </button>
+                </div>
+
+                {/* Componente de Badges de Oportunidades */}
+                <OpportunityBadges
+                    clientId={clientId}
+                    variant="expanded"
+                    showEmpty={true}
+                />
+            </div>
+
+            {/* Botão para criar Negócio Pleno se houver oportunidades */}
+            <div className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl p-6 border border-purple-200">
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h4 className="font-semibold text-purple-900 mb-2">
+                            Criar Negócio Pleno
+                        </h4>
+                        <p className="text-sm text-purple-700">
+                            Link oportunidades de compra e venda para criar um Negócio Pleno unificado
+                        </p>
+                    </div>
+                    <button
+                        onClick={() => navigate('/negocio-pleno/new')}
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg hover:from-purple-700 hover:to-indigo-700 transition-all shadow-md"
+                    >
+                        <SparklesIcon className="w-5 h-5" />
+                        Criar Negócio
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+
+    // Renderizar dados pessoais (mantém original)
     const renderPersonalData = () => (
         <div className="space-y-6">
             {/* Informações básicas */}
@@ -275,7 +482,7 @@ const ClientDetail = () => {
         </div>
     );
 
-    // Renderizar informações financeiras
+    // Renderizar informações financeiras (mantém original)
     const renderFinancialData = () => (
         <div className="space-y-6">
             {/* Rendimentos */}
@@ -366,7 +573,7 @@ const ClientDetail = () => {
         </div>
     );
 
-    // Renderizar documentação e tags
+    // Renderizar documentação e tags (mantém original)
     const renderDocumentationAndTags = () => (
         <div className="space-y-6">
             {/* Tags */}
@@ -427,7 +634,7 @@ const ClientDetail = () => {
         </div>
     );
 
-    // Renderizar relacionamento
+    // Renderizar relacionamento (mantém original)
     const renderRelationshipData = () => (
         <div className="space-y-6">
             {/* Como conheceu */}
@@ -498,11 +705,13 @@ const ClientDetail = () => {
         </div>
     );
 
-    // Renderizar conteúdo do tab ativo
+    // Renderizar conteúdo do tab ativo - ATUALIZADO
     const renderTabContent = () => {
         switch (activeTab) {
             case 'personal':
                 return renderPersonalData();
+            case 'opportunities':  // NOVO
+                return renderOpportunitiesData();
             case 'financial':
                 return renderFinancialData();
             case 'documents':
@@ -527,7 +736,16 @@ const ClientDetail = () => {
                             <ArrowLeftIcon className="w-5 h-5" />
                         </button>
                         <div>
-                            <h1 className="text-2xl font-bold text-gray-900">{client.name}</h1>
+                            <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+                                {client.name}
+                                {/* NOVO: Indicador de Negócios Plenos */}
+                                {negocioPlenoStats.total > 0 && (
+                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-gradient-to-r from-purple-500 to-indigo-600 text-white font-bold">
+                                        <SparklesIcon className="w-3 h-3 mr-1" />
+                                        {negocioPlenoStats.total} NP
+                                    </span>
+                                )}
+                            </h1>
                             <div className="flex items-center mt-1 space-x-4">
                                 {client.tags?.includes('VIP') && (
                                     <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-yellow-100 text-yellow-800">
@@ -573,10 +791,17 @@ const ClientDetail = () => {
                                 <span>{client.profession}</span>
                             </div>
                         )}
+                        {/* NOVO: Indicador rápido de Negócios */}
+                        {negocioPlenoStats.emProgresso > 0 && (
+                            <div className="flex items-center text-purple-700 font-medium">
+                                <SparklesIcon className="w-4 h-4 mr-1" />
+                                <span>{negocioPlenoStats.emProgresso} negócios em progresso</span>
+                            </div>
+                        )}
                     </div>
                 </div>
 
-                {/* Navegação por tabs */}
+                {/* Navegação por tabs - ATUALIZADA */}
                 <div className="border-b border-gray-200 mb-6">
                     <nav className="-mb-px flex space-x-8">
                         {tabs.map((tab) => {
@@ -592,6 +817,15 @@ const ClientDetail = () => {
                                 >
                                     <Icon className="w-4 h-4 mr-2" />
                                     {tab.name}
+                                    {/* NOVO: Badge com contador */}
+                                    {tab.badge > 0 && (
+                                        <span className={`ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold ${tab.id === 'opportunities' && negocioPlenoStats.total > 0
+                                                ? 'bg-purple-100 text-purple-800'
+                                                : 'bg-gray-100 text-gray-800'
+                                            }`}>
+                                            {tab.badge}
+                                        </span>
+                                    )}
                                 </button>
                             );
                         })}

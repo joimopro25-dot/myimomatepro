@@ -1,6 +1,7 @@
 /**
  * OPPORTUNITY BADGES COMPONENT - MyImoMatePro
  * Mini cards/badges para mostrar oportunidades no card de cliente
+ * VERSÃO ATUALIZADA - Com suporte para Negócios Plenos
  * 
  * Caminho: src/components/opportunities/OpportunityBadges.jsx
  */
@@ -25,14 +26,17 @@ import {
     ChartBarIcon,
     PlusCircleIcon,
     ArrowRightIcon,
-    ExclamationCircleIcon
+    ExclamationCircleIcon,
+    SparklesIcon,  // NOVO: Para indicar Negócio Pleno
+    LinkIcon        // NOVO: Para indicar linking
 } from '@heroicons/react/24/outline';
 import {
     HomeIcon as HomeIconSolid,
     ShoppingCartIcon as ShoppingCartIconSolid,
     CurrencyEuroIcon as CurrencyEuroIconSolid,
     UserGroupIcon as UserGroupIconSolid,
-    ChartBarIcon as ChartBarIconSolid
+    ChartBarIcon as ChartBarIconSolid,
+    SparklesIcon as SparklesIconSolid  // NOVO: Versão sólida
 } from '@heroicons/react/24/solid';
 
 // ===== ÍCONES POR TIPO =====
@@ -115,11 +119,51 @@ const StateIndicator = ({ estado }) => {
     );
 };
 
-// ===== MINI BADGE COMPONENT =====
+// ===== NOVO: INDICADOR DE NEGÓCIO PLENO =====
+const NegocioPlenoIndicator = ({ opportunity }) => {
+    if (!opportunity.isNegocioPleno && !opportunity.negocioPlenoId) {
+        return null;
+    }
+
+    return (
+        <div className="absolute -top-1 -right-1 z-10">
+            <div className="relative group">
+                <div className="bg-gradient-to-r from-purple-500 to-indigo-600 rounded-full p-1 shadow-lg transform hover:scale-110 transition-transform">
+                    <SparklesIcon className="w-3 h-3 text-white" />
+                </div>
+                {/* Tooltip */}
+                <div className="absolute bottom-full right-0 mb-2 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                    <div className="bg-gray-900 text-white text-xs rounded-lg px-2 py-1 whitespace-nowrap">
+                        <div className="font-semibold">Negócio Pleno</div>
+                        {opportunity.linkedOpportunityClientName && (
+                            <div className="text-gray-300 text-[10px]">
+                                {opportunity.tipo === 'comprador' || opportunity.tipo === 'buyer'
+                                    ? `Vendedor: ${opportunity.linkedOpportunityClientName}`
+                                    : `Comprador: ${opportunity.linkedOpportunityClientName}`
+                                }
+                            </div>
+                        )}
+                        <div className="absolute bottom-0 right-2 transform translate-y-1/2 rotate-45 w-2 h-2 bg-gray-900"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// ===== MINI BADGE COMPONENT ATUALIZADO =====
 const OpportunityBadge = ({ opportunity, onClick, compact = false }) => {
     const Icon = getOpportunityIcon(opportunity.tipo);
-    const colorClasses = getColorClasses(opportunity.tipo);
-    const hoverClasses = getColorClasses(opportunity.tipo, 'hover');
+    const isNegocioPleno = opportunity.isNegocioPleno || opportunity.negocioPlenoId;
+
+    // Ajustar cores se for Negócio Pleno
+    const baseColorClasses = isNegocioPleno
+        ? 'bg-gradient-to-r from-purple-100 to-indigo-100 text-purple-700 border-purple-300'
+        : getColorClasses(opportunity.tipo);
+
+    const hoverClasses = isNegocioPleno
+        ? 'hover:from-purple-200 hover:to-indigo-200 hover:border-purple-400'
+        : getColorClasses(opportunity.tipo, 'hover');
 
     if (compact) {
         // Versão compacta para lista de clientes
@@ -130,12 +174,15 @@ const OpportunityBadge = ({ opportunity, onClick, compact = false }) => {
                     onClick(opportunity);
                 }}
                 className={`
-                    inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium
-                    border transition-all duration-200 ${colorClasses} ${hoverClasses}
-                    transform hover:scale-105
+                    relative inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium
+                    border transition-all duration-200 ${baseColorClasses} ${hoverClasses}
+                    transform hover:scale-105 ${isNegocioPleno ? 'shadow-md' : ''}
                 `}
-                title={`${OPPORTUNITY_TYPE_LABELS[opportunity.tipo]} - ${OPPORTUNITY_STATE_LABELS[opportunity.estado]}`}
+                title={`${OPPORTUNITY_TYPE_LABELS[opportunity.tipo]} - ${OPPORTUNITY_STATE_LABELS[opportunity.estado]}${isNegocioPleno ? ' (Negócio Pleno)' : ''}`}
             >
+                {isNegocioPleno && (
+                    <SparklesIcon className="w-3.5 h-3.5 text-purple-600" />
+                )}
                 <Icon className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">{OPPORTUNITY_TYPE_LABELS[opportunity.tipo]}</span>
                 <StateIndicator estado={opportunity.estado} />
@@ -149,19 +196,32 @@ const OpportunityBadge = ({ opportunity, onClick, compact = false }) => {
             onClick={() => onClick(opportunity)}
             className={`
                 group cursor-pointer p-3 rounded-lg border transition-all duration-200
-                ${colorClasses} ${hoverClasses}
+                ${baseColorClasses} ${hoverClasses}
                 hover:shadow-md transform hover:-translate-y-0.5
+                ${isNegocioPleno ? 'ring-2 ring-purple-200 ring-offset-1' : ''}
+                relative
             `}
         >
+            {/* Indicador de Negócio Pleno */}
+            <NegocioPlenoIndicator opportunity={opportunity} />
+
             <div className="flex items-start justify-between">
                 <div className="flex items-center gap-2">
-                    <div className={`p-1.5 rounded-lg ${getColorClasses(opportunity.tipo, 'solid')}`}>
+                    <div className={`p-1.5 rounded-lg ${isNegocioPleno
+                            ? 'bg-gradient-to-r from-purple-500 to-indigo-600'
+                            : getColorClasses(opportunity.tipo, 'solid')
+                        }`}>
                         <Icon className="w-4 h-4 text-white" />
                     </div>
                     <div>
-                        <p className="font-semibold text-sm">
-                            {OPPORTUNITY_TYPE_LABELS[opportunity.tipo]}
-                        </p>
+                        <div className="flex items-center gap-1">
+                            <p className="font-semibold text-sm">
+                                {OPPORTUNITY_TYPE_LABELS[opportunity.tipo]}
+                            </p>
+                            {isNegocioPleno && (
+                                <SparklesIcon className="w-3 h-3 text-purple-600" />
+                            )}
+                        </div>
                         <p className="text-xs opacity-75">
                             {OPPORTUNITY_STATE_LABELS[opportunity.estado]}
                         </p>
@@ -170,27 +230,61 @@ const OpportunityBadge = ({ opportunity, onClick, compact = false }) => {
                 <StateIndicator estado={opportunity.estado} />
             </div>
 
+            {/* Informação do Negócio Pleno */}
+            {isNegocioPleno && opportunity.linkedOpportunityClientName && (
+                <div className="mt-2 pt-2 border-t border-purple-200">
+                    <div className="flex items-center gap-1 text-xs">
+                        <LinkIcon className="w-3 h-3 text-purple-600" />
+                        <span className="text-purple-700 font-medium">
+                            {opportunity.tipo === 'comprador' || opportunity.tipo === 'buyer'
+                                ? `V: ${opportunity.linkedOpportunityClientName}`
+                                : `C: ${opportunity.linkedOpportunityClientName}`
+                            }
+                        </span>
+                    </div>
+                </div>
+            )}
+
             {opportunity.valorEstimado > 0 && (
-                <div className="mt-2 pt-2 border-t border-current border-opacity-20">
+                <div className={`mt-2 pt-2 border-t ${isNegocioPleno ? 'border-purple-200' : 'border-current border-opacity-20'
+                    }`}>
                     <p className="text-xs font-medium">
                         €{opportunity.valorEstimado.toLocaleString('pt-PT')}
                     </p>
                 </div>
             )}
 
-            <div className="mt-2 flex items-center justify-end">
-                <ArrowRightIcon className="w-3 h-3 opacity-50 group-hover:opacity-100 transition-opacity" />
+            <div className="mt-2 flex items-center justify-between">
+                {isNegocioPleno && (
+                    <span className="text-[10px] font-bold text-purple-600 uppercase">
+                        Negócio Pleno
+                    </span>
+                )}
+                <ArrowRightIcon className="w-3 h-3 opacity-50 group-hover:opacity-100 transition-opacity ml-auto" />
             </div>
         </div>
     );
 };
 
-// ===== GRUPO DE BADGES AGRUPADOS =====
+// ===== GRUPO DE BADGES AGRUPADOS ATUALIZADO =====
 const GroupedBadge = ({ tipo, count, opportunities, onClick }) => {
     const Icon = getOpportunityIcon(tipo);
-    const colorClasses = getColorClasses(tipo);
-    const hoverClasses = getColorClasses(tipo, 'hover');
-    const badgeColor = getColorClasses(tipo, 'badge');
+
+    // Contar quantos são Negócios Plenos
+    const negocioPlenoCount = opportunities.filter(o => o.isNegocioPleno || o.negocioPlenoId).length;
+    const hasNegocioPleno = negocioPlenoCount > 0;
+
+    const colorClasses = hasNegocioPleno
+        ? 'bg-gradient-to-r from-purple-100 to-indigo-100 text-purple-700 border-purple-300'
+        : getColorClasses(tipo);
+
+    const hoverClasses = hasNegocioPleno
+        ? 'hover:from-purple-200 hover:to-indigo-200 hover:border-purple-400'
+        : getColorClasses(tipo, 'hover');
+
+    const badgeColor = hasNegocioPleno
+        ? 'bg-gradient-to-r from-purple-500 to-indigo-600 text-white'
+        : getColorClasses(tipo, 'badge');
 
     // Calcular estatísticas do grupo
     const stats = {
@@ -199,7 +293,8 @@ const GroupedBadge = ({ tipo, count, opportunities, onClick }) => {
             o.estado !== OPPORTUNITY_STATES.CLOSED_WON &&
             o.estado !== OPPORTUNITY_STATES.CLOSED_LOST
         ).length,
-        valorTotal: opportunities.reduce((sum, o) => sum + (o.valorEstimado || 0), 0)
+        valorTotal: opportunities.reduce((sum, o) => sum + (o.valorEstimado || 0), 0),
+        negocioPleno: negocioPlenoCount
     };
 
     return (
@@ -212,8 +307,15 @@ const GroupedBadge = ({ tipo, count, opportunities, onClick }) => {
                 relative inline-flex items-center gap-2 px-3 py-1.5 rounded-lg
                 border transition-all duration-200 ${colorClasses} ${hoverClasses}
                 transform hover:scale-105 hover:shadow-md
+                ${hasNegocioPleno ? 'ring-1 ring-purple-200' : ''}
             `}
+            title={`${stats.total} ${OPPORTUNITY_TYPE_LABELS[tipo]}${hasNegocioPleno ? ` (${negocioPlenoCount} Negócios Plenos)` : ''}`}
         >
+            {/* Ícone de Negócio Pleno se houver */}
+            {hasNegocioPleno && (
+                <SparklesIcon className="w-4 h-4 text-purple-600" />
+            )}
+
             <Icon className="w-4 h-4" />
             <span className="font-medium text-sm">
                 {OPPORTUNITY_TYPE_LABELS[tipo]}
@@ -226,6 +328,13 @@ const GroupedBadge = ({ tipo, count, opportunities, onClick }) => {
             `}>
                 {count}
             </span>
+
+            {/* Badge secundário para Negócios Plenos */}
+            {hasNegocioPleno && (
+                <span className="inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-600 text-white">
+                    {negocioPlenoCount}NP
+                </span>
+            )}
 
             {/* Indicador de oportunidades abertas */}
             {stats.abertas > 0 && (
@@ -293,9 +402,15 @@ export default function OpportunityBadges({
         return acc;
     }, {});
 
+    // Contar Negócios Plenos
+    const totalNegociosPlenos = opportunities.filter(o => o.isNegocioPleno || o.negocioPlenoId).length;
+
     // Handler para clique em oportunidade
     const handleOpportunityClick = (opportunity) => {
-        if (onOpportunityClick) {
+        // Se for Negócio Pleno, navegar para página específica
+        if (opportunity.isNegocioPleno && opportunity.negocioPlenoId) {
+            navigate(`/negocio-pleno/${opportunity.negocioPlenoId}`);
+        } else if (onOpportunityClick) {
             onOpportunityClick(opportunity);
         } else {
             // Navegar para página da oportunidade
@@ -365,6 +480,14 @@ export default function OpportunityBadges({
 
         return (
             <div className="flex flex-wrap items-center gap-1.5">
+                {/* Mostrar indicador especial se houver Negócios Plenos */}
+                {totalNegociosPlenos > 0 && (
+                    <div className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-gradient-to-r from-purple-500 to-indigo-600 text-white text-xs font-bold shadow-md">
+                        <SparklesIcon className="w-3.5 h-3.5" />
+                        <span>{totalNegociosPlenos} NP</span>
+                    </div>
+                )}
+
                 {/* Mostrar badges agrupados por tipo */}
                 {Object.entries(groupedOpportunities).map(([tipo, opps]) => (
                     <GroupedBadge
@@ -396,9 +519,17 @@ export default function OpportunityBadges({
         return (
             <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-semibold text-gray-700">
-                        Oportunidades ({opportunities.length})
-                    </h3>
+                    <div className="flex items-center gap-3">
+                        <h3 className="text-sm font-semibold text-gray-700">
+                            Oportunidades ({opportunities.length})
+                        </h3>
+                        {totalNegociosPlenos > 0 && (
+                            <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gradient-to-r from-purple-500 to-indigo-600 text-white text-xs font-bold">
+                                <SparklesIcon className="w-3 h-3" />
+                                <span>{totalNegociosPlenos} Negócios Plenos</span>
+                            </div>
+                        )}
+                    </div>
                     <button
                         onClick={handleAddClick}
                         className="text-blue-600 hover:text-blue-700 text-sm font-medium

@@ -1,6 +1,6 @@
 /**
  * OPPORTUNITY SERVICE - MyImoMatePro
- * VERSÃO INTEGRADA com suporte completo para imóveis, visitas, ofertas e CPCV
+ * VERSÃO INTEGRADA com suporte completo para imóveis, visitas, ofertas, CPCV e NEGÓCIO PLENO
  * 
  * Caminho: src/services/opportunityService.js
  * Estrutura: consultores/{consultorId}/clientes/{clienteId}/oportunidades/{oportunidadeId}
@@ -32,6 +32,9 @@ import {
     OPPORTUNITY_STATES,
     calculateDaysInPipeline
 } from '../models/opportunityModel';
+
+// Import do serviço de Negócio Pleno
+import { createNegocioPleno, unlinkNegocioPleno } from './negocioPlenoService';
 
 // ===== CONFIGURAÇÕES =====
 const OPPORTUNITIES_COLLECTION = 'oportunidades';
@@ -218,9 +221,6 @@ export const listClientOpportunities = async (consultorId, clienteId, options = 
         // Executar query
         const snapshot = await getDocs(opportunityQuery);
 
-        // Na função listClientOpportunities
-        // SUBSTITUIR O BLOCO de processamento de oportunidades por este código definitivo:
-
         let opportunities = [];
         snapshot.forEach((doc) => {
             const data = doc.data();
@@ -360,8 +360,6 @@ export const listClientOpportunities = async (consultorId, clienteId, options = 
         if (estado) {
             opportunities = opportunities.filter(opp => opp.estado === estado);
         }
-
-        // Ordenar em memória (resto do código continua igual...)
 
         // Ordenar em memória
         opportunities.sort((a, b) => {
@@ -793,6 +791,213 @@ export const addCPCVToProperty = async (consultorId, clienteId, opportunityId, p
     }
 };
 
+// ===== NEGÓCIO PLENO OPERATIONS =====
+
+/**
+ * Linkar duas oportunidades para criar um Negócio Pleno
+ */
+export const linkOpportunities = async (oportunidadeVendedora, oportunidadeCompradora, userId) => {
+    try {
+        // Validar tipos de oportunidade
+        const tiposValidos = ['vendedor', 'seller', 'SELLER'];
+        const tiposComprador = ['comprador', 'buyer', 'BUYER'];
+
+        if (!tiposValidos.includes(oportunidadeVendedora.tipo)) {
+            throw new Error('Primeira oportunidade deve ser do tipo Vendedor');
+        }
+
+        if (!tiposComprador.includes(oportunidadeCompradora.tipo)) {
+            throw new Error('Segunda oportunidade deve ser do tipo Comprador');
+        }
+
+        // Verificar se já não estão linkadas
+        if (oportunidadeVendedora.isNegocioPleno || oportunidadeCompradora.isNegocioPleno) {
+            throw new Error('Uma das oportunidades já está linkada');
+        }
+
+        // Criar o Negócio Pleno usando o serviço
+        const negocioPleno = await createNegocioPleno(
+            oportunidadeVendedora,
+            oportunidadeCompradora,
+            userId
+        );
+
+        // Adicionar evento ao timeline de ambas oportunidades
+        const timelineEventVendedor = {
+            tipo: 'negocio_pleno',
+            titulo: 'Negócio Pleno Criado',
+            descricao: `Linkado com oportunidade compradora: ${oportunidadeCompradora.titulo}`,
+            usuario: userId,
+            data: new Date().toISOString(),
+            dados: {
+                negocioPlenoId: negocioPleno.id,
+                oportunidadeLinkada: oportunidadeCompradora.id
+            }
+        };
+
+        const timelineEventComprador = {
+            tipo: 'negocio_pleno',
+            titulo: 'Negócio Pleno Criado',
+            descricao: `Linkado com oportunidade vendedora: ${oportunidadeVendedora.titulo}`,
+            usuario: userId,
+            data: new Date().toISOString(),
+            dados: {
+                negocioPlenoId: negocioPleno.id,
+                oportunidadeLinkada: oportunidadeVendedora.id
+            }
+        };
+
+        // Adicionar aos timelines
+        await addTimelineEvent(
+            oportunidadeVendedora.consultorId || userId,
+            oportunidadeVendedora.clienteId,
+            oportunidadeVendedora.id,
+            timelineEventVendedor
+        );
+
+        await addTimelineEvent(
+            oportunidadeCompradora.consultorId || userId,
+            oportunidadeCompradora.clienteId,
+            oportunidadeCompradora.id,
+            timelineEventComprador
+        );
+
+        return negocioPleno;
+    } catch (error) {
+        console.error('OpportunityService: Erro ao linkar oportunidades:', error);
+        throw error;
+    }
+};
+
+/**
+ * Deslinkar oportunidades (desfazer Negócio Pleno)
+ */
+export const unlinkOpportunities = async (negocioPlenoId, userId, motivo = '') => {
+    try {
+        // Usar o serviço de negócio pleno para deslinkar
+        const result = await unlinkNegocioPleno(negocioPlenoId, userId, motivo);
+
+        if (!result) {
+            throw new Error('Erro ao deslinkar negócio pleno');
+        }
+
+        return result;
+    } catch (error) {
+        console.error('OpportunityService: Erro ao deslinkar oportunidades:', error);
+        throw error;
+    }
+};
+
+/**
+ * Verificar se duas oportunidades podem ser linkadas
+ */
+export const canLinkOpportunities = (opp1, opp2) => {
+    // Não pode linkar consigo mesmo
+    if (opp1.id === opp2.id) {
+        return {
+            canLink: false,
+            reason: 'Não pode linkar a mesma oportunidade'
+        };
+    }
+
+    // Verificar tipos compatíveis
+    const tiposVendedor = ['vendedor', 'seller', 'SELLER'];
+    const tiposComprador = ['comprador', 'buyer', 'BUYER'];
+
+    const isValidPair =
+        (tiposVendedor.includes(opp1.tipo) && tiposComprador.includes(opp2.tipo)) ||
+        (tiposComprador.includes(opp1.tipo) && tiposVendedor.includes(opp2.tipo));
+
+    if (!isValidPair) {
+        return {
+            canLink: false,
+            reason: 'Só pode linkar oportunidades Vendedor com Comprador'
+        };
+    }
+
+    // Verificar se já estão linkadas
+    if (opp1.isNegocioPleno || opp2.isNegocioPleno) {
+        return {
+            canLink: false,
+            reason: 'Uma das oportunidades já está linkada'
+        };
+    }
+
+    // Não linkar oportunidades do mesmo cliente
+    if (opp1.clienteId === opp2.clienteId) {
+        return {
+            canLink: false,
+            reason: 'Não pode linkar oportunidades do mesmo cliente'
+        };
+    }
+
+    return { canLink: true };
+};
+
+/**
+ * Buscar oportunidades disponíveis para linking
+ */
+export const getAvailableOpportunitiesForLinking = async (currentOpportunity, consultorId) => {
+    try {
+        // Determinar o tipo oposto
+        const tiposVendedor = ['vendedor', 'seller', 'SELLER'];
+        const tiposComprador = ['comprador', 'buyer', 'BUYER'];
+
+        let targetTypes = [];
+        if (tiposVendedor.includes(currentOpportunity.tipo)) {
+            targetTypes = tiposComprador;
+        } else if (tiposComprador.includes(currentOpportunity.tipo)) {
+            targetTypes = tiposVendedor;
+        } else {
+            return [];
+        }
+
+        // Buscar todas as oportunidades
+        const result = await getAllOpportunities(consultorId, {
+            pageSize: 100 // Buscar mais para ter opções
+        });
+
+        if (!result || !result.opportunities) {
+            return [];
+        }
+
+        // Filtrar oportunidades compatíveis
+        const availableOpportunities = result.opportunities.filter(opp => {
+            // Deve ser do tipo oposto
+            if (!targetTypes.includes(opp.tipo)) {
+                return false;
+            }
+
+            // Não deve estar já linkada
+            if (opp.isNegocioPleno || opp.linkedOpportunityId) {
+                return false;
+            }
+
+            // Não deve ser a mesma oportunidade
+            if (opp.id === currentOpportunity.id) {
+                return false;
+            }
+
+            // Não deve ser do mesmo cliente
+            if (opp.clienteId === currentOpportunity.clienteId) {
+                return false;
+            }
+
+            // Deve estar ativa
+            if (opp.isActive === false) {
+                return false;
+            }
+
+            return true;
+        });
+
+        return availableOpportunities;
+    } catch (error) {
+        console.error('OpportunityService: Erro ao buscar oportunidades para linking:', error);
+        return [];
+    }
+};
+
 // ===== DELETE OPERATIONS =====
 
 /**
@@ -1028,7 +1233,7 @@ export const getConsultorOpportunityStats = async (consultorId) => {
     }
 };
 
-// ===== BATCH OPERATIONS (mantém igual) =====
+// ===== BATCH OPERATIONS =====
 export const batchUpdateOpportunities = async (consultorId, clienteId, updates) => {
     try {
         const batch = writeBatch(db);
@@ -1153,6 +1358,9 @@ export const listAllOpportunities = async (consultorId, options = {}) => {
     }
 };
 
+// Alias para função listAllOpportunities
+export const getAllOpportunities = listAllOpportunities;
+
 // ===== TIMELINE OPERATIONS =====
 
 export const addTimelineEvent = async (consultorId, clienteId, opportunityId, eventData) => {
@@ -1186,3 +1394,41 @@ export const addTimelineEvent = async (consultorId, clienteId, opportunityId, ev
 // ===== EXPORTS PARA MANTER COMPATIBILIDADE =====
 export const createNewOpportunity = createOpportunity;
 export const updateExistingOpportunity = updateOpportunity;
+
+// ===== DEFAULT EXPORT =====
+export default {
+    // CRUD básico
+    createOpportunity,
+    getOpportunity,
+    listClientOpportunities,
+    updateOpportunity,
+    deleteOpportunity,
+    deactivateOpportunity,
+
+    // Gestão de imóveis
+    addPropertyToOpportunity,
+    updatePropertyInOpportunity,
+    addVisitToProperty,
+    addOfferToProperty,
+    addCPCVToProperty,
+
+    // Negócio Pleno
+    linkOpportunities,
+    unlinkOpportunities,
+    canLinkOpportunities,
+    getAvailableOpportunitiesForLinking,
+
+    // Estatísticas
+    getClientOpportunityStats,
+    getConsultorOpportunityStats,
+
+    // Utils
+    listAllOpportunities,
+    getAllOpportunities,
+    batchUpdateOpportunities,
+    addTimelineEvent,
+
+    // Aliases para compatibilidade
+    createNewOpportunity,
+    updateExistingOpportunity
+};
