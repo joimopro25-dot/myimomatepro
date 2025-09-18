@@ -1,7 +1,7 @@
 /**
  * APP.JSX - MyImoMatePro
  * Componente principal com rotas e providers
- * VERSÃO CORRIGIDA: Ordem das rotas ajustada para evitar conflitos
+ * VERSÃO ATUALIZADA: Inclui suporte para Negócios Plenos
  * 
  * Caminho: src/App.jsx
  */
@@ -12,6 +12,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { SubscriptionProvider } from './contexts/SubscriptionContext';
 import { ClientProvider } from './contexts/ClientContext';
 import { OpportunityProvider } from './contexts/OpportunityContext';
+import { NegocioPlenoProvider } from './contexts/NegocioPlenoContext';
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
 import Dashboard from './pages/Dashboard';
@@ -22,6 +23,8 @@ import ClientDetail from './pages/ClientDetail';
 import OpportunityList from './pages/OpportunityList';
 import OpportunityForm from './pages/opportunities/OpportunityForm';
 import OpportunityDetail from './pages/OpportunityDetail';
+import NegocioPlenoList from './pages/negocioPleno/NegocioPlenoList';
+import NegocioPlenoDetail from './pages/negocioPleno/NegocioPlenoDetail';
 import './index.css';
 
 // Componente para proteger rotas autenticadas
@@ -63,6 +66,22 @@ function AppRoutes() {
         <Route path="/account" element={
           <ProtectedRoute>
             <AccountSettings />
+          </ProtectedRoute>
+        } />
+
+        {/* ===== ROTAS PROTEGIDAS - NEGÓCIOS PLENOS ===== */}
+
+        {/* Lista de negócios plenos */}
+        <Route path="/negocios-plenos" element={
+          <ProtectedRoute>
+            <NegocioPlenoList />
+          </ProtectedRoute>
+        } />
+
+        {/* Detalhe do negócio pleno */}
+        <Route path="/negocios-plenos/:negocioPlenoId" element={
+          <ProtectedRoute>
+            <NegocioPlenoDetail />
           </ProtectedRoute>
         } />
 
@@ -148,7 +167,9 @@ function App() {
       <SubscriptionProvider>
         <ClientProvider>
           <OpportunityProvider>
-            <AppRoutes />
+            <NegocioPlenoProvider>
+              <AppRoutes />
+            </NegocioPlenoProvider>
           </OpportunityProvider>
         </ClientProvider>
       </SubscriptionProvider>

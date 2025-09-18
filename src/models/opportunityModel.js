@@ -1,6 +1,6 @@
 /**
  * OPPORTUNITY MODEL - MyImoMatePro
- * VERSÃO INTEGRADA com suporte completo para imóveis, visitas, ofertas, CPCV e NEGÓCIO PLENO
+ * VERSÃO SIMPLIFICADA com referência a Negócio Pleno separado
  * 
  * Caminho: src/models/opportunityModel.js
  * Estrutura: consultores/{consultorId}/clientes/{clienteId}/oportunidades/{oportunidadeId}
@@ -12,7 +12,7 @@
  * - INQUILINO: Cliente que procura imóvel para arrendar
  * - INVESTIDOR: Cliente interessado em investimentos imobiliários
  * 
- * NOVA FUNCIONALIDADE: Negócio Pleno - linking entre oportunidades Vendedor-Comprador
+ * ATUALIZAÇÃO: Negócio Pleno agora é gerido em entidade separada
  */
 
 import { Timestamp } from 'firebase/firestore';
@@ -138,34 +138,6 @@ export const INTEREST_LEVEL_LABELS = {
     [INTEREST_LEVELS.MEDIUM]: '🙂 Médio',
     [INTEREST_LEVELS.HIGH]: '😊 Alto',
     [INTEREST_LEVELS.VERY_HIGH]: '🤩 Muito Alto'
-};
-
-// ===== NOVO: TIPOS DE LINKING PARA NEGÓCIO PLENO =====
-
-export const LINK_TYPES = {
-    BUYER_TO_SELLER: 'comprador_para_vendedor',
-    SELLER_TO_BUYER: 'vendedor_para_comprador'
-};
-
-export const LINK_TYPE_LABELS = {
-    [LINK_TYPES.BUYER_TO_SELLER]: 'Comprador → Vendedor',
-    [LINK_TYPES.SELLER_TO_BUYER]: 'Vendedor → Comprador'
-};
-
-// ===== NOVO: STATUS DO NEGÓCIO PLENO =====
-
-export const NEGOCIO_PLENO_STATUS = {
-    LINKED: 'linkado',
-    SYNCED: 'sincronizado',
-    DISCREPANCY: 'discrepancia',
-    COMPLETED: 'completo'
-};
-
-export const NEGOCIO_PLENO_STATUS_LABELS = {
-    [NEGOCIO_PLENO_STATUS.LINKED]: '🔗 Linkado',
-    [NEGOCIO_PLENO_STATUS.SYNCED]: '✅ Sincronizado',
-    [NEGOCIO_PLENO_STATUS.DISCREPANCY]: '⚠️ Discrepância',
-    [NEGOCIO_PLENO_STATUS.COMPLETED]: '🎉 Completo'
 };
 
 // ===== LABELS PARA UI =====
@@ -309,7 +281,7 @@ export const createPropertySchema = (propertyData = {}) => {
     };
 };
 
-// ===== SCHEMA BASE DA OPORTUNIDADE (ATUALIZADO COM NEGÓCIO PLENO) =====
+// ===== SCHEMA BASE DA OPORTUNIDADE (SIMPLIFICADO) =====
 
 export const createOpportunitySchema = (opportunityData) => {
     const baseSchema = {
@@ -339,22 +311,14 @@ export const createOpportunitySchema = (opportunityData) => {
         minhaPercentagem: opportunityData.minhaPercentagem || 100,
         comissaoPaga: opportunityData.comissaoPaga || false,
 
-        // ===== NOVO: CAMPOS PARA NEGÓCIO PLENO =====
+        // ===== REFERÊNCIA AO NEGÓCIO PLENO (SIMPLIFICADO) =====
+        isNegocioPleno: opportunityData.isNegocioPleno || false,
+        negocioPlenoId: opportunityData.negocioPlenoId || null,
+        // Campos temporários para compatibilidade (serão removidos em futura versão)
         linkedOpportunityId: opportunityData.linkedOpportunityId || null,
         linkedOpportunityClientId: opportunityData.linkedOpportunityClientId || null,
         linkedOpportunityClientName: opportunityData.linkedOpportunityClientName || null,
         linkedType: opportunityData.linkedType || null,
-        isNegocioPleno: opportunityData.isNegocioPleno || false,
-        negocioPlenoStatus: opportunityData.negocioPlenoStatus || null,
-        negocioPlenoData: opportunityData.negocioPlenoData || {
-            linkedAt: null,
-            linkedBy: null,
-            lastSync: null,
-            discrepancies: [],
-            totalComissao: 0,
-            comissaoVendedor: 0,
-            comissaoComprador: 0,
-        },
 
         // ===== DATAS IMPORTANTES =====
         dataContactoInicial: opportunityData.dataContactoInicial || Timestamp.now(),
@@ -503,7 +467,7 @@ const addTypeSpecificFields = (schema, data) => {
     }
 };
 
-// ===== VALIDAÇÃO DE DADOS (ATUALIZADA COM NEGÓCIO PLENO) =====
+// ===== VALIDAÇÃO DE DADOS (SIMPLIFICADA) =====
 
 export const validateOpportunityData = (data) => {
     const errors = {};
@@ -524,31 +488,6 @@ export const validateOpportunityData = (data) => {
 
     if (data.valorMinimo && data.valorMaximo && data.valorMinimo > data.valorMaximo) {
         errors.valores = 'Valor mínimo não pode ser maior que o valor máximo';
-    }
-
-    // NOVO: Validações para Negócio Pleno
-    if (data.isNegocioPleno) {
-        if (!data.linkedOpportunityId) {
-            errors.linkedOpportunityId = 'ID da oportunidade linkada é obrigatório para Negócio Pleno';
-        }
-
-        if (!data.linkedType || !Object.values(LINK_TYPES).includes(data.linkedType)) {
-            errors.linkedType = 'Tipo de link inválido';
-        }
-
-        // Validar que não está linkando consigo mesmo
-        if (data.linkedOpportunityId === data.id) {
-            errors.linkedOpportunityId = 'Não pode linkar a oportunidade consigo mesma';
-        }
-
-        // Validar tipos compatíveis (só pode linkar Comprador com Vendedor)
-        if (data.tipo === OPPORTUNITY_TYPES.BUYER && data.linkedType !== LINK_TYPES.BUYER_TO_SELLER) {
-            errors.linkedType = 'Comprador só pode ser linkado com Vendedor';
-        }
-
-        if (data.tipo === OPPORTUNITY_TYPES.SELLER && data.linkedType !== LINK_TYPES.SELLER_TO_BUYER) {
-            errors.linkedType = 'Vendedor só pode ser linkado com Comprador';
-        }
     }
 
     // Validação de imóveis
@@ -597,160 +536,6 @@ export const validateOpportunityData = (data) => {
     };
 };
 
-// ===== NOVO: FUNÇÕES AUXILIARES PARA NEGÓCIO PLENO =====
-
-/**
- * Verifica se duas oportunidades podem ser linkadas
- */
-export const canLinkOpportunities = (opp1, opp2) => {
-    // Não pode linkar consigo mesmo
-    if (opp1.id === opp2.id) {
-        return { canLink: false, reason: 'Não pode linkar consigo mesmo' };
-    }
-
-    // Só pode linkar Comprador com Vendedor
-    const isValidPair =
-        (opp1.tipo === OPPORTUNITY_TYPES.BUYER && opp2.tipo === OPPORTUNITY_TYPES.SELLER) ||
-        (opp1.tipo === OPPORTUNITY_TYPES.SELLER && opp2.tipo === OPPORTUNITY_TYPES.BUYER);
-
-    if (!isValidPair) {
-        return { canLink: false, reason: 'Só pode linkar Comprador com Vendedor' };
-    }
-
-    // Verifica se já não estão linkadas
-    if (opp1.linkedOpportunityId || opp2.linkedOpportunityId) {
-        return { canLink: false, reason: 'Uma das oportunidades já está linkada' };
-    }
-
-    return { canLink: true };
-};
-
-/**
- * Cria os dados de linking para ambas as oportunidades
- */
-export const createLinkData = (opp1, opp2, consultorId) => {
-    const timestamp = Timestamp.now();
-
-    const opp1Updates = {
-        linkedOpportunityId: opp2.id,
-        linkedOpportunityClientId: opp2.clienteId,
-        linkedOpportunityClientName: opp2.clienteName || 'Cliente',
-        linkedType: opp1.tipo === OPPORTUNITY_TYPES.BUYER
-            ? LINK_TYPES.BUYER_TO_SELLER
-            : LINK_TYPES.SELLER_TO_BUYER,
-        isNegocioPleno: true,
-        negocioPlenoStatus: NEGOCIO_PLENO_STATUS.LINKED,
-        negocioPlenoData: {
-            linkedAt: timestamp,
-            linkedBy: consultorId,
-            lastSync: timestamp,
-            discrepancies: [],
-            totalComissao: 0,
-            comissaoVendedor: opp1.tipo === OPPORTUNITY_TYPES.SELLER ? (opp1.valorEstimado * opp1.percentualComissao / 100) : 0,
-            comissaoComprador: opp1.tipo === OPPORTUNITY_TYPES.BUYER ? (opp1.valorEstimado * opp1.percentualComissao / 100) : 0,
-        }
-    };
-
-    const opp2Updates = {
-        linkedOpportunityId: opp1.id,
-        linkedOpportunityClientId: opp1.clienteId,
-        linkedOpportunityClientName: opp1.clienteName || 'Cliente',
-        linkedType: opp2.tipo === OPPORTUNITY_TYPES.BUYER
-            ? LINK_TYPES.BUYER_TO_SELLER
-            : LINK_TYPES.SELLER_TO_BUYER,
-        isNegocioPleno: true,
-        negocioPlenoStatus: NEGOCIO_PLENO_STATUS.LINKED,
-        negocioPlenoData: {
-            linkedAt: timestamp,
-            linkedBy: consultorId,
-            lastSync: timestamp,
-            discrepancies: [],
-            totalComissao: 0,
-            comissaoVendedor: opp2.tipo === OPPORTUNITY_TYPES.SELLER ? (opp2.valorEstimado * opp2.percentualComissao / 100) : 0,
-            comissaoComprador: opp2.tipo === OPPORTUNITY_TYPES.BUYER ? (opp2.valorEstimado * opp2.percentualComissao / 100) : 0,
-        }
-    };
-
-    // Calcular comissão total para ambas
-    opp1Updates.negocioPlenoData.totalComissao =
-        opp1Updates.negocioPlenoData.comissaoVendedor + opp2Updates.negocioPlenoData.comissaoComprador;
-
-    opp2Updates.negocioPlenoData.totalComissao =
-        opp2Updates.negocioPlenoData.comissaoVendedor + opp1Updates.negocioPlenoData.comissaoComprador;
-
-    return { opp1Updates, opp2Updates };
-};
-
-/**
- * Detecta discrepâncias entre oportunidades linkadas
- */
-export const detectDiscrepancies = (opp1, opp2) => {
-    const discrepancies = [];
-
-    // Verificar valores de CPCV
-    if (opp1.imovelVenda?.cpcvAssinado && opp2.imoveis?.[0]?.cpcvAssinado) {
-        const valorCPCVVendedor = parseFloat(opp1.imovelVenda.valorCPCV || 0);
-        const valorCPCVComprador = parseFloat(opp2.imoveis[0].valorCPCV || 0);
-
-        if (valorCPCVVendedor !== valorCPCVComprador) {
-            discrepancies.push({
-                tipo: 'valor_cpcv',
-                mensagem: `Valor CPCV diferente: Vendedor €${valorCPCVVendedor} vs Comprador €${valorCPCVComprador}`
-            });
-        }
-    }
-
-    // Verificar datas de escritura
-    if (opp1.imovelVenda?.dataEscritura && opp2.imoveis?.[0]?.dataEscritura) {
-        if (opp1.imovelVenda.dataEscritura !== opp2.imoveis[0].dataEscritura) {
-            discrepancies.push({
-                tipo: 'data_escritura',
-                mensagem: 'Datas de escritura diferentes'
-            });
-        }
-    }
-
-    // Verificar valores finais
-    if (opp1.imovelVenda?.valorFinalVenda && opp2.imoveis?.[0]?.valorFinalCompra) {
-        const valorVenda = parseFloat(opp1.imovelVenda.valorFinalVenda || 0);
-        const valorCompra = parseFloat(opp2.imoveis[0].valorFinalCompra || 0);
-
-        if (valorVenda !== valorCompra) {
-            discrepancies.push({
-                tipo: 'valor_final',
-                mensagem: `Valor final diferente: Venda €${valorVenda} vs Compra €${valorCompra}`
-            });
-        }
-    }
-
-    return discrepancies;
-};
-
-/**
- * Sincroniza dados entre oportunidades linkadas
- */
-export const syncLinkedOpportunities = (sourceOpp, targetOpp, field) => {
-    const syncableFields = {
-        // Campos que devem ser sincronizados
-        cpcv: ['dataCPCV', 'valorCPCV', 'cpcvAssinado'],
-        escritura: ['dataEscritura', 'valorFinal', 'escrituraRealizada'],
-        oferta: ['valorOferta', 'statusOferta']
-    };
-
-    const updates = {};
-
-    // Determinar quais campos sincronizar baseado no que foi modificado
-    if (field && syncableFields[field]) {
-        syncableFields[field].forEach(f => {
-            if (sourceOpp[f] !== undefined) {
-                updates[f] = sourceOpp[f];
-            }
-        });
-    }
-
-    return updates;
-};
-
 // ===== HELPERS PARA TIMELINE =====
 
 export const createTimelineEvent = (tipo, descricao, dados = {}) => {
@@ -787,22 +572,15 @@ export const TIMELINE_EVENT_TYPES = {
     TASK_COMPLETED: 'tarefa_concluida',
     PROPERTY_ADDED: 'imovel_adicionado',
     PROPERTY_REMOVED: 'imovel_removido',
-    // NOVO: Eventos de Negócio Pleno
-    LINKED: 'oportunidades_linkadas',
-    UNLINKED: 'oportunidades_deslinkadas',
-    SYNC_PERFORMED: 'sincronizacao_realizada',
-    DISCREPANCY_DETECTED: 'discrepancia_detectada'
+    // Eventos relacionados com Negócio Pleno (agora geridos externamente)
+    LINKED_TO_BUSINESS: 'linkado_a_negocio_pleno',
+    UNLINKED_FROM_BUSINESS: 'deslinkado_de_negocio_pleno'
 };
 
-// ===== HELPERS PARA CÁLCULOS (ATUALIZADO PARA NEGÓCIO PLENO) =====
+// ===== HELPERS PARA CÁLCULOS =====
 
 export const calculateCommission = (opportunity) => {
-    // Se for Negócio Pleno, retornar comissão total
-    if (opportunity.isNegocioPleno) {
-        return opportunity.negocioPlenoData?.totalComissao || 0;
-    }
-
-    // Cálculo normal para oportunidades não linkadas
+    // Cálculo base para oportunidades individuais
     if (opportunity.tipoComissao === 'percentual') {
         const valor = opportunity.valorEstimado || 0;
         const percentual = opportunity.percentualComissao || 0;
@@ -948,7 +726,7 @@ export const getPropertyStatistics = (imoveis) => {
     return stats;
 };
 
-// ===== NOVO: HELPER PARA FORMATAR MOEDA =====
+// ===== HELPER PARA FORMATAR MOEDA =====
 
 export const formatCurrency = (value) => {
     if (!value) return '€0';
