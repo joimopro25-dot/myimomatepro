@@ -218,6 +218,9 @@ export const listClientOpportunities = async (consultorId, clienteId, options = 
         // Executar query
         const snapshot = await getDocs(opportunityQuery);
 
+        // Na função listClientOpportunities
+        // SUBSTITUIR O BLOCO de processamento de oportunidades por este código definitivo:
+
         let opportunities = [];
         snapshot.forEach((doc) => {
             const data = doc.data();
@@ -225,17 +228,124 @@ export const listClientOpportunities = async (consultorId, clienteId, options = 
             if (data.isActive !== false) {
                 const { id: dataId, ...restData } = data;
 
-                // Processar dados para incluir estatísticas de imóveis
+                // Inicializar contadores
+                let totalImoveis = 0;
+                let totalVisitas = 0;
+                let totalOfertas = 0;
+                let totalPropostas = 0;
+                let temCPCV = false;
+                let temEscritura = false;
+
+                // OPÇÃO 1: Dados no array 'imoveis' (estrutura para compradores e nova estrutura)
+                if (restData.imoveis && Array.isArray(restData.imoveis) && restData.imoveis.length > 0) {
+                    totalImoveis = restData.imoveis.length;
+
+                    restData.imoveis.forEach(imovel => {
+                        // Contar visitas
+                        if (imovel.visitas && Array.isArray(imovel.visitas)) {
+                            totalVisitas += imovel.visitas.length;
+                        }
+
+                        // Contar ofertas totais
+                        if (imovel.ofertas && Array.isArray(imovel.ofertas)) {
+                            totalOfertas += imovel.ofertas.length;
+
+                            // Contar apenas propostas (não rascunhos)
+                            totalPropostas += imovel.ofertas.filter(o =>
+                                o.status && o.status !== 'rascunho' && o.status !== 'draft'
+                            ).length;
+                        }
+
+                        // Verificar CPCV
+                        if (imovel.cpcv && (typeof imovel.cpcv === 'object' || imovel.cpcv === true)) {
+                            temCPCV = true;
+                        }
+
+                        // Verificar Escritura
+                        if (imovel.escritura && (typeof imovel.escritura === 'object' || imovel.escritura === true)) {
+                            temEscritura = true;
+                        }
+                    });
+                }
+                // OPÇÃO 2: Dados em 'imóvelVenda' (estrutura para vendedores)
+                else if (restData.imóvelVenda || restData.imovelVenda) {
+                    // Normalizar o nome (pode estar com ou sem acento)
+                    const imovelVenda = restData.imóvelVenda || restData.imovelVenda;
+
+                    // Para vendedores, considerar 1 imóvel
+                    if (restData.tipo === 'vendedor') {
+                        totalImoveis = 1;
+                    }
+
+                    // Contar visitas de compradores
+                    if (imovelVenda.visitasCompradores && Array.isArray(imovelVenda.visitasCompradores)) {
+                        totalVisitas = imovelVenda.visitasCompradores.length;
+                    }
+
+                    // Contar ofertas recebidas
+                    if (imovelVenda.ofertasRecebidas && Array.isArray(imovelVenda.ofertasRecebidas)) {
+                        totalOfertas = imovelVenda.ofertasRecebidas.length;
+
+                        // Contar apenas propostas aceites ou em negociação
+                        totalPropostas = imovelVenda.ofertasRecebidas.filter(o =>
+                            o.status && o.status !== 'rascunho' && o.status !== 'draft'
+                        ).length;
+                    }
+
+                    // Verificar CPCV
+                    if (imovelVenda.cpcvAssinado === true || imovelVenda.cpcv) {
+                        temCPCV = true;
+                    }
+                    // Também verificar no campo dataCPCV
+                    else if (imovelVenda.dataCPCV && imovelVenda.dataCPCV !== '') {
+                        temCPCV = true;
+                    }
+
+                    // Verificar Escritura
+                    if (imovelVenda.escrituraRealizada === true || imovelVenda.escritura) {
+                        temEscritura = true;
+                    }
+                    // Também verificar no campo dataEscritura
+                    else if (imovelVenda.dataEscritura && imovelVenda.dataEscritura !== '') {
+                        temEscritura = true;
+                    }
+                }
+                // OPÇÃO 3: Dados em 'imóveisArrendar' (para senhorios/inquilinos)
+                else if (restData.imóveisArrendar || restData.imoveisArrendar) {
+                    const imoveisArrendar = restData.imóveisArrendar || restData.imoveisArrendar;
+
+                    if (Array.isArray(imoveisArrendar)) {
+                        totalImoveis = imoveisArrendar.length;
+
+                        imoveisArrendar.forEach(imovel => {
+                            // Processar visitas e ofertas para arrendamento
+                            if (imovel.visitas && Array.isArray(imovel.visitas)) {
+                                totalVisitas += imovel.visitas.length;
+                            }
+
+                            if (imovel.propostas && Array.isArray(imovel.propostas)) {
+                                totalPropostas += imovel.propostas.length;
+                            }
+
+                            // Verificar contrato de arrendamento
+                            if (imovel.contratoAssinado) {
+                                temCPCV = true; // Usar CPCV como indicador de contrato
+                            }
+                        });
+                    }
+                }
+
+                // Processar dados para incluir estatísticas
                 const opportunityData = {
                     ...restData,
                     id: doc.id,
-                    // Estatísticas de imóveis
-                    totalImoveis: restData.imoveis?.length || 0,
-                    totalVisitas: restData.imoveis?.reduce((acc, imovel) =>
-                        acc + (imovel.visitas?.length || 0), 0) || 0,
-                    totalOfertas: restData.imoveis?.reduce((acc, imovel) =>
-                        acc + (imovel.ofertas?.length || 0), 0) || 0,
-                    temCPCV: restData.imoveis?.some(imovel => imovel.cpcv) || false
+                    // Estatísticas calculadas
+                    totalImoveis: totalImoveis,
+                    totalVisitas: totalVisitas,
+                    totalOfertas: totalOfertas,
+                    totalPropostas: totalPropostas,
+                    temCPCV: temCPCV,
+                    temEscritura: temEscritura
                 };
 
                 opportunities.push(opportunityData);
@@ -250,6 +360,8 @@ export const listClientOpportunities = async (consultorId, clienteId, options = 
         if (estado) {
             opportunities = opportunities.filter(opp => opp.estado === estado);
         }
+
+        // Ordenar em memória (resto do código continua igual...)
 
         // Ordenar em memória
         opportunities.sort((a, b) => {

@@ -1,20 +1,7 @@
-{/* Teste simples */ }
-<div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded">
-    <p className="text-sm mb-2">Teste de navegação:</p>
-    <button
-        onClick={() => {
-            const testUrl = `/clients/${clientId}/opportunities/${opportunities[0]?.id}/edit`;
-            console.log('Test navigation to:', testUrl);
-            navigate(testUrl);
-        }}
-        className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-    >
-        Testar Navegação para 1ª Oportunidade
-    </button>
-</div>/**
+/**
  * OPPORTUNITY LIST PAGE - MyImoMatePro
  * Página para listar oportunidades de um cliente com ações
- * VERSÃO CORRIGIDA - Sem dependências problemáticas
+ * VERSÃO CORRIGIDA - Com filtro de tipo funcional
  * 
  * Caminho: src/pages/OpportunityList.jsx
  */
@@ -49,7 +36,8 @@ import {
     ShoppingCartIcon,
     CurrencyEuroIcon,
     UserGroupIcon,
-    ExclamationTriangleIcon
+    ExclamationTriangleIcon,
+    DocumentTextIcon
 } from '@heroicons/react/24/outline';
 
 // Labels de prioridade locais (caso não existam no modelo)
@@ -123,7 +111,7 @@ const OpportunityList = () => {
     const [deleteConfirm, setDeleteConfirm] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
 
-    // Filtros
+    // Filtros - IMPORTANTE: Capturar o tipo do URL
     const [filters, setFilters] = useState({
         tipo: searchParams.get('tipo') || '',
         estado: '',
@@ -176,7 +164,8 @@ const OpportunityList = () => {
                 console.warn('IDs duplicados encontrados:', duplicates);
             }
 
-            console.log('Loaded opportunities:', filteredOpps);
+            console.log('Loaded opportunities with filter tipo:', filters.tipo);
+            console.log('Total opportunities:', filteredOpps.length);
 
             // Filtrar por prioridade em memória
             if (filters.prioridade) {
@@ -313,10 +302,18 @@ const OpportunityList = () => {
                     <div className="flex justify-between items-start">
                         <div>
                             <h1 className="text-3xl font-bold text-gray-900">
-                                Oportunidades de {currentClient?.name || 'Cliente'}
+                                {filters.tipo ? (
+                                    <>
+                                        Oportunidades de {OPPORTUNITY_TYPE_LABELS[filters.tipo]} - {currentClient?.name || 'Cliente'}
+                                    </>
+                                ) : (
+                                    <>
+                                        Oportunidades de {currentClient?.name || 'Cliente'}
+                                    </>
+                                )}
                             </h1>
                             <div className="mt-2 flex items-center gap-4 text-sm text-gray-600">
-                                <span>{stats.total} oportunidades</span>
+                                <span>{stats.total} {filters.tipo ? `de ${OPPORTUNITY_TYPE_LABELS[filters.tipo]}` : 'oportunidades'}</span>
                                 <span className="text-green-600">{stats.abertas} abertas</span>
                                 <span className="font-semibold">{formatCurrency(stats.valorTotal)}</span>
                             </div>
@@ -399,28 +396,6 @@ const OpportunityList = () => {
                     </div>
                 </div>
 
-                {/* Teste simples */}
-                {opportunities.length > 0 && (
-                    <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded">
-                        <p className="text-sm mb-2">Debug - Teste de navegação:</p>
-                        <button
-                            onClick={() => {
-                                const firstOpp = opportunities[0];
-                                const testUrl = `/clients/${clientId}/opportunities/${firstOpp.id}/edit`;
-                                console.log('Test button - navigating to:', testUrl);
-                                console.log('First opportunity:', firstOpp);
-                                navigate(testUrl);
-                            }}
-                            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 mr-2"
-                        >
-                            Testar Editar 1ª Oportunidade
-                        </button>
-                        <span className="text-xs text-gray-600">
-                            ID: {opportunities[0]?.id || 'N/A'}
-                        </span>
-                    </div>
-                )}
-
                 {/* Lista de oportunidades */}
                 {opportunities.length === 0 ? (
                     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
@@ -470,141 +445,110 @@ const OpportunityList = () => {
                                                 navigate(`/clients/${clientId}/opportunities/${opportunity.id}/edit`);
                                             }
                                         }}
-                                        className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 hover:shadow-md transition-all duration-200 cursor-pointer hover:border-blue-400 hover:bg-blue-50/30 group"
-                                        title="Clique para editar"
+                                        className="bg-white rounded-lg shadow-sm border border-gray-200 p-5 hover:shadow-md hover:border-blue-300 transition-all cursor-pointer"
                                     >
-                                        <div className="flex items-start justify-between">
-                                            {/* Info principal */}
-                                            <div className="flex-1">
-                                                <div className="flex items-start gap-3">
-                                                    {/* Ícone do tipo */}
-                                                    <div className={`p-2 rounded-lg ${getTypeColorClasses(opportunity.tipo)}`}>
-                                                        <Icon className="w-5 h-5" />
-                                                    </div>
-
-                                                    {/* Detalhes */}
-                                                    <div className="flex-1">
-                                                        <div className="flex items-center gap-2 mb-1">
-                                                            <h3 className="font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">
-                                                                {opportunity.titulo || 'Sem título'}
-                                                            </h3>
-                                                            {/* Indicador de clicável - aparece no hover */}
-                                                            <span className="text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                (Clique para editar)
+                                        {/* Cabeçalho da oportunidade */}
+                                        <div className="flex items-start justify-between mb-3">
+                                            <div className="flex items-start gap-3">
+                                                <div className={`p-2 rounded-lg ${getTypeColorClasses(opportunity.tipo)}`}>
+                                                    <Icon className="w-5 h-5" />
+                                                </div>
+                                                <div className="flex-1">
+                                                    <h3 className="font-semibold text-gray-900 text-lg">
+                                                        {opportunity.titulo || 'Sem título'}
+                                                    </h3>
+                                                    <div className="flex items-center gap-3 mt-1">
+                                                        <span className={`text-sm px-2 py-0.5 rounded-full ${getTypeColorClasses(opportunity.tipo)}`}>
+                                                            {OPPORTUNITY_TYPE_LABELS[opportunity.tipo] || opportunity.tipo}
+                                                        </span>
+                                                        <span className={`text-sm px-2 py-0.5 rounded-full ${getStateColorClasses(opportunity.estado)}`}>
+                                                            {OPPORTUNITY_STATE_LABELS[opportunity.estado] || opportunity.estado}
+                                                        </span>
+                                                        {opportunity.prioridade && (
+                                                            <span className={`text-sm font-medium ${getPriorityColorClasses(opportunity.prioridade)}`}>
+                                                                {PRIORITY_LABELS[opportunity.prioridade] || opportunity.prioridade}
                                                             </span>
-                                                            {/* Aviso se ID temporário */}
-                                                            {opportunity.id?.startsWith('temp-') && (
-                                                                <span className="text-xs text-yellow-600 bg-yellow-50 px-2 py-1 rounded">
-                                                                    Dados incompletos
-                                                                </span>
-                                                            )}
-                                                            {/* Prioridade */}
-                                                            {opportunity.prioridade && opportunity.prioridade !== 'baixa' && (
-                                                                <ExclamationTriangleIcon
-                                                                    className={`w-4 h-4 ${getPriorityColorClasses(opportunity.prioridade)}`}
-                                                                    title={PRIORITY_LABELS[opportunity.prioridade]}
-                                                                />
-                                                            )}
-                                                        </div>
-
-                                                        <p className="text-sm text-gray-600 mb-2">
-                                                            {opportunity.descricao || 'Sem descrição'}
-                                                        </p>
-
-                                                        {/* Badges e info */}
-                                                        <div className="flex flex-wrap items-center gap-3 text-sm">
-                                                            {/* Tipo */}
-                                                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${getTypeColorClasses(opportunity.tipo)}`}>
-                                                                {OPPORTUNITY_TYPE_LABELS[opportunity.tipo] || opportunity.tipo}
-                                                            </span>
-
-                                                            {/* Estado */}
-                                                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStateColorClasses(opportunity.estado)}`}>
-                                                                {OPPORTUNITY_STATE_LABELS[opportunity.estado] || opportunity.estado}
-                                                            </span>
-
-                                                            {/* Valor */}
-                                                            {opportunity.valorEstimado > 0 && (
-                                                                <span className="text-gray-700 font-medium">
-                                                                    {formatCurrency(opportunity.valorEstimado)}
-                                                                </span>
-                                                            )}
-
-                                                            {/* Data criação */}
-                                                            <span className="text-gray-500">
-                                                                Criada em {formatDate(opportunity.createdAt)}
-                                                            </span>
-                                                        </div>
+                                                        )}
                                                     </div>
                                                 </div>
                                             </div>
 
-                                            {/* Ações */}
-                                            <div className="flex items-center gap-2 ml-4">
-                                                {/* Ver detalhes */}
-                                                {opportunity.id && !opportunity.id.startsWith('temp-') && (
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            console.log('View button clicked');
-                                                            navigate(`/clients/${clientId}/opportunities/${opportunity.id}`);
-                                                        }}
-                                                        className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors relative z-10"
-                                                        title="Ver detalhes"
-                                                    >
-                                                        <EyeIcon className="w-5 h-5" />
-                                                    </button>
-                                                )}
-
-                                                {/* Eliminar */}
-                                                {opportunity.id && !opportunity.id.startsWith('temp-') && (
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            console.log('Delete button clicked');
-                                                            setDeleteConfirm(opportunity.id);
-                                                        }}
-                                                        className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors relative z-10"
-                                                        title="Eliminar"
-                                                    >
-                                                        <TrashIcon className="w-5 h-5" />
-                                                    </button>
-                                                )}
+                                            {/* Valor e ações */}
+                                            <div className="text-right">
+                                                <p className="text-2xl font-bold text-gray-900">
+                                                    {formatCurrency(opportunity.valorEstimado)}
+                                                </p>
+                                                <p className="text-sm text-gray-500 mt-1">
+                                                    Criada em {formatDate(opportunity.createdAt)}
+                                                </p>
                                             </div>
+                                        </div>
+
+                                        {/* Descrição */}
+                                        {opportunity.descricao && (
+                                            <p className="text-gray-600 text-sm mb-3 line-clamp-2">
+                                                {opportunity.descricao}
+                                            </p>
+                                        )}
+
+                                        {/* Estatísticas */}
+                                        <div className="flex items-center gap-6 pt-3 border-t border-gray-100">
+                                            {/* Mostrar imóveis apenas para compradores */}
+                                            {opportunity.tipo === 'comprador' && (
+                                                <div className="flex items-center gap-1 text-sm text-gray-500">
+                                                    <HomeIcon className="w-4 h-4" />
+                                                    <span>{opportunity.totalImoveis || 0} imóveis</span>
+                                                </div>
+                                            )}
+
+                                            {/* Visitas - sempre mostrar */}
+                                            <div className="flex items-center gap-1 text-sm text-gray-500">
+                                                <EyeIcon className="w-4 h-4" />
+                                                <span>{opportunity.totalVisitas || 0} visitas</span>
+                                            </div>
+
+                                            {/* Propostas - mostrar para vendedores e compradores */}
+                                            {(opportunity.tipo === 'vendedor' || opportunity.tipo === 'comprador') && (
+                                                <div className="flex items-center gap-1 text-sm text-gray-500">
+                                                    <DocumentTextIcon className="w-4 h-4" />
+                                                    <span>{opportunity.totalPropostas || 0} propostas</span>
+                                                </div>
+                                            )}
+
+                                            {/* CPCV */}
+                                            {opportunity.temCPCV && (
+                                                <span className="text-sm text-green-600 font-medium">
+                                                    ✓ CPCV
+                                                </span>
+                                            )}
+
+                                            {/* Escritura */}
+                                            {opportunity.temEscritura && (
+                                                <span className="text-sm text-blue-600 font-medium">
+                                                    ✓ Escritura
+                                                </span>
+                                            )}
+                                        </div>
+
+                                        {/* Botão de ações no canto */}
+                                        <div className="flex justify-end mt-3 gap-2">
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    if (window.confirm('Tem certeza que deseja eliminar esta oportunidade?')) {
+                                                        handleDelete(opportunity.id);
+                                                    }
+                                                }}
+                                                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                            >
+                                                <TrashIcon className="w-4 h-4" />
+                                            </button>
                                         </div>
                                     </div>
                                 );
                             })}
                         </div>
                     </>
-                )}
-
-                {/* Modal de confirmação de eliminação */}
-                {deleteConfirm && (
-                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                        <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-                            <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                                Confirmar eliminação
-                            </h3>
-                            <p className="text-gray-600 mb-6">
-                                Tem certeza que deseja eliminar esta oportunidade? Esta ação não pode ser desfeita.
-                            </p>
-                            <div className="flex gap-3 justify-end">
-                                <button
-                                    onClick={() => setDeleteConfirm(null)}
-                                    className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
-                                >
-                                    Cancelar
-                                </button>
-                                <button
-                                    onClick={() => handleDelete(deleteConfirm)}
-                                    className="px-4 py-2 text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors"
-                                >
-                                    Eliminar
-                                </button>
-                            </div>
-                        </div>
-                    </div>
                 )}
             </div>
         </Layout>

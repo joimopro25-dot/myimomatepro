@@ -85,47 +85,91 @@ const NegocioPlenoLinker = ({
         }
     };
 
-    // Buscar oportunidades disponíveis para linking
+    // Buscar oportunidades disponíveis para linking - VERSÃO CORRIGIDA COM DEBUG
     const searchOpportunities = async () => {
         try {
             setLoading(true);
             setError(null);
 
+            // DEBUG: Ver o que está a acontecer
+            console.log('Iniciando busca de oportunidades...');
+            console.log('Oportunidade atual:', currentOpportunity);
+
             // Buscar todas as oportunidades
             const allOpportunities = await fetchAllOpportunities();
+
+            console.log('Oportunidades retornadas:', allOpportunities);
+            console.log('É array?', Array.isArray(allOpportunities));
+            console.log('Quantidade:', allOpportunities?.length || 0);
+
+            // Garantir que temos um array
+            const opportunitiesArray = Array.isArray(allOpportunities) ? allOpportunities : [];
 
             // Filtrar apenas as que podem ser linkadas com a atual
             const targetType = currentOpportunity.tipo === OPPORTUNITY_TYPES.BUYER
                 ? OPPORTUNITY_TYPES.SELLER
                 : OPPORTUNITY_TYPES.BUYER;
 
-            const compatible = allOpportunities.filter(opp => {
+            console.log('Tipo atual:', currentOpportunity.tipo);
+            console.log('Procurando por tipo:', targetType);
+
+            const compatible = opportunitiesArray.filter(opp => {
+                // Debug de cada oportunidade
+                console.log(`Verificando oportunidade: ${opp.titulo}, tipo: ${opp.tipo}`);
+
                 // Deve ser do tipo oposto
-                if (opp.tipo !== targetType) return false;
+                if (opp.tipo !== targetType) {
+                    console.log(`  - Tipo incompatível: ${opp.tipo} !== ${targetType}`);
+                    return false;
+                }
 
                 // Não deve estar já linkada
-                if (opp.linkedOpportunityId) return false;
+                if (opp.linkedOpportunityId) {
+                    console.log(`  - Já está linkada`);
+                    return false;
+                }
 
                 // Não deve ser a mesma oportunidade
-                if (opp.id === currentOpportunity.id) return false;
+                if (opp.id === currentOpportunity.id) {
+                    console.log(`  - É a mesma oportunidade`);
+                    return false;
+                }
+
+                // Não deve ser do mesmo cliente
+                if (opp.clienteId === currentOpportunity.clienteId) {
+                    console.log(`  - É do mesmo cliente`);
+                    return false;
+                }
 
                 // Aplicar filtro de busca se existir
-                if (searchTerm) {
+                if (searchTerm && searchTerm.trim() !== '') {
                     const search = searchTerm.toLowerCase();
-                    return (
+                    const match = (
                         opp.titulo?.toLowerCase().includes(search) ||
                         opp.clienteName?.toLowerCase().includes(search) ||
                         opp.descricao?.toLowerCase().includes(search)
                     );
+                    if (!match) {
+                        console.log(`  - Não corresponde ao termo de busca: ${searchTerm}`);
+                        return false;
+                    }
                 }
 
+                console.log(`  ✓ Oportunidade compatível!`);
                 return true;
             });
 
+            console.log('Oportunidades compatíveis encontradas:', compatible.length);
+            console.log('Oportunidades compatíveis:', compatible);
+
+            if (compatible.length === 0 && opportunitiesArray.length > 0) {
+                setError('Nenhuma oportunidade compatível encontrada. Certifique-se de que existem oportunidades do tipo oposto (Vendedor/Comprador) criadas no sistema.');
+            }
+
             setAvailableOpportunities(compatible);
         } catch (err) {
-            setError('Erro ao buscar oportunidades');
-            console.error(err);
+            console.error('Erro completo ao buscar oportunidades:', err);
+            setError(`Erro ao buscar oportunidades: ${err.message}`);
         } finally {
             setLoading(false);
         }
@@ -199,8 +243,8 @@ const NegocioPlenoLinker = ({
         return (
             <div className="flex items-center space-x-2">
                 <span className={`px-3 py-1 rounded-full text-sm font-medium ${hasDiscrepancies
-                        ? 'bg-yellow-100 text-yellow-700'
-                        : 'bg-green-100 text-green-700'
+                    ? 'bg-yellow-100 text-yellow-700'
+                    : 'bg-green-100 text-green-700'
                     }`}>
                     {hasDiscrepancies
                         ? NEGOCIO_PLENO_STATUS_LABELS[NEGOCIO_PLENO_STATUS.DISCREPANCY]
@@ -343,12 +387,14 @@ const NegocioPlenoLinker = ({
                     </div>
                     <div className="flex space-x-2">
                         <button
+                            type="button"
                             onClick={() => setShowDetailsModal(true)}
                             className="px-3 py-1 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 text-sm font-medium"
                         >
                             Ver Detalhes
                         </button>
                         <button
+                            type="button"
                             onClick={handleSync}
                             disabled={loading}
                             className="px-3 py-1 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 text-sm font-medium disabled:opacity-50"
@@ -356,6 +402,7 @@ const NegocioPlenoLinker = ({
                             Sincronizar
                         </button>
                         <button
+                            type="button"
                             onClick={handleUnlink}
                             disabled={loading}
                             className="px-3 py-1 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 text-sm font-medium disabled:opacity-50"
@@ -383,6 +430,7 @@ const NegocioPlenoLinker = ({
                             : 'Linkar este vendedor com um comprador seu'}
                     </p>
                     <button
+                        type="button"
                         onClick={() => setShowLinkModal(true)}
                         disabled={isLinking || loading}
                         className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium disabled:opacity-50"
@@ -402,6 +450,7 @@ const NegocioPlenoLinker = ({
                                 Linkar para Negócio Pleno
                             </h3>
                             <button
+                                type="button"
                                 onClick={() => setShowLinkModal(false)}
                                 className="text-gray-400 hover:text-gray-600"
                             >
@@ -434,6 +483,7 @@ const NegocioPlenoLinker = ({
                                 <MagnifyingGlassIcon className="absolute left-3 top-2.5 w-5 h-5 text-gray-400" />
                             </div>
                             <button
+                                type="button"
                                 onClick={searchOpportunities}
                                 disabled={loading}
                                 className="mt-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 w-full"
@@ -461,8 +511,8 @@ const NegocioPlenoLinker = ({
                                             key={opp.id}
                                             onClick={() => setSelectedOpportunity(opp)}
                                             className={`border rounded-lg p-3 cursor-pointer transition-colors ${selectedOpportunity?.id === opp.id
-                                                    ? 'border-indigo-500 bg-indigo-50'
-                                                    : 'border-gray-200 hover:border-gray-300'
+                                                ? 'border-indigo-500 bg-indigo-50'
+                                                : 'border-gray-200 hover:border-gray-300'
                                                 }`}
                                         >
                                             <div className="flex items-center justify-between">
@@ -524,6 +574,7 @@ const NegocioPlenoLinker = ({
                         {/* Botões de ação */}
                         <div className="flex justify-end space-x-3">
                             <button
+                                type="button"
                                 onClick={() => {
                                     setShowLinkModal(false);
                                     setSelectedOpportunity(null);
@@ -534,6 +585,7 @@ const NegocioPlenoLinker = ({
                                 Cancelar
                             </button>
                             <button
+                                type="button"
                                 onClick={handleLink}
                                 disabled={!selectedOpportunity || loading}
                                 className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
@@ -554,6 +606,7 @@ const NegocioPlenoLinker = ({
                                 Detalhes do Negócio Pleno
                             </h3>
                             <button
+                                type="button"
                                 onClick={() => setShowDetailsModal(false)}
                                 className="text-gray-400 hover:text-gray-600"
                             >
@@ -598,6 +651,7 @@ const NegocioPlenoLinker = ({
 
                         <div className="mt-6 flex justify-end">
                             <button
+                                type="button"
                                 onClick={() => setShowDetailsModal(false)}
                                 className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
                             >
