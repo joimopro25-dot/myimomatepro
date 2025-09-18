@@ -857,8 +857,8 @@ const PropertiesTab = ({ data = [], onChange, opportunityType }) => {
                                                 setFormData({ ...formData, caracteristicas: cars });
                                             }}
                                             className={`px-3 py-1 rounded-full text-sm transition-colors ${formData.caracteristicas.includes(car)
-                                                    ? 'bg-blue-500 text-white'
-                                                    : 'bg-gray-100 hover:bg-gray-200'
+                                                ? 'bg-blue-500 text-white'
+                                                : 'bg-gray-100 hover:bg-gray-200'
                                                 }`}
                                         >
                                             {car}
