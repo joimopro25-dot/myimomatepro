@@ -53,6 +53,39 @@ const NegocioPlenoLinker = ({
     const { fetchAllOpportunities, fetchOpportunity } = useOpportunities();
     const { fetchAllClients } = useClients();
 
+    // Helper function para converter datas do Firestore ou JavaScript Date
+    const convertToDate = (dateValue) => {
+        if (!dateValue) return null;
+
+        // Se tem método toDate, é um Timestamp do Firestore
+        if (dateValue?.toDate && typeof dateValue.toDate === 'function') {
+            try {
+                return dateValue.toDate();
+            } catch (e) {
+                console.error('Erro ao converter timestamp:', e);
+                return new Date(dateValue);
+            }
+        }
+
+        // Se já é uma Date
+        if (dateValue instanceof Date) {
+            return dateValue;
+        }
+
+        // Se é um objeto com _seconds (Firestore timestamp)
+        if (dateValue?._seconds) {
+            return new Date(dateValue._seconds * 1000);
+        }
+
+        // Tenta converter para Date
+        try {
+            return new Date(dateValue);
+        } catch (e) {
+            console.error('Erro ao converter data:', e);
+            return null;
+        }
+    };
+
     // Carregar oportunidade linkada se existir
     useEffect(() => {
         if (currentOpportunity?.linkedOpportunityId) {
@@ -175,7 +208,7 @@ const NegocioPlenoLinker = ({
         }
     };
 
-    // Handler para linking
+    // Handler para linking com sincronização de dados
     const handleLink = async () => {
         if (!selectedOpportunity) {
             setError('Selecione uma oportunidade para linkar');
@@ -184,10 +217,36 @@ const NegocioPlenoLinker = ({
 
         try {
             setLoading(true);
-            await onLink(selectedOpportunity);
+
+            // Passar dados completos para o onLink
+            const linkData = {
+                ...selectedOpportunity,
+                // Dados do vendedor se for linking de comprador para vendedor
+                vendedorData: currentOpportunity.tipo === OPPORTUNITY_TYPES.BUYER ? {
+                    clienteId: selectedOpportunity.clienteId,
+                    clienteName: selectedOpportunity.clienteName,
+                    imoveis: selectedOpportunity.imoveis || [],
+                    valorEstimado: selectedOpportunity.valorEstimado,
+                    percentualComissao: selectedOpportunity.percentualComissao || 5
+                } : null,
+                // Dados do comprador se for linking de vendedor para comprador
+                compradorData: currentOpportunity.tipo === OPPORTUNITY_TYPES.SELLER ? {
+                    clienteId: selectedOpportunity.clienteId,
+                    clienteName: selectedOpportunity.clienteName,
+                    valorPretendido: selectedOpportunity.valorEstimado,
+                    percentualComissao: selectedOpportunity.percentualComissao || 5
+                } : null
+            };
+
+            await onLink(linkData);
             setShowLinkModal(false);
             setSelectedOpportunity(null);
             setSearchTerm('');
+
+            // Recarregar dados após linking
+            if (currentOpportunity?.linkedOpportunityId) {
+                await loadLinkedOpportunity();
+            }
         } catch (err) {
             setError('Erro ao linkar oportunidades');
             console.error(err);
@@ -226,11 +285,20 @@ const NegocioPlenoLinker = ({
         }
     };
 
-    // Calcular comissão total
+    // Calcular comissão total com valores reais
     const calculateTotalCommission = () => {
         if (!currentOpportunity?.isNegocioPleno) return 0;
 
-        return currentOpportunity.negocioPlenoData?.totalComissao || 0;
+        // Comissão da oportunidade atual
+        const currentCommission = (currentOpportunity.valorEstimado || 0) *
+            ((currentOpportunity.percentualComissao || 5) / 100);
+
+        // Comissão da oportunidade linkada
+        const linkedCommission = linkedOpportunityDetails ?
+            (linkedOpportunityDetails.valorEstimado || 0) *
+            ((linkedOpportunityDetails.percentualComissao || 5) / 100) : 0;
+
+        return currentCommission + linkedCommission;
     };
 
     // Renderizar badge de status
@@ -352,10 +420,58 @@ const NegocioPlenoLinker = ({
                         </span>
                     </div>
                     <div className="flex justify-between text-xs text-gray-600 mt-2">
-                        <span>Vendedor: {formatCurrency(currentOpportunity.negocioPlenoData?.comissaoVendedor || 0)}</span>
-                        <span>Comprador: {formatCurrency(currentOpportunity.negocioPlenoData?.comissaoComprador || 0)}</span>
+                        <span>Vendedor: {formatCurrency(
+                            linkedOpportunityDetails?.tipo === OPPORTUNITY_TYPES.SELLER ?
+                                (linkedOpportunityDetails.valorEstimado || 0) * ((linkedOpportunityDetails.percentualComissao || 5) / 100) :
+                                (currentOpportunity.valorEstimado || 0) * ((currentOpportunity.percentualComissao || 5) / 100)
+                        )}</span>
+                        <span>Comprador: {formatCurrency(
+                            linkedOpportunityDetails?.tipo === OPPORTUNITY_TYPES.BUYER ?
+                                (linkedOpportunityDetails.valorEstimado || 0) * ((linkedOpportunityDetails.percentualComissao || 5) / 100) :
+                                (currentOpportunity.valorEstimado || 0) * ((currentOpportunity.percentualComissao || 5) / 100)
+                        )}</span>
                     </div>
                 </div>
+
+                {/* Dados do Imóvel (se disponível) */}
+                {(linkedOpportunityDetails?.imoveis?.length > 0 || currentOpportunity?.imoveis?.length > 0) && (
+                    <div className="bg-white rounded-lg p-4 mb-4 border border-gray-200">
+                        <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center space-x-2">
+                                <HomeIcon className="w-5 h-5 text-gray-600" />
+                                <span className="text-sm font-medium text-gray-700">
+                                    Imóvel em Negociação
+                                </span>
+                            </div>
+                            <span className="text-xs text-gray-500">
+                                {linkedOpportunityDetails?.imoveis?.length || currentOpportunity?.imoveis?.length || 0} imóvel(eis)
+                            </span>
+                        </div>
+                        {(linkedOpportunityDetails?.imoveis || currentOpportunity?.imoveis || []).map((imovel, index) => (
+                            <div key={index} className="bg-gray-50 rounded-lg p-3 mb-2">
+                                <div className="flex justify-between items-start">
+                                    <div className="flex-1">
+                                        <p className="font-medium text-gray-900">{imovel.titulo || 'Imóvel sem título'}</p>
+                                        <p className="text-sm text-gray-600 mt-1">
+                                            {imovel.tipologia || 'N/D'} • {imovel.area || 'N/D'}m² • {imovel.localizacao || 'N/D'}
+                                        </p>
+                                        {imovel.preco && (
+                                            <p className="text-sm font-medium text-green-600 mt-1">
+                                                Preço: {formatCurrency(imovel.preco)}
+                                            </p>
+                                        )}
+                                    </div>
+                                    <span className={`px-2 py-1 text-xs rounded-full ${imovel.estado === 'disponivel' ? 'bg-green-100 text-green-700' :
+                                        imovel.estado === 'reservado' ? 'bg-yellow-100 text-yellow-700' :
+                                            'bg-gray-100 text-gray-700'
+                                        }`}>
+                                        {imovel.estado || 'disponível'}
+                                    </span>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
 
                 {/* Discrepâncias */}
                 {discrepancies.length > 0 && (
@@ -381,9 +497,10 @@ const NegocioPlenoLinker = ({
                 {/* Ações */}
                 <div className="flex items-center justify-between pt-4 border-t">
                     <div className="text-xs text-gray-500">
-                        Linkado em: {currentOpportunity.negocioPlenoData?.linkedAt
-                            ? new Date(currentOpportunity.negocioPlenoData.linkedAt.toDate()).toLocaleDateString('pt-PT')
-                            : 'N/D'}
+                        Linkado em: {(() => {
+                            const date = convertToDate(currentOpportunity.negocioPlenoData?.linkedAt);
+                            return date ? date.toLocaleDateString('pt-PT') : 'N/D';
+                        })()}
                     </div>
                     <div className="flex space-x-2">
                         <button
@@ -600,10 +717,10 @@ const NegocioPlenoLinker = ({
             {/* Modal de Detalhes (quando já linkado) */}
             {showDetailsModal && linkedOpportunityDetails && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-xl p-6 max-w-4xl w-full max-h-[80vh] overflow-y-auto">
+                    <div className="bg-white rounded-xl p-6 max-w-5xl w-full max-h-[90vh] overflow-y-auto">
                         <div className="flex items-center justify-between mb-4">
                             <h3 className="text-lg font-semibold">
-                                Detalhes do Negócio Pleno
+                                Detalhes Completos do Negócio Pleno
                             </h3>
                             <button
                                 type="button"
@@ -614,42 +731,206 @@ const NegocioPlenoLinker = ({
                             </button>
                         </div>
 
+                        {/* Resumo Financeiro */}
+                        <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg p-4 mb-6 border border-green-200">
+                            <h4 className="font-semibold text-gray-900 mb-3 flex items-center">
+                                <CurrencyEuroIcon className="w-5 h-5 mr-2 text-green-600" />
+                                Resumo Financeiro
+                            </h4>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <p className="text-xs text-gray-600">Valor do Imóvel</p>
+                                    <p className="text-lg font-bold text-gray-900">
+                                        {formatCurrency(
+                                            linkedOpportunityDetails?.valorEstimado ||
+                                            currentOpportunity?.valorEstimado || 0
+                                        )}
+                                    </p>
+                                </div>
+                                <div>
+                                    <p className="text-xs text-gray-600">Comissão Total</p>
+                                    <p className="text-lg font-bold text-green-600">
+                                        {formatCurrency(calculateTotalCommission())}
+                                    </p>
+                                </div>
+                                <div>
+                                    <p className="text-xs text-gray-600">Taxa de Comissão</p>
+                                    <p className="text-lg font-bold text-gray-900">
+                                        {currentOpportunity?.percentualComissao || 5}%
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
                         {/* Timeline comparativa */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                             {/* Coluna Vendedor */}
                             <div>
-                                <h4 className="font-medium text-gray-900 mb-3 flex items-center">
+                                <h4 className="font-semibold text-gray-900 mb-3 flex items-center">
                                     <HomeIcon className="w-5 h-5 mr-2 text-blue-500" />
                                     Lado Vendedor
                                 </h4>
-                                <div className="space-y-3">
-                                    {/* Aqui viria a timeline do vendedor */}
-                                    <div className="bg-gray-50 rounded-lg p-3">
-                                        <p className="text-sm text-gray-600">
-                                            Timeline do vendedor...
-                                        </p>
-                                    </div>
+                                <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                                    <p className="font-medium text-gray-900">
+                                        {currentOpportunity?.tipo === OPPORTUNITY_TYPES.SELLER
+                                            ? currentOpportunity.titulo
+                                            : linkedOpportunityDetails?.titulo}
+                                    </p>
+                                    <p className="text-sm text-gray-600 mt-1">
+                                        Cliente: {currentOpportunity?.tipo === OPPORTUNITY_TYPES.SELLER
+                                            ? currentOpportunity.clienteName
+                                            : linkedOpportunityDetails?.clienteName || currentOpportunity?.linkedOpportunityClientName}
+                                    </p>
+                                    <p className="text-sm font-medium text-blue-600 mt-2">
+                                        Comissão: {formatCurrency(
+                                            currentOpportunity?.tipo === OPPORTUNITY_TYPES.SELLER ?
+                                                (currentOpportunity.valorEstimado || 0) * ((currentOpportunity.percentualComissao || 5) / 100) :
+                                                (linkedOpportunityDetails?.valorEstimado || 0) * ((linkedOpportunityDetails?.percentualComissao || 5) / 100)
+                                        )}
+                                    </p>
                                 </div>
                             </div>
 
                             {/* Coluna Comprador */}
                             <div>
-                                <h4 className="font-medium text-gray-900 mb-3 flex items-center">
+                                <h4 className="font-semibold text-gray-900 mb-3 flex items-center">
                                     <UserGroupIcon className="w-5 h-5 mr-2 text-green-500" />
                                     Lado Comprador
                                 </h4>
-                                <div className="space-y-3">
-                                    {/* Aqui viria a timeline do comprador */}
-                                    <div className="bg-gray-50 rounded-lg p-3">
-                                        <p className="text-sm text-gray-600">
-                                            Timeline do comprador...
-                                        </p>
-                                    </div>
+                                <div className="bg-green-50 rounded-lg p-4 border border-green-200">
+                                    <p className="font-medium text-gray-900">
+                                        {currentOpportunity?.tipo === OPPORTUNITY_TYPES.BUYER
+                                            ? currentOpportunity.titulo
+                                            : linkedOpportunityDetails?.titulo}
+                                    </p>
+                                    <p className="text-sm text-gray-600 mt-1">
+                                        Cliente: {currentOpportunity?.tipo === OPPORTUNITY_TYPES.BUYER
+                                            ? currentOpportunity.clienteName
+                                            : linkedOpportunityDetails?.clienteName || currentOpportunity?.linkedOpportunityClientName}
+                                    </p>
+                                    <p className="text-sm font-medium text-green-600 mt-2">
+                                        Comissão: {formatCurrency(
+                                            currentOpportunity?.tipo === OPPORTUNITY_TYPES.BUYER ?
+                                                (currentOpportunity.valorEstimado || 0) * ((currentOpportunity.percentualComissao || 5) / 100) :
+                                                (linkedOpportunityDetails?.valorEstimado || 0) * ((linkedOpportunityDetails?.percentualComissao || 5) / 100)
+                                        )}
+                                    </p>
                                 </div>
                             </div>
                         </div>
 
-                        <div className="mt-6 flex justify-end">
+                        {/* Dados do Imóvel */}
+                        {(linkedOpportunityDetails?.imoveis?.length > 0 || currentOpportunity?.imoveis?.length > 0) && (
+                            <div className="mb-6">
+                                <h4 className="font-semibold text-gray-900 mb-3 flex items-center justify-between">
+                                    <span className="flex items-center">
+                                        <HomeIcon className="w-5 h-5 mr-2 text-gray-600" />
+                                        Imóveis em Negociação
+                                    </span>
+                                    {currentOpportunity?.tipo === OPPORTUNITY_TYPES.BUYER && linkedOpportunityDetails?.imoveis?.length > 0 && (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                // Implementar importação de imóveis
+                                                if (window.confirm('Importar imóveis do vendedor para esta oportunidade?')) {
+                                                    // Lógica de importação aqui
+                                                    console.log('Importando imóveis...', linkedOpportunityDetails.imoveis);
+                                                }
+                                            }}
+                                            className="px-3 py-1 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 text-sm font-medium"
+                                        >
+                                            Importar Imóveis
+                                        </button>
+                                    )}
+                                </h4>
+                                <div className="space-y-3">
+                                    {(linkedOpportunityDetails?.imoveis || currentOpportunity?.imoveis || []).map((imovel, index) => (
+                                        <div key={index} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                                            <div className="flex justify-between items-start mb-2">
+                                                <h5 className="font-medium text-gray-900">{imovel.titulo || `Imóvel ${index + 1}`}</h5>
+                                                <span className={`px-2 py-1 text-xs rounded-full ${imovel.estado === 'disponivel' ? 'bg-green-100 text-green-700' :
+                                                    imovel.estado === 'reservado' ? 'bg-yellow-100 text-yellow-700' :
+                                                        imovel.estado === 'vendido' ? 'bg-red-100 text-red-700' :
+                                                            'bg-gray-100 text-gray-700'
+                                                    }`}>
+                                                    {imovel.estado || 'disponível'}
+                                                </span>
+                                            </div>
+
+                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                                                {imovel.tipologia && (
+                                                    <div>
+                                                        <span className="text-gray-600">Tipologia:</span>
+                                                        <p className="font-medium">{imovel.tipologia}</p>
+                                                    </div>
+                                                )}
+                                                {imovel.area && (
+                                                    <div>
+                                                        <span className="text-gray-600">Área:</span>
+                                                        <p className="font-medium">{imovel.area}m²</p>
+                                                    </div>
+                                                )}
+                                                {imovel.localizacao && (
+                                                    <div>
+                                                        <span className="text-gray-600">Localização:</span>
+                                                        <p className="font-medium">{imovel.localizacao}</p>
+                                                    </div>
+                                                )}
+                                                {imovel.preco && (
+                                                    <div>
+                                                        <span className="text-gray-600">Preço:</span>
+                                                        <p className="font-medium text-green-600">{formatCurrency(imovel.preco)}</p>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {imovel.descricao && (
+                                                <p className="text-sm text-gray-600 mt-3">{imovel.descricao}</p>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Timeline de Eventos */}
+                        <div className="mb-6">
+                            <h4 className="font-semibold text-gray-900 mb-3 flex items-center">
+                                <CalendarIcon className="w-5 h-5 mr-2 text-gray-600" />
+                                Histórico de Eventos
+                            </h4>
+                            <div className="bg-gray-50 rounded-lg p-4">
+                                <div className="space-y-2">
+                                    <div className="flex items-center text-sm">
+                                        <div className="w-2 h-2 bg-green-500 rounded-full mr-3"></div>
+                                        <span className="text-gray-600">
+                                            {convertToDate(currentOpportunity.negocioPlenoData?.linkedAt)?.toLocaleDateString('pt-PT')} -
+                                            Oportunidades linkadas
+                                        </span>
+                                    </div>
+                                    {currentOpportunity.negocioPlenoData?.lastSync && (
+                                        <div className="flex items-center text-sm">
+                                            <div className="w-2 h-2 bg-blue-500 rounded-full mr-3"></div>
+                                            <span className="text-gray-600">
+                                                {convertToDate(currentOpportunity.negocioPlenoData.lastSync)?.toLocaleDateString('pt-PT')} -
+                                                Última sincronização
+                                            </span>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Botões de Ação */}
+                        <div className="flex justify-end space-x-3">
+                            <button
+                                type="button"
+                                onClick={handleSync}
+                                disabled={loading}
+                                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                            >
+                                Sincronizar Dados
+                            </button>
                             <button
                                 type="button"
                                 onClick={() => setShowDetailsModal(false)}
