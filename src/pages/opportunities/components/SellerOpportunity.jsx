@@ -2,9 +2,11 @@
  * SELLER OPPORTUNITY - Componente específico para Vendedores
  * Gestão completa de imóveis para venda
  * Caminho: src/pages/opportunities/components/SellerOpportunity.jsx
+ * 
+ * ✅ CORRIGIDO: Loop infinito no useEffect
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
     HomeIcon,
     DocumentTextIcon,
@@ -55,7 +57,8 @@ const MARKETING_CHANNELS = {
     INSTAGRAM: 'instagram',
     WEBSITE: 'website',
     LOJA: 'loja_fisica',
-    NETWORK: 'rede_contactos'
+    NETWORK: 'rede_contactos',
+    CENTRALIMO: 'centralimo' // Novo canal
 };
 
 const MARKETING_LABELS = {
@@ -67,7 +70,8 @@ const MARKETING_LABELS = {
     [MARKETING_CHANNELS.INSTAGRAM]: '📷 Instagram',
     [MARKETING_CHANNELS.WEBSITE]: '🌐 Website',
     [MARKETING_CHANNELS.LOJA]: '🏪 Loja Física',
-    [MARKETING_CHANNELS.NETWORK]: '🤝 Rede de Contactos'
+    [MARKETING_CHANNELS.NETWORK]: '🤝 Rede de Contactos',
+    [MARKETING_CHANNELS.CENTRALIMO]: '🔗 O Meu Centralimo' // Novo canal
 };
 
 // Estados de Visita de Compradores
@@ -120,6 +124,10 @@ const SellerOpportunity = ({
     // Hooks
     const { currentUser } = useAuth();
 
+    // Refs para controlar o loop infinito
+    const updateTimeoutRef = useRef(null);
+    const isInitialMount = useRef(true);
+
     // Estado do imóvel para venda (único, não array)
     const [propertyData, setPropertyData] = useState({
         // Identificação
@@ -169,6 +177,7 @@ const SellerOpportunity = ({
 
         // Marketing
         canaisMarketing: [],
+        marketingUrls: {}, // Novo objeto para armazenar URLs dos anúncios
         dataInicioMarketing: '',
         fotosRealizadas: false,
         dataFotos: '',
@@ -213,18 +222,43 @@ const SellerOpportunity = ({
     // Estado para edição
     const [editingVisit, setEditingVisit] = useState(null);
     const [editingOffer, setEditingOffer] = useState(null);
+    const [expandedChannel, setExpandedChannel] = useState(null); // Novo estado para canal expandido
 
-    // Inicialização
+    // Inicialização - apenas no mount inicial
     useEffect(() => {
-        if (formData.imovelVenda) {
+        if (formData.imovelVenda && isInitialMount.current) {
             setPropertyData(formData.imovelVenda);
+            isInitialMount.current = false;
         }
     }, [formData.imovelVenda]);
 
-    // Atualiza o formData quando propertyData muda
+    // Atualiza o formData com debounce para evitar loops
     useEffect(() => {
-        updateFormData({ imovelVenda: propertyData });
-    }, [propertyData]);
+        // Não atualizar no mount inicial
+        if (isInitialMount.current) {
+            return;
+        }
+
+        // Limpar timeout anterior
+        if (updateTimeoutRef.current) {
+            clearTimeout(updateTimeoutRef.current);
+        }
+
+        // Criar novo timeout com debounce
+        updateTimeoutRef.current = setTimeout(() => {
+            // Comparar com dados anteriores para evitar atualizações desnecessárias
+            if (JSON.stringify(propertyData) !== JSON.stringify(formData.imovelVenda)) {
+                updateFormData({ imovelVenda: propertyData });
+            }
+        }, 500); // 500ms de debounce
+
+        // Cleanup
+        return () => {
+            if (updateTimeoutRef.current) {
+                clearTimeout(updateTimeoutRef.current);
+            }
+        };
+    }, [propertyData]); // Removido updateFormData e formData.imovelVenda das dependências
 
     // Handlers
     const handlePropertyChange = (e) => {
@@ -257,7 +291,24 @@ const SellerOpportunity = ({
         }));
     };
 
-    const handleAddPontoForte = () => {
+    const handleMarketingUrlChange = (channel, url) => {
+        setPropertyData(prev => ({
+            ...prev,
+            marketingUrls: {
+                ...prev.marketingUrls,
+                [channel]: url
+            },
+            // Adicionar automaticamente ao canaisMarketing se URL foi adicionada
+            canaisMarketing: url && !prev.canaisMarketing.includes(channel)
+                ? [...prev.canaisMarketing, channel]
+                : url ? prev.canaisMarketing
+                    : prev.canaisMarketing.filter(c => c !== channel)
+        }));
+    };
+
+    const handleAddPontoForte = (e) => {
+        e?.preventDefault();
+        e?.stopPropagation();
         const ponto = prompt('Adicionar ponto forte para marketing:');
         if (ponto) {
             setPropertyData(prev => ({
@@ -267,7 +318,9 @@ const SellerOpportunity = ({
         }
     };
 
-    const handleRemovePontoForte = (index) => {
+    const handleRemovePontoForte = (index, e) => {
+        e?.preventDefault();
+        e?.stopPropagation();
         setPropertyData(prev => ({
             ...prev,
             pontosFortesMarketing: prev.pontosFortesMarketing.filter((_, i) => i !== index)
@@ -871,30 +924,83 @@ const SellerOpportunity = ({
                         Marketing e Promoção
                     </h3>
                     <button
-                        onClick={() => setShowMarketingModal(true)}
+                        type="button"
+                        onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setShowMarketingModal(true);
+                        }}
                         className="px-3 py-1 bg-purple-50 text-purple-600 rounded-lg hover:bg-purple-100 text-sm font-medium"
                     >
                         Configurar Marketing
                     </button>
                 </div>
 
-                {/* Canais Ativos */}
+                {/* Canais de Marketing com URLs */}
                 <div className="mb-4">
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                         Canais de Marketing Ativos
                     </label>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="space-y-2">
                         {Object.entries(MARKETING_LABELS).map(([channel, label]) => (
-                            <button
-                                key={channel}
-                                onClick={() => handleMarketingChannelToggle(channel)}
-                                className={`px-3 py-1 rounded-full text-sm transition-colors ${propertyData.canaisMarketing.includes(channel)
-                                    ? 'bg-purple-500 text-white'
-                                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                                    }`}
-                            >
-                                {label}
-                            </button>
+                            <div key={channel} className="border rounded-lg p-3 hover:bg-gray-50">
+                                <div className="flex items-center justify-between">
+                                    <button
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            setExpandedChannel(expandedChannel === channel ? null : channel);
+                                        }}
+                                        className={`flex items-center text-sm font-medium ${propertyData.marketingUrls?.[channel] ? 'text-purple-600' : 'text-gray-700'
+                                            }`}
+                                    >
+                                        <span className="mr-2">{label}</span>
+                                        {propertyData.marketingUrls?.[channel] && (
+                                            <CheckCircleIcon className="w-4 h-4 text-green-500" />
+                                        )}
+                                    </button>
+                                    {propertyData.marketingUrls?.[channel] && (
+                                        <a
+                                            href={propertyData.marketingUrls[channel]}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-xs text-blue-600 hover:text-blue-800"
+                                            onClick={(e) => e.stopPropagation()}
+                                        >
+                                            Abrir Link ↗
+                                        </a>
+                                    )}
+                                </div>
+                                {expandedChannel === channel && (
+                                    <div className="mt-3 pl-6">
+                                        <div className="flex items-center gap-2">
+                                            <input
+                                                type="url"
+                                                placeholder={`URL do anúncio no ${label.replace(/[^a-zA-Z\s]/g, '')}`}
+                                                value={propertyData.marketingUrls?.[channel] || ''}
+                                                onChange={(e) => handleMarketingUrlChange(channel, e.target.value)}
+                                                onClick={(e) => e.stopPropagation()}
+                                                className="flex-1 px-3 py-1 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                                            />
+                                            {propertyData.marketingUrls?.[channel] && (
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        e.preventDefault();
+                                                        e.stopPropagation();
+                                                        navigator.clipboard.writeText(propertyData.marketingUrls[channel]);
+                                                        alert('URL copiada!');
+                                                    }}
+                                                    className="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+                                                >
+                                                    Copiar
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
                         ))}
                     </div>
                 </div>
@@ -941,7 +1047,12 @@ const SellerOpportunity = ({
                             Pontos Fortes para Marketing
                         </label>
                         <button
-                            onClick={handleAddPontoForte}
+                            type="button"
+                            onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                handleAddPontoForte(e);
+                            }}
                             className="text-xs text-purple-600 hover:text-purple-700"
                         >
                             + Adicionar
@@ -953,7 +1064,12 @@ const SellerOpportunity = ({
                                 <li key={index} className="flex items-center justify-between text-sm text-gray-600 bg-gray-50 px-2 py-1 rounded">
                                     <span>• {ponto}</span>
                                     <button
-                                        onClick={() => handleRemovePontoForte(index)}
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            handleRemovePontoForte(index, e);
+                                        }}
                                         className="text-red-500 hover:text-red-700"
                                     >
                                         <TrashIcon className="w-3 h-3" />
@@ -975,7 +1091,12 @@ const SellerOpportunity = ({
                         Visitas de Potenciais Compradores ({propertyData.visitasCompradores.length})
                     </h3>
                     <button
-                        onClick={() => setShowVisitModal(true)}
+                        type="button"
+                        onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setShowVisitModal(true);
+                        }}
                         className="px-3 py-1 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 text-sm font-medium"
                     >
                         + Nova Visita
@@ -1019,7 +1140,10 @@ const SellerOpportunity = ({
                                 )}
                                 <div className="flex justify-end mt-2 space-x-2">
                                     <button
-                                        onClick={() => {
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
                                             setEditingVisit(visit);
                                             setShowVisitModal(true);
                                         }}
@@ -1028,7 +1152,12 @@ const SellerOpportunity = ({
                                         <PencilIcon className="w-4 h-4" />
                                     </button>
                                     <button
-                                        onClick={() => handleDeleteVisit(visit.id)}
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            handleDeleteVisit(visit.id);
+                                        }}
                                         className="text-red-600 hover:text-red-700"
                                     >
                                         <TrashIcon className="w-4 h-4" />
@@ -1052,7 +1181,12 @@ const SellerOpportunity = ({
                         Ofertas Recebidas ({propertyData.ofertasRecebidas.length})
                     </h3>
                     <button
-                        onClick={() => setShowOfferModal(true)}
+                        type="button"
+                        onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setShowOfferModal(true);
+                        }}
                         className="px-3 py-1 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 text-sm font-medium"
                     >
                         + Registar Oferta
@@ -1108,7 +1242,10 @@ const SellerOpportunity = ({
                                 )}
                                 <div className="flex justify-end mt-2 space-x-2">
                                     <button
-                                        onClick={() => {
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
                                             setEditingOffer(offer);
                                             setShowOfferModal(true);
                                         }}
@@ -1117,7 +1254,12 @@ const SellerOpportunity = ({
                                         <PencilIcon className="w-4 h-4" />
                                     </button>
                                     <button
-                                        onClick={() => handleDeleteOffer(offer.id)}
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            handleDeleteOffer(offer.id);
+                                        }}
                                         className="text-red-600 hover:text-red-700"
                                     >
                                         <TrashIcon className="w-4 h-4" />
@@ -1168,7 +1310,12 @@ const SellerOpportunity = ({
                             <div>
                                 <p className="text-sm text-gray-400 mb-3">CPCV ainda não assinado</p>
                                 <button
-                                    onClick={() => setShowCPCVModal(true)}
+                                    type="button"
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        setShowCPCVModal(true);
+                                    }}
                                     disabled={!propertyData.ofertasRecebidas.some(o => o.status === RECEIVED_OFFER_STATUS.ACCEPTED)}
                                     className="w-full px-3 py-2 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 disabled:bg-gray-100 disabled:text-gray-400 text-sm font-medium"
                                 >
@@ -1201,7 +1348,12 @@ const SellerOpportunity = ({
                             <div>
                                 <p className="text-sm text-gray-400 mb-3">Escritura ainda não realizada</p>
                                 <button
-                                    onClick={() => setShowEscrituraModal(true)}
+                                    type="button"
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        setShowEscrituraModal(true);
+                                    }}
                                     disabled={!propertyData.cpcvAssinado}
                                     className="w-full px-3 py-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 disabled:bg-gray-100 disabled:text-gray-400 text-sm font-medium"
                                 >
@@ -1352,120 +1504,129 @@ const SellerOpportunity = ({
                             {editingVisit ? 'Editar Visita' : 'Nova Visita de Comprador'}
                         </h3>
 
-                        <form onSubmit={(e) => {
-                            e.preventDefault();
-                            const formData = new FormData(e.target);
-                            const visitData = Object.fromEntries(formData.entries());
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Nome do Comprador *
+                                </label>
+                                <input
+                                    type="text"
+                                    id="visit-nome"
+                                    defaultValue={editingVisit?.nomeComprador}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                    required
+                                />
+                            </div>
 
-                            if (editingVisit) {
-                                handleUpdateVisit(editingVisit.id, visitData);
-                                setEditingVisit(null);
-                            } else {
-                                handleAddVisit(visitData);
-                            }
-                            setShowVisitModal(false);
-                        }}>
-                            <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Telefone
+                                </label>
+                                <input
+                                    type="tel"
+                                    id="visit-telefone"
+                                    defaultValue={editingVisit?.telefoneComprador}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3">
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Nome do Comprador *
+                                        Data *
                                     </label>
                                     <input
-                                        type="text"
-                                        name="nomeComprador"
-                                        defaultValue={editingVisit?.nomeComprador}
+                                        type="date"
+                                        id="visit-data"
+                                        defaultValue={editingVisit?.dataVisita}
                                         className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                                         required
                                     />
                                 </div>
-
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Telefone
+                                        Hora *
                                     </label>
                                     <input
-                                        type="tel"
-                                        name="telefoneComprador"
-                                        defaultValue={editingVisit?.telefoneComprador}
+                                        type="time"
+                                        id="visit-hora"
+                                        defaultValue={editingVisit?.horaVisita}
                                         className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                        required
                                     />
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                                            Data *
-                                        </label>
-                                        <input
-                                            type="date"
-                                            name="dataVisita"
-                                            defaultValue={editingVisit?.dataVisita}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                                            required
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                                            Hora *
-                                        </label>
-                                        <input
-                                            type="time"
-                                            name="horaVisita"
-                                            defaultValue={editingVisit?.horaVisita}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                                            required
-                                        />
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Status
-                                    </label>
-                                    <select
-                                        name="status"
-                                        defaultValue={editingVisit?.status || BUYER_VISIT_STATUS.SCHEDULED}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                                    >
-                                        {Object.entries(BUYER_VISIT_LABELS).map(([value, label]) => (
-                                            <option key={value} value={value}>{label}</option>
-                                        ))}
-                                    </select>
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Feedback
-                                    </label>
-                                    <textarea
-                                        name="feedback"
-                                        defaultValue={editingVisit?.feedback}
-                                        rows="3"
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                                        placeholder="Comentários sobre a visita..."
-                                    />
-                                </div>
-
-                                <div className="flex justify-end space-x-3 mt-6">
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setShowVisitModal(false);
-                                            setEditingVisit(null);
-                                        }}
-                                        className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-                                    >
-                                        Cancelar
-                                    </button>
-                                    <button
-                                        type="submit"
-                                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                                    >
-                                        {editingVisit ? 'Atualizar' : 'Adicionar'}
-                                    </button>
                                 </div>
                             </div>
-                        </form>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Status
+                                </label>
+                                <select
+                                    id="visit-status"
+                                    defaultValue={editingVisit?.status || BUYER_VISIT_STATUS.SCHEDULED}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                >
+                                    {Object.entries(BUYER_VISIT_LABELS).map(([value, label]) => (
+                                        <option key={value} value={value}>{label}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Feedback
+                                </label>
+                                <textarea
+                                    id="visit-feedback"
+                                    defaultValue={editingVisit?.feedback}
+                                    rows="3"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                    placeholder="Comentários sobre a visita..."
+                                />
+                            </div>
+
+                            <div className="flex justify-end space-x-3 mt-6">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setShowVisitModal(false);
+                                        setEditingVisit(null);
+                                    }}
+                                    className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        const visitData = {
+                                            nomeComprador: document.getElementById('visit-nome').value,
+                                            telefoneComprador: document.getElementById('visit-telefone').value,
+                                            dataVisita: document.getElementById('visit-data').value,
+                                            horaVisita: document.getElementById('visit-hora').value,
+                                            status: document.getElementById('visit-status').value,
+                                            feedback: document.getElementById('visit-feedback').value
+                                        };
+
+                                        if (!visitData.nomeComprador || !visitData.dataVisita || !visitData.horaVisita) {
+                                            alert('Por favor preencha os campos obrigatórios');
+                                            return;
+                                        }
+
+                                        if (editingVisit) {
+                                            handleUpdateVisit(editingVisit.id, visitData);
+                                            setEditingVisit(null);
+                                        } else {
+                                            handleAddVisit(visitData);
+                                        }
+                                        setShowVisitModal(false);
+                                    }}
+                                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                                >
+                                    {editingVisit ? 'Atualizar' : 'Adicionar'}
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             )}
@@ -1478,135 +1639,145 @@ const SellerOpportunity = ({
                             {editingOffer ? 'Editar Oferta' : 'Registar Nova Oferta'}
                         </h3>
 
-                        <form onSubmit={(e) => {
-                            e.preventDefault();
-                            const formData = new FormData(e.target);
-                            const offerData = Object.fromEntries(formData.entries());
-
-                            if (editingOffer) {
-                                handleUpdateOffer(editingOffer.id, offerData);
-                                setEditingOffer(null);
-                            } else {
-                                handleAddOffer(offerData);
-                            }
-                            setShowOfferModal(false);
-                        }}>
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Nome do Proponente *
-                                    </label>
-                                    <input
-                                        type="text"
-                                        name="nomeProponente"
-                                        defaultValue={editingOffer?.nomeProponente}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                                        required
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Valor da Oferta (€) *
-                                    </label>
-                                    <input
-                                        type="number"
-                                        name="valorOferta"
-                                        defaultValue={editingOffer?.valorOferta}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                                        required
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Data da Oferta *
-                                    </label>
-                                    <input
-                                        type="date"
-                                        name="dataOferta"
-                                        defaultValue={editingOffer?.dataOferta}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                                        required
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Status
-                                    </label>
-                                    <select
-                                        name="status"
-                                        defaultValue={editingOffer?.status || RECEIVED_OFFER_STATUS.RECEIVED}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                                    >
-                                        {Object.entries(RECEIVED_OFFER_LABELS).map(([value, label]) => (
-                                            <option key={value} value={value}>{label}</option>
-                                        ))}
-                                    </select>
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Condições
-                                    </label>
-                                    <textarea
-                                        name="condicoes"
-                                        defaultValue={editingOffer?.condicoes}
-                                        rows="3"
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                                        placeholder="Condições especiais da oferta..."
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="flex items-center">
-                                        <input
-                                            type="checkbox"
-                                            name="contraproposta"
-                                            defaultChecked={editingOffer?.contraproposta}
-                                            onChange={(e) => {
-                                                const contrapropostaSection = document.getElementById('contraproposta-section');
-                                                contrapropostaSection.style.display = e.target.checked ? 'block' : 'none';
-                                            }}
-                                            className="mr-2"
-                                        />
-                                        <span className="text-sm font-medium text-gray-700">Foi feita contraproposta</span>
-                                    </label>
-                                </div>
-
-                                <div id="contraproposta-section" style={{ display: editingOffer?.contraproposta ? 'block' : 'none' }}>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Valor da Contraproposta (€)
-                                    </label>
-                                    <input
-                                        type="number"
-                                        name="valorContraproposta"
-                                        defaultValue={editingOffer?.valorContraproposta}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                                    />
-                                </div>
-
-                                <div className="flex justify-end space-x-3 mt-6">
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setShowOfferModal(false);
-                                            setEditingOffer(null);
-                                        }}
-                                        className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-                                    >
-                                        Cancelar
-                                    </button>
-                                    <button
-                                        type="submit"
-                                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-                                    >
-                                        {editingOffer ? 'Atualizar' : 'Registar'}
-                                    </button>
-                                </div>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Nome do Proponente *
+                                </label>
+                                <input
+                                    type="text"
+                                    id="offer-nome"
+                                    defaultValue={editingOffer?.nomeProponente}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                    required
+                                />
                             </div>
-                        </form>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Valor da Oferta (€) *
+                                </label>
+                                <input
+                                    type="number"
+                                    id="offer-valor"
+                                    defaultValue={editingOffer?.valorOferta}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                    required
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Data da Oferta *
+                                </label>
+                                <input
+                                    type="date"
+                                    id="offer-data"
+                                    defaultValue={editingOffer?.dataOferta}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                    required
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Status
+                                </label>
+                                <select
+                                    id="offer-status"
+                                    defaultValue={editingOffer?.status || RECEIVED_OFFER_STATUS.RECEIVED}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                >
+                                    {Object.entries(RECEIVED_OFFER_LABELS).map(([value, label]) => (
+                                        <option key={value} value={value}>{label}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Condições
+                                </label>
+                                <textarea
+                                    id="offer-condicoes"
+                                    defaultValue={editingOffer?.condicoes}
+                                    rows="3"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                    placeholder="Condições especiais da oferta..."
+                                />
+                            </div>
+
+                            <div>
+                                <label className="flex items-center">
+                                    <input
+                                        type="checkbox"
+                                        id="offer-contraproposta"
+                                        defaultChecked={editingOffer?.contraproposta}
+                                        onChange={(e) => {
+                                            const contrapropostaSection = document.getElementById('contraproposta-section');
+                                            contrapropostaSection.style.display = e.target.checked ? 'block' : 'none';
+                                        }}
+                                        className="mr-2"
+                                    />
+                                    <span className="text-sm font-medium text-gray-700">Foi feita contraproposta</span>
+                                </label>
+                            </div>
+
+                            <div id="contraproposta-section" style={{ display: editingOffer?.contraproposta ? 'block' : 'none' }}>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Valor da Contraproposta (€)
+                                </label>
+                                <input
+                                    type="number"
+                                    id="offer-valor-contraproposta"
+                                    defaultValue={editingOffer?.valorContraproposta}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                />
+                            </div>
+
+                            <div className="flex justify-end space-x-3 mt-6">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setShowOfferModal(false);
+                                        setEditingOffer(null);
+                                    }}
+                                    className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        const offerData = {
+                                            nomeProponente: document.getElementById('offer-nome').value,
+                                            valorOferta: document.getElementById('offer-valor').value,
+                                            dataOferta: document.getElementById('offer-data').value,
+                                            status: document.getElementById('offer-status').value,
+                                            condicoes: document.getElementById('offer-condicoes').value,
+                                            contraproposta: document.getElementById('offer-contraproposta').checked,
+                                            valorContraproposta: document.getElementById('offer-valor-contraproposta')?.value
+                                        };
+
+                                        if (!offerData.nomeProponente || !offerData.valorOferta || !offerData.dataOferta) {
+                                            alert('Por favor preencha os campos obrigatórios');
+                                            return;
+                                        }
+
+                                        if (editingOffer) {
+                                            handleUpdateOffer(editingOffer.id, offerData);
+                                            setEditingOffer(null);
+                                        } else {
+                                            handleAddOffer(offerData);
+                                        }
+                                        setShowOfferModal(false);
+                                    }}
+                                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                                >
+                                    {editingOffer ? 'Atualizar' : 'Registar'}
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             )}
@@ -1617,91 +1788,101 @@ const SellerOpportunity = ({
                     <div className="bg-white rounded-xl p-6 max-w-md w-full">
                         <h3 className="text-lg font-semibold mb-4">Registar CPCV</h3>
 
-                        <form onSubmit={(e) => {
-                            e.preventDefault();
-                            const formData = new FormData(e.target);
-                            handleMarkCPCV(Object.fromEntries(formData.entries()));
-                        }}>
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Data do CPCV *
-                                    </label>
-                                    <input
-                                        type="date"
-                                        name="dataCPCV"
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                                        required
-                                    />
-                                </div>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Data do CPCV *
+                                </label>
+                                <input
+                                    type="date"
+                                    id="cpcv-data"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                    required
+                                />
+                            </div>
 
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Valor do CPCV (€) *
+                                </label>
+                                <input
+                                    type="number"
+                                    id="cpcv-valor"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                    required
+                                />
+                            </div>
+
+                            <div>
+                                <label className="flex items-center">
+                                    <input
+                                        type="checkbox"
+                                        id="cpcv-sinal"
+                                        onChange={(e) => {
+                                            const sinalSection = document.getElementById('sinal-section');
+                                            sinalSection.style.display = e.target.checked ? 'block' : 'none';
+                                        }}
+                                        className="mr-2"
+                                    />
+                                    <span className="text-sm font-medium text-gray-700">Sinal pago</span>
+                                </label>
+                            </div>
+
+                            <div id="sinal-section" style={{ display: 'none' }} className="space-y-3">
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Valor do CPCV (€) *
+                                        Valor do Sinal (€)
                                     </label>
                                     <input
                                         type="number"
-                                        name="valorCPCV"
+                                        id="cpcv-valor-sinal"
                                         className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                                        required
                                     />
                                 </div>
-
                                 <div>
-                                    <label className="flex items-center">
-                                        <input
-                                            type="checkbox"
-                                            name="sinalPago"
-                                            onChange={(e) => {
-                                                const sinalSection = document.getElementById('sinal-section');
-                                                sinalSection.style.display = e.target.checked ? 'block' : 'none';
-                                            }}
-                                            className="mr-2"
-                                        />
-                                        <span className="text-sm font-medium text-gray-700">Sinal pago</span>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Data do Sinal
                                     </label>
-                                </div>
-
-                                <div id="sinal-section" style={{ display: 'none' }} className="space-y-3">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                                            Valor do Sinal (€)
-                                        </label>
-                                        <input
-                                            type="number"
-                                            name="valorSinal"
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                                            Data do Sinal
-                                        </label>
-                                        <input
-                                            type="date"
-                                            name="dataSinal"
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="flex justify-end space-x-3 mt-6">
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowCPCVModal(false)}
-                                        className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-                                    >
-                                        Cancelar
-                                    </button>
-                                    <button
-                                        type="submit"
-                                        className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
-                                    >
-                                        Confirmar CPCV
-                                    </button>
+                                    <input
+                                        type="date"
+                                        id="cpcv-data-sinal"
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                    />
                                 </div>
                             </div>
-                        </form>
+
+                            <div className="flex justify-end space-x-3 mt-6">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowCPCVModal(false)}
+                                    className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        const cpcvData = {
+                                            dataCPCV: document.getElementById('cpcv-data').value,
+                                            valorCPCV: document.getElementById('cpcv-valor').value,
+                                            sinalPago: document.getElementById('cpcv-sinal').checked,
+                                            valorSinal: document.getElementById('cpcv-valor-sinal')?.value || '',
+                                            dataSinal: document.getElementById('cpcv-data-sinal')?.value || ''
+                                        };
+
+                                        if (!cpcvData.dataCPCV || !cpcvData.valorCPCV) {
+                                            alert('Por favor preencha os campos obrigatórios');
+                                            return;
+                                        }
+
+                                        handleMarkCPCV(cpcvData);
+                                    }}
+                                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                                >
+                                    Confirmar CPCV
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             )}
@@ -1712,75 +1893,83 @@ const SellerOpportunity = ({
                     <div className="bg-white rounded-xl p-6 max-w-md w-full">
                         <h3 className="text-lg font-semibold mb-4">Registar Escritura</h3>
 
-                        <form onSubmit={(e) => {
-                            e.preventDefault();
-                            const formData = new FormData(e.target);
-                            handleMarkEscritura(Object.fromEntries(formData.entries()));
-                        }}>
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Data da Escritura *
-                                    </label>
-                                    <input
-                                        type="date"
-                                        name="dataEscritura"
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                                        required
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Notário *
-                                    </label>
-                                    <input
-                                        type="text"
-                                        name="notario"
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                                        placeholder="Nome do notário"
-                                        required
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Valor Final de Venda (€) *
-                                    </label>
-                                    <input
-                                        type="number"
-                                        name="valorFinalVenda"
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                                        required
-                                    />
-                                </div>
-
-                                {formData.percentualComissao && (
-                                    <div className="bg-green-50 p-3 rounded-lg">
-                                        <p className="text-sm text-green-800">
-                                            <strong>Comissão estimada:</strong> Será calculada automaticamente
-                                            ({formData.percentualComissao}% do valor final)
-                                        </p>
-                                    </div>
-                                )}
-
-                                <div className="flex justify-end space-x-3 mt-6">
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowEscrituraModal(false)}
-                                        className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-                                    >
-                                        Cancelar
-                                    </button>
-                                    <button
-                                        type="submit"
-                                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-                                    >
-                                        Confirmar Escritura
-                                    </button>
-                                </div>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Data da Escritura *
+                                </label>
+                                <input
+                                    type="date"
+                                    id="escritura-data"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                    required
+                                />
                             </div>
-                        </form>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Notário *
+                                </label>
+                                <input
+                                    type="text"
+                                    id="escritura-notario"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                    placeholder="Nome do notário"
+                                    required
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Valor Final de Venda (€) *
+                                </label>
+                                <input
+                                    type="number"
+                                    id="escritura-valor"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                    required
+                                />
+                            </div>
+
+                            {formData.percentualComissao && (
+                                <div className="bg-green-50 p-3 rounded-lg">
+                                    <p className="text-sm text-green-800">
+                                        <strong>Comissão estimada:</strong> Será calculada automaticamente
+                                        ({formData.percentualComissao}% do valor final)
+                                    </p>
+                                </div>
+                            )}
+
+                            <div className="flex justify-end space-x-3 mt-6">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowEscrituraModal(false)}
+                                    className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        const escrituraData = {
+                                            dataEscritura: document.getElementById('escritura-data').value,
+                                            notario: document.getElementById('escritura-notario').value,
+                                            valorFinalVenda: document.getElementById('escritura-valor').value
+                                        };
+
+                                        if (!escrituraData.dataEscritura || !escrituraData.notario || !escrituraData.valorFinalVenda) {
+                                            alert('Por favor preencha os campos obrigatórios');
+                                            return;
+                                        }
+
+                                        handleMarkEscritura(escrituraData);
+                                    }}
+                                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                                >
+                                    Confirmar Escritura
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             )}
