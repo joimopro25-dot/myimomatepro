@@ -1,13 +1,14 @@
 /**
  * OPPORTUNITY MODEL - MyImoMatePro
  * VERSÃO INTEGRADA com suporte completo para imóveis, visitas, ofertas e CPCV
+ * ✅ ATUALIZADO COM SISTEMA PLENO/PARTILHA
  * 
  * Caminho: src/models/opportunityModel.js
  * Estrutura: consultores/{consultorId}/clientes/{clienteId}/oportunidades/{oportunidadeId}
  * 
  * Tipos de Oportunidade:
  * - COMPRADOR: Cliente interessado em comprar imóvel
- * - VENDEDOR: Cliente que quer vender imóvel
+ * - VENDEDOR: Cliente que quer vender imóvel (AGORA COM PLENO/PARTILHA)
  * - SENHORIO: Cliente que quer arrendar seu imóvel
  * - INQUILINO: Cliente que procura imóvel para arrendar
  * - INVESTIDOR: Cliente interessado em investimentos imobiliários
@@ -58,6 +59,37 @@ export const OPPORTUNITY_PRIORITY_LABELS = {
     [OPPORTUNITY_PRIORITIES.MEDIUM]: 'Média',
     [OPPORTUNITY_PRIORITIES.HIGH]: 'Alta',
     [OPPORTUNITY_PRIORITIES.URGENT]: 'Urgente'
+};
+
+// ===== 🆕 TIPOS DE NEGÓCIO (PLENO/PARTILHA) =====
+
+export const BUSINESS_TYPES = {
+    WAITING: 'aguardando',      // Sem comprador ainda
+    SHARE: 'partilha',           // Comprador de outro agente
+    FULL: 'pleno'                // Comprador é meu cliente
+};
+
+export const BUSINESS_TYPE_LABELS = {
+    [BUSINESS_TYPES.WAITING]: '⏳ Aguardando Comprador',
+    [BUSINESS_TYPES.SHARE]: '🤝 Partilha com Outro Agente',
+    [BUSINESS_TYPES.FULL]: '💎 Negócio Pleno'
+};
+
+// Estados de partilha
+export const SHARE_STATUS = {
+    PENDING: 'pendente',         // Aguardando confirmação
+    CONFIRMED: 'confirmado',     // Partilha confirmada
+    IN_PROGRESS: 'em_progresso', // Negócio em andamento
+    COMPLETED: 'concluido',      // Negócio fechado
+    CANCELLED: 'cancelado'       // Partilha cancelada
+};
+
+export const SHARE_STATUS_LABELS = {
+    [SHARE_STATUS.PENDING]: '⏳ Pendente',
+    [SHARE_STATUS.CONFIRMED]: '✅ Confirmado',
+    [SHARE_STATUS.IN_PROGRESS]: '🔄 Em Progresso',
+    [SHARE_STATUS.COMPLETED]: '✔️ Concluído',
+    [SHARE_STATUS.CANCELLED]: '❌ Cancelado'
 };
 
 // ===== NOVOS ESTADOS PARA VISITAS =====
@@ -248,6 +280,51 @@ export const createCPCVSchema = (cpcvData = {}) => {
     };
 };
 
+// ===== 🆕 SCHEMA PARA CLIENTE COMPRADOR (PLENO) =====
+
+export const createBuyerClientSchema = (buyerData = {}) => {
+    return {
+        id: buyerData.id || null,
+        nome: buyerData.nome || '',
+        telefone: buyerData.telefone || '',
+        email: buyerData.email || '',
+        nif: buyerData.nif || '',
+        // Dados financeiros
+        necessitaCredito: buyerData.necessitaCredito || false,
+        creditoAprovado: buyerData.creditoAprovado || false,
+        valorCredito: buyerData.valorCredito || 0,
+        banco: buyerData.banco || '',
+        // Preferências
+        motivoCompra: buyerData.motivoCompra || '',
+        prazoCompra: buyerData.prazoCompra || '3_meses',
+        // Tracking
+        addedAt: buyerData.addedAt || new Date().toISOString(),
+        addedBy: buyerData.addedBy || null
+    };
+};
+
+// ===== 🆕 SCHEMA PARA AGENTE PARCEIRO (PARTILHA) =====
+
+export const createShareAgentSchema = (agentData = {}) => {
+    return {
+        nome: agentData.nome || '',
+        agencia: agentData.agencia || '',
+        telefone: agentData.telefone || '',
+        email: agentData.email || '',
+        licenca: agentData.licenca || '',
+        // Comissão
+        percentagemPartilha: agentData.percentagemPartilha || 50, // % da comissão
+        valorEstimado: agentData.valorEstimado || 0,
+        // Status
+        status: agentData.status || SHARE_STATUS.PENDING,
+        // Notas
+        notas: agentData.notas || '',
+        // Tracking
+        addedAt: agentData.addedAt || new Date().toISOString(),
+        confirmedAt: agentData.confirmedAt || null
+    };
+};
+
 // ===== SCHEMA PARA IMÓVEL =====
 
 export const createPropertySchema = (propertyData = {}) => {
@@ -279,7 +356,7 @@ export const createPropertySchema = (propertyData = {}) => {
     };
 };
 
-// ===== SCHEMA BASE DA OPORTUNIDADE (ATUALIZADO) =====
+// ===== SCHEMA BASE DA OPORTUNIDADE (ATUALIZADO COM PLENO) =====
 
 export const createOpportunitySchema = (opportunityData) => {
     const baseSchema = {
@@ -297,6 +374,11 @@ export const createOpportunitySchema = (opportunityData) => {
         prioridade: opportunityData.prioridade || OPPORTUNITY_PRIORITIES.MEDIUM,
         titulo: opportunityData.titulo || '',
         descricao: opportunityData.descricao || '',
+
+        // ===== 🆕 TIPO DE NEGÓCIO (PLENO/PARTILHA) =====
+        businessType: opportunityData.businessType || BUSINESS_TYPES.WAITING,
+        buyerClient: opportunityData.buyerClient || null, // Se PLENO
+        shareAgent: opportunityData.shareAgent || null,   // Se PARTILHA
 
         // ===== VALORES E ORÇAMENTO =====
         valorEstimado: opportunityData.valorEstimado || 0,
@@ -358,6 +440,16 @@ export const createOpportunitySchema = (opportunityData) => {
     // Processar imóveis para garantir estrutura completa
     if (opportunityData.imoveis && opportunityData.imoveis.length > 0) {
         baseSchema.imoveis = opportunityData.imoveis.map(imovel => createPropertySchema(imovel));
+    }
+
+    // Processar dados do comprador (se PLENO)
+    if (opportunityData.businessType === BUSINESS_TYPES.FULL && opportunityData.buyerClient) {
+        baseSchema.buyerClient = createBuyerClientSchema(opportunityData.buyerClient);
+    }
+
+    // Processar dados do agente parceiro (se PARTILHA)
+    if (opportunityData.businessType === BUSINESS_TYPES.SHARE && opportunityData.shareAgent) {
+        baseSchema.shareAgent = createShareAgentSchema(opportunityData.shareAgent);
     }
 
     // Adicionar campos específicos baseados no tipo
@@ -449,7 +541,7 @@ const addTypeSpecificFields = (schema, data) => {
     }
 };
 
-// ===== VALIDAÇÃO DE DADOS (ATUALIZADA) =====
+// ===== VALIDAÇÃO DE DADOS (ATUALIZADA COM PLENO) =====
 
 export const validateOpportunityData = (data) => {
     const errors = {};
@@ -470,6 +562,24 @@ export const validateOpportunityData = (data) => {
 
     if (data.valorMinimo && data.valorMaximo && data.valorMinimo > data.valorMaximo) {
         errors.valores = 'Valor mínimo não pode ser maior que o valor máximo';
+    }
+
+    // 🆕 Validação de Negócio Pleno/Partilha
+    if (data.tipo === OPPORTUNITY_TYPES.SELLER) {
+        if (data.businessType === BUSINESS_TYPES.FULL && !data.buyerClient?.nome) {
+            errors.buyerClient = 'Nome do cliente comprador é obrigatório para Negócio Pleno';
+        }
+
+        if (data.businessType === BUSINESS_TYPES.SHARE) {
+            if (!data.shareAgent?.nome) {
+                errors.shareAgent = 'Nome do agente parceiro é obrigatório para Partilha';
+            }
+            if (!data.shareAgent?.percentagemPartilha ||
+                data.shareAgent.percentagemPartilha < 0 ||
+                data.shareAgent.percentagemPartilha > 100) {
+                errors.sharePercentage = 'Percentagem de partilha deve estar entre 0 e 100';
+            }
+        }
     }
 
     // Validação de imóveis
@@ -518,7 +628,7 @@ export const validateOpportunityData = (data) => {
     };
 };
 
-// ===== HELPERS PARA TIMELINE (ATUALIZADO) =====
+// ===== HELPERS PARA TIMELINE (ATUALIZADO COM PLENO) =====
 
 export const createTimelineEvent = (tipo, descricao, dados = {}) => {
     return {
@@ -553,13 +663,75 @@ export const TIMELINE_EVENT_TYPES = {
     TASK_CREATED: 'tarefa_criada',
     TASK_COMPLETED: 'tarefa_concluida',
     PROPERTY_ADDED: 'imovel_adicionado',
-    PROPERTY_REMOVED: 'imovel_removido'
+    PROPERTY_REMOVED: 'imovel_removido',
+    // 🆕 Eventos de Pleno/Partilha
+    BUYER_CLIENT_ADDED: 'cliente_comprador_adicionado',
+    BUYER_CLIENT_REMOVED: 'cliente_comprador_removido',
+    SHARE_AGENT_ADDED: 'agente_parceiro_adicionado',
+    SHARE_CONFIRMED: 'partilha_confirmada',
+    BUSINESS_TYPE_CHANGED: 'tipo_negocio_alterado'
 };
 
-// ===== HELPERS PARA CÁLCULOS (mantém igual) =====
+// ===== HELPERS PARA CÁLCULOS (ATUALIZADO COM PLENO) =====
 
 export const calculateCommission = (valor, percentual = 5) => {
     return (valor * percentual) / 100;
+};
+
+// 🆕 Cálculo de comissões com Pleno/Partilha
+export const calculateBusinessCommission = (opportunity) => {
+    const valorVenda = opportunity.valorEstimado || 0;
+    const percentual = opportunity.percentualComissao || 5;
+    const comissaoBase = calculateCommission(valorVenda, percentual);
+
+    const result = {
+        tipo: opportunity.businessType,
+        valorVenda,
+        percentualComissao: percentual,
+        comissaoTotal: 0,
+        minhaComissao: 0,
+        comissaoPartilha: 0,
+        detalhes: {}
+    };
+
+    switch (opportunity.businessType) {
+        case BUSINESS_TYPES.FULL:
+            // Negócio Pleno - Comissão dupla (vendedor + comprador)
+            result.comissaoTotal = comissaoBase * 2;
+            result.minhaComissao = comissaoBase * 2;
+            result.detalhes = {
+                comissaoVendedor: comissaoBase,
+                comissaoComprador: comissaoBase,
+                descricao: '💎 Comissão Dupla (Negócio Pleno)'
+            };
+            break;
+
+        case BUSINESS_TYPES.SHARE:
+            // Partilha - Dividir comissão
+            const percentagemPartilha = opportunity.shareAgent?.percentagemPartilha || 50;
+            result.comissaoTotal = comissaoBase;
+            result.minhaComissao = comissaoBase * (percentagemPartilha / 100);
+            result.comissaoPartilha = comissaoBase * ((100 - percentagemPartilha) / 100);
+            result.detalhes = {
+                percentagemMinha: percentagemPartilha,
+                percentagemParceiro: 100 - percentagemPartilha,
+                agenteParceiro: opportunity.shareAgent?.nome || 'Não definido',
+                descricao: `🤝 Partilha ${percentagemPartilha}% / ${100 - percentagemPartilha}%`
+            };
+            break;
+
+        case BUSINESS_TYPES.WAITING:
+        default:
+            // Aguardando - Apenas comissão do vendedor
+            result.comissaoTotal = comissaoBase;
+            result.minhaComissao = comissaoBase;
+            result.detalhes = {
+                descricao: '⏳ Comissão Vendedor (Aguardando Comprador)'
+            };
+            break;
+    }
+
+    return result;
 };
 
 export const calculateDaysInPipeline = (createdAt) => {
