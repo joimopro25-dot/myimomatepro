@@ -888,6 +888,7 @@ const SellerOpportunity = ({
                         Marketing e Promoção
                     </h3>
                     <button
+                        type="button"
                         onClick={(e) => {
                             e.stopPropagation();
                             setShowMarketingModal(true);
@@ -906,6 +907,7 @@ const SellerOpportunity = ({
                     <div className="flex flex-wrap gap-2">
                         {Object.entries(MARKETING_LABELS).map(([channel, label]) => (
                             <button
+                                type="button"
                                 key={channel}
                                 onClick={(e) => {
                                     e.stopPropagation();
@@ -964,6 +966,7 @@ const SellerOpportunity = ({
                             Pontos Fortes para Marketing
                         </label>
                         <button
+                            type="button"
                             onClick={(e) => {
                                 e.stopPropagation();
                                 handleAddPontoForte();
@@ -979,6 +982,7 @@ const SellerOpportunity = ({
                                 <li key={index} className="flex items-center justify-between text-sm text-gray-600 bg-gray-50 px-2 py-1 rounded">
                                     <span>• {ponto}</span>
                                     <button
+                                        type="button"
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             handleRemovePontoForte(index);
@@ -1004,6 +1008,7 @@ const SellerOpportunity = ({
                         Visitas de Potenciais Compradores ({propertyData.visitasCompradores.length})
                     </h3>
                     <button
+                        type="button"
                         onClick={(e) => {
                             e.stopPropagation();
                             setShowVisitModal(true);
@@ -1051,6 +1056,7 @@ const SellerOpportunity = ({
                                 )}
                                 <div className="flex justify-end mt-2 space-x-2">
                                     <button
+                                        type="button"
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             setEditingVisit(visit);
@@ -1061,6 +1067,7 @@ const SellerOpportunity = ({
                                         <PencilIcon className="w-4 h-4" />
                                     </button>
                                     <button
+                                        type="button"
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             handleDeleteVisit(visit.id);
@@ -1088,6 +1095,7 @@ const SellerOpportunity = ({
                         Ofertas Recebidas ({propertyData.ofertasRecebidas.length})
                     </h3>
                     <button
+                        type="button"
                         onClick={(e) => {
                             e.stopPropagation();
                             setShowOfferModal(true);
@@ -1147,6 +1155,7 @@ const SellerOpportunity = ({
                                 )}
                                 <div className="flex justify-end mt-2 space-x-2">
                                     <button
+                                        type="button"
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             setEditingOffer(offer);
@@ -1157,6 +1166,7 @@ const SellerOpportunity = ({
                                         <PencilIcon className="w-4 h-4" />
                                     </button>
                                     <button
+                                        type="button"
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             handleDeleteOffer(offer.id);
@@ -1211,6 +1221,7 @@ const SellerOpportunity = ({
                             <div>
                                 <p className="text-sm text-gray-400 mb-3">CPCV ainda não assinado</p>
                                 <button
+                                    type="button"
                                     onClick={(e) => {
                                         e.stopPropagation();
                                         setShowCPCVModal(true);
@@ -1247,6 +1258,7 @@ const SellerOpportunity = ({
                             <div>
                                 <p className="text-sm text-gray-400 mb-3">Escritura ainda não realizada</p>
                                 <button
+                                    type="button"
                                     onClick={(e) => {
                                         e.stopPropagation();
                                         setShowEscrituraModal(true);
@@ -1322,6 +1334,7 @@ const SellerOpportunity = ({
 
                             <div className="flex justify-end space-x-3 mt-6">
                                 <button
+                                    type="button"
                                     onClick={() => {
                                         setShowDocModal(false);
                                         setSelectedDoc(null);
@@ -1385,6 +1398,7 @@ const SellerOpportunity = ({
 
                             <div className="flex justify-end space-x-3 mt-6">
                                 <button
+                                    type="button"
                                     onClick={() => setShowMarketingModal(false)}
                                     className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
                                 >
