@@ -1,7 +1,11 @@
 /**
  * SELLER OPPORTUNITY - Componente específico para Vendedores
  * Gestão completa de imóveis para venda
+<<<<<<< HEAD
  * ✅ CORRIGIDO - Sem infinity loop
+=======
+ * ✅ ATUALIZADO COM SISTEMA PLENO/PARTILHA
+>>>>>>> 4d2c9303eecb14fdc5395775385e1583d26bd441
  * 
  * Caminho: src/pages/opportunities/components/SellerOpportunity.jsx
  */
@@ -25,8 +29,37 @@ import {
     DocumentCheckIcon,
     MapPinIcon,
     BuildingOfficeIcon,
-    ChartBarIcon
+    ChartBarIcon,
+    SparklesIcon,
+    UserIcon,
+    UsersIcon,
+    BriefcaseIcon,
+    PhoneIcon,
+    EnvelopeIcon,
+    IdentificationIcon,
+    BanknotesIcon,
+    CalculatorIcon
 } from '@heroicons/react/24/outline';
+
+// 🆕 Importar constantes do modelo (se existirem no seu projeto)
+// import { 
+//     BUSINESS_TYPES, 
+//     BUSINESS_TYPE_LABELS,
+//     calculateBusinessCommission 
+// } from '../../../models/opportunityModel';
+
+// 🆕 TIPOS DE NEGÓCIO (PLENO/PARTILHA) - Definidos localmente se não existirem no modelo
+const BUSINESS_TYPES = {
+    WAITING: 'aguardando',
+    SHARE: 'partilha',
+    FULL: 'pleno'
+};
+
+const BUSINESS_TYPE_LABELS = {
+    [BUSINESS_TYPES.WAITING]: '⏳ Aguardando Comprador',
+    [BUSINESS_TYPES.SHARE]: '🤝 Partilha com Outro Agente',
+    [BUSINESS_TYPES.FULL]: '💎 Negócio Pleno (Comprador é Meu Cliente)'
+};
 
 // Estados de Documentação
 const DOC_STATUS = {
@@ -110,6 +143,59 @@ const RECEIVED_OFFER_LABELS = {
     [RECEIVED_OFFER_STATUS.EXPIRED]: '⏰ Expirado'
 };
 
+// 🆕 Função de cálculo de comissões (local se não existir no modelo)
+const calculateBusinessCommission = (opportunity) => {
+    const valorVenda = opportunity.valorEstimado || 0;
+    const percentual = opportunity.percentualComissao || 5;
+    const comissaoBase = (valorVenda * percentual) / 100;
+
+    const result = {
+        tipo: opportunity.businessType,
+        valorVenda,
+        percentualComissao: percentual,
+        comissaoTotal: 0,
+        minhaComissao: 0,
+        comissaoPartilha: 0,
+        detalhes: {}
+    };
+
+    switch (opportunity.businessType) {
+        case BUSINESS_TYPES.FULL:
+            result.comissaoTotal = comissaoBase * 2;
+            result.minhaComissao = comissaoBase * 2;
+            result.detalhes = {
+                comissaoVendedor: comissaoBase,
+                comissaoComprador: comissaoBase,
+                descricao: '💎 Comissão Dupla (Negócio Pleno)'
+            };
+            break;
+
+        case BUSINESS_TYPES.SHARE:
+            const percentagemPartilha = opportunity.shareAgent?.percentagemPartilha || 50;
+            result.comissaoTotal = comissaoBase;
+            result.minhaComissao = comissaoBase * (percentagemPartilha / 100);
+            result.comissaoPartilha = comissaoBase * ((100 - percentagemPartilha) / 100);
+            result.detalhes = {
+                percentagemMinha: percentagemPartilha,
+                percentagemParceiro: 100 - percentagemPartilha,
+                agenteParceiro: opportunity.shareAgent?.nome || 'Não definido',
+                descricao: `🤝 Partilha ${percentagemPartilha}% / ${100 - percentagemPartilha}%`
+            };
+            break;
+
+        case BUSINESS_TYPES.WAITING:
+        default:
+            result.comissaoTotal = comissaoBase;
+            result.minhaComissao = comissaoBase;
+            result.detalhes = {
+                descricao: '⏳ Comissão Vendedor (Aguardando Comprador)'
+            };
+            break;
+    }
+
+    return result;
+};
+
 const SellerOpportunity = ({
     formData,
     updateFormData,
@@ -118,6 +204,7 @@ const SellerOpportunity = ({
     opportunityId
 }) => {
 
+<<<<<<< HEAD
     // Helper para prevenir propagação de eventos
     const stopPropagation = (e) => {
         e.stopPropagation();
@@ -133,11 +220,18 @@ const SellerOpportunity = ({
         };
     };
 
+=======
+>>>>>>> 4d2c9303eecb14fdc5395775385e1583d26bd441
     // Função para criar estado inicial vazio
     const createInitialPropertyData = () => ({
         // Identificação
         referencia: '',
         titulo: '',
+
+        // 🆕 TIPO DE NEGÓCIO (PLENO/PARTILHA)
+        businessType: BUSINESS_TYPES.WAITING,
+        buyerClient: null,
+        shareAgent: null,
 
         // Localização
         morada: '',
@@ -214,9 +308,20 @@ const SellerOpportunity = ({
         observacoes: ''
     });
 
+<<<<<<< HEAD
     // Estado do imóvel para venda - inicializa com dados do formData ou vazio
     const [propertyData, setPropertyData] = useState(() => {
         return formData.imovelVenda || createInitialPropertyData();
+=======
+    // Estado do imóvel para venda
+    const [propertyData, setPropertyData] = useState(() => {
+        const initial = formData.imovelVenda || createInitialPropertyData();
+        // Garantir que businessType está definido
+        if (!initial.businessType) {
+            initial.businessType = BUSINESS_TYPES.WAITING;
+        }
+        return initial;
+>>>>>>> 4d2c9303eecb14fdc5395775385e1583d26bd441
     });
 
     // Estados dos modals
@@ -228,16 +333,34 @@ const SellerOpportunity = ({
     const [showCPCVModal, setShowCPCVModal] = useState(false);
     const [showEscrituraModal, setShowEscrituraModal] = useState(false);
 
+    // 🆕 Modals para Pleno/Partilha
+    const [showBuyerClientModal, setShowBuyerClientModal] = useState(false);
+    const [showShareAgentModal, setShowShareAgentModal] = useState(false);
+
     // Estado para edição
     const [editingVisit, setEditingVisit] = useState(null);
     const [editingOffer, setEditingOffer] = useState(null);
 
+<<<<<<< HEAD
     // Função helper para atualizar propertyData e formData simultaneamente
     const updatePropertyDataAndForm = (updater) => {
         setPropertyData(prev => {
             const newData = typeof updater === 'function' ? updater(prev) : updater;
             // Atualiza o formData com os novos dados
             updateFormData({ imovelVenda: newData });
+=======
+    // Função helper para atualizar propertyData e formData
+    const updatePropertyDataAndForm = (updater) => {
+        setPropertyData(prev => {
+            const newData = typeof updater === 'function' ? updater(prev) : updater;
+            // Atualiza o formData incluindo os novos campos de Pleno/Partilha
+            updateFormData({
+                imovelVenda: newData,
+                businessType: newData.businessType,
+                buyerClient: newData.buyerClient,
+                shareAgent: newData.shareAgent
+            });
+>>>>>>> 4d2c9303eecb14fdc5395775385e1583d26bd441
             return newData;
         });
     };
@@ -250,6 +373,58 @@ const SellerOpportunity = ({
             ...prev,
             [name]: type === 'checkbox' ? checked : value
         }));
+    };
+
+    // 🆕 Handler para mudança de tipo de negócio
+    const handleBusinessTypeChange = (e) => {
+        const newType = e.target.value;
+        updatePropertyDataAndForm(prev => ({
+            ...prev,
+            businessType: newType,
+            // Limpar dados não relevantes ao mudar tipo
+            buyerClient: newType === BUSINESS_TYPES.FULL ? prev.buyerClient : null,
+            shareAgent: newType === BUSINESS_TYPES.SHARE ? prev.shareAgent : null
+        }));
+    };
+
+    // 🆕 Handler para adicionar cliente comprador
+    const handleAddBuyerClient = (clientData) => {
+        updatePropertyDataAndForm(prev => ({
+            ...prev,
+            buyerClient: {
+                id: clientData.id || Date.now().toString(),
+                nome: clientData.nome,
+                telefone: clientData.telefone,
+                email: clientData.email,
+                nif: clientData.nif,
+                necessitaCredito: clientData.necessitaCredito === 'true',
+                creditoAprovado: clientData.creditoAprovado === 'true',
+                valorCredito: clientData.valorCredito,
+                banco: clientData.banco,
+                motivoCompra: clientData.motivoCompra,
+                prazoCompra: clientData.prazoCompra,
+                addedAt: new Date().toISOString()
+            }
+        }));
+        setShowBuyerClientModal(false);
+    };
+
+    // 🆕 Handler para adicionar agente parceiro
+    const handleAddShareAgent = (agentData) => {
+        updatePropertyDataAndForm(prev => ({
+            ...prev,
+            shareAgent: {
+                nome: agentData.nome,
+                agencia: agentData.agencia,
+                telefone: agentData.telefone,
+                email: agentData.email,
+                licenca: agentData.licenca,
+                percentagemPartilha: parseFloat(agentData.percentagemPartilha) || 50,
+                notas: agentData.notas,
+                addedAt: new Date().toISOString()
+            }
+        }));
+        setShowShareAgentModal(false);
     };
 
     const handleDocStatusUpdate = (docType, updates) => {
@@ -373,14 +548,38 @@ const SellerOpportunity = ({
         setShowEscrituraModal(false);
     };
 
-    // Cálculos
+    // Cálculos - ATUALIZADO para usar o sistema Pleno/Partilha
     const calculateComissao = () => {
         if (propertyData.valorFinalVenda) {
             const valor = parseFloat(propertyData.valorFinalVenda);
             const percentual = parseFloat(formData.percentualComissao || 5);
-            return (valor * percentual / 100).toFixed(2);
+
+            const commission = calculateBusinessCommission({
+                valorEstimado: valor,
+                percentualComissao: percentual,
+                businessType: propertyData.businessType,
+                shareAgent: propertyData.shareAgent
+            });
+
+            return commission.minhaComissao.toFixed(2);
         }
         return '0.00';
+    };
+
+    // 🆕 Obter detalhes da comissão
+    const getCommissionDetails = () => {
+        if (propertyData.valorFinalVenda || propertyData.precoVenda) {
+            const valor = parseFloat(propertyData.valorFinalVenda || propertyData.precoVenda);
+            const percentual = parseFloat(formData.percentualComissao || 5);
+
+            return calculateBusinessCommission({
+                valorEstimado: valor,
+                percentualComissao: percentual,
+                businessType: propertyData.businessType,
+                shareAgent: propertyData.shareAgent
+            });
+        }
+        return null;
     };
 
     const getPropertyStatus = () => {
@@ -395,6 +594,7 @@ const SellerOpportunity = ({
     };
 
     const status = getPropertyStatus();
+    const commissionDetails = getCommissionDetails();
 
     // Evita loop infinito: memoriza último payload sincronizado e
     // executa updateFormData de forma assíncrona apenas quando muda.
@@ -830,6 +1030,167 @@ const SellerOpportunity = ({
                         </div>
                     </div>
                 </div>
+            </div>
+
+            {/* 🆕 SECÇÃO TIPO DE NEGÓCIO (PLENO/PARTILHA) */}
+            <div className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl shadow-sm border border-purple-200 p-6">
+                <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+                        <SparklesIcon className="w-5 h-5 mr-2 text-purple-500" />
+                        Tipo de Negócio
+                    </h3>
+                    {/* Badge indicador */}
+                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${propertyData.businessType === BUSINESS_TYPES.FULL
+                        ? 'bg-purple-500 text-white'
+                        : propertyData.businessType === BUSINESS_TYPES.SHARE
+                            ? 'bg-blue-500 text-white'
+                            : 'bg-gray-400 text-white'
+                        }`}>
+                        {BUSINESS_TYPE_LABELS[propertyData.businessType]}
+                    </span>
+                </div>
+
+                {/* Seletor do tipo */}
+                <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Como será realizada esta venda?
+                    </label>
+                    <select
+                        value={propertyData.businessType}
+                        onChange={handleBusinessTypeChange}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 text-lg"
+                    >
+                        <option value={BUSINESS_TYPES.WAITING}>⏳ Aguardando Comprador</option>
+                        <option value={BUSINESS_TYPES.SHARE}>🤝 Partilha com Outro Agente</option>
+                        <option value={BUSINESS_TYPES.FULL}>💎 Negócio Pleno (Comprador é Meu Cliente)</option>
+                    </select>
+                </div>
+
+                {/* Informação condicional baseada no tipo */}
+                {propertyData.businessType === BUSINESS_TYPES.FULL && (
+                    <div className="bg-white rounded-lg p-4 border border-purple-200">
+                        <h4 className="font-medium text-gray-900 mb-3 flex items-center">
+                            <UserIcon className="w-4 h-4 mr-2" />
+                            Cliente Comprador
+                        </h4>
+
+                        {propertyData.buyerClient ? (
+                            <div className="space-y-2">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-sm font-medium text-gray-900">
+                                            {propertyData.buyerClient.nome}
+                                        </p>
+                                        <p className="text-sm text-gray-600">
+                                            📞 {propertyData.buyerClient.telefone}
+                                        </p>
+                                        {propertyData.buyerClient.email && (
+                                            <p className="text-sm text-gray-600">
+                                                ✉️ {propertyData.buyerClient.email}
+                                            </p>
+                                        )}
+                                    </div>
+                                    <button
+                                        onClick={() => setShowBuyerClientModal(true)}
+                                        className="text-purple-600 hover:text-purple-700"
+                                    >
+                                        <PencilIcon className="w-4 h-4" />
+                                    </button>
+                                </div>
+
+                                {propertyData.buyerClient.necessitaCredito && (
+                                    <div className="bg-yellow-50 p-2 rounded text-sm">
+                                        <p className="text-yellow-800">
+                                            💳 Necessita crédito: €{parseInt(propertyData.buyerClient.valorCredito || 0).toLocaleString('pt-PT')}
+                                            {propertyData.buyerClient.creditoAprovado && ' ✅ Aprovado'}
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            <button
+                                onClick={() => setShowBuyerClientModal(true)}
+                                className="w-full px-4 py-2 bg-purple-50 text-purple-600 rounded-lg hover:bg-purple-100 font-medium"
+                            >
+                                + Adicionar Cliente Comprador
+                            </button>
+                        )}
+                    </div>
+                )}
+
+                {propertyData.businessType === BUSINESS_TYPES.SHARE && (
+                    <div className="bg-white rounded-lg p-4 border border-blue-200">
+                        <h4 className="font-medium text-gray-900 mb-3 flex items-center">
+                            <UsersIcon className="w-4 h-4 mr-2" />
+                            Agente Parceiro
+                        </h4>
+
+                        {propertyData.shareAgent ? (
+                            <div className="space-y-2">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-sm font-medium text-gray-900">
+                                            {propertyData.shareAgent.nome}
+                                        </p>
+                                        <p className="text-sm text-gray-600">
+                                            🏢 {propertyData.shareAgent.agencia}
+                                        </p>
+                                        <p className="text-sm text-gray-600">
+                                            📞 {propertyData.shareAgent.telefone}
+                                        </p>
+                                    </div>
+                                    <button
+                                        onClick={() => setShowShareAgentModal(true)}
+                                        className="text-blue-600 hover:text-blue-700"
+                                    >
+                                        <PencilIcon className="w-4 h-4" />
+                                    </button>
+                                </div>
+
+                                <div className="bg-blue-50 p-2 rounded">
+                                    <p className="text-sm text-blue-800 font-medium">
+                                        💰 Partilha: {propertyData.shareAgent.percentagemPartilha}% para mim / {100 - propertyData.shareAgent.percentagemPartilha}% para parceiro
+                                    </p>
+                                </div>
+                            </div>
+                        ) : (
+                            <button
+                                onClick={() => setShowShareAgentModal(true)}
+                                className="w-full px-4 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 font-medium"
+                            >
+                                + Adicionar Agente Parceiro
+                            </button>
+                        )}
+                    </div>
+                )}
+
+                {/* Preview de Comissões */}
+                {commissionDetails && propertyData.precoVenda && (
+                    <div className="mt-4 bg-white rounded-lg p-4 border border-gray-200">
+                        <h4 className="font-medium text-gray-900 mb-2 flex items-center">
+                            <CalculatorIcon className="w-4 h-4 mr-2" />
+                            Estimativa de Comissões
+                        </h4>
+                        <div className="space-y-1">
+                            <p className="text-sm text-gray-600">
+                                {commissionDetails.detalhes.descricao}
+                            </p>
+                            <p className="text-lg font-bold text-green-600">
+                                Minha Comissão: €{commissionDetails.minhaComissao.toLocaleString('pt-PT')}
+                            </p>
+                            {propertyData.businessType === BUSINESS_TYPES.SHARE && (
+                                <p className="text-sm text-gray-500">
+                                    Comissão Parceiro: €{commissionDetails.comissaoPartilha.toLocaleString('pt-PT')}
+                                </p>
+                            )}
+                            {propertyData.businessType === BUSINESS_TYPES.FULL && (
+                                <p className="text-sm text-purple-600">
+                                    Total (Vendedor + Comprador): €{commissionDetails.comissaoTotal.toLocaleString('pt-PT')}
+                                </p>
+                            )}
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Documentação */}
@@ -1843,6 +2204,315 @@ const SellerOpportunity = ({
                                         className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
                                     >
                                         Confirmar Escritura
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* 🆕 Modal Cliente Comprador */}
+            {showBuyerClientModal && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white rounded-xl p-6 max-w-lg w-full max-h-[80vh] overflow-y-auto">
+                        <h3 className="text-lg font-semibold mb-4 flex items-center">
+                            <UserIcon className="w-5 h-5 mr-2 text-purple-500" />
+                            {propertyData.buyerClient ? 'Editar' : 'Adicionar'} Cliente Comprador
+                        </h3>
+
+                        <form onSubmit={(e) => {
+                            e.preventDefault();
+                            const formData = new FormData(e.target);
+                            handleAddBuyerClient(Object.fromEntries(formData.entries()));
+                        }}>
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Nome Completo *
+                                    </label>
+                                    <input
+                                        type="text"
+                                        name="nome"
+                                        defaultValue={propertyData.buyerClient?.nome}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                        required
+                                    />
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                            Telefone *
+                                        </label>
+                                        <input
+                                            type="tel"
+                                            name="telefone"
+                                            defaultValue={propertyData.buyerClient?.telefone}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                            required
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                            NIF
+                                        </label>
+                                        <input
+                                            type="text"
+                                            name="nif"
+                                            defaultValue={propertyData.buyerClient?.nif}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Email
+                                    </label>
+                                    <input
+                                        type="email"
+                                        name="email"
+                                        defaultValue={propertyData.buyerClient?.email}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                    />
+                                </div>
+
+                                <div className="border-t pt-3">
+                                    <h4 className="font-medium text-gray-900 mb-2">Informações Financeiras</h4>
+
+                                    <div className="space-y-3">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                Necessita de Crédito?
+                                            </label>
+                                            <select
+                                                name="necessitaCredito"
+                                                defaultValue={propertyData.buyerClient?.necessitaCredito ? 'true' : 'false'}
+                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                            >
+                                                <option value="false">Não</option>
+                                                <option value="true">Sim</option>
+                                            </select>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                Valor do Crédito (€)
+                                            </label>
+                                            <input
+                                                type="number"
+                                                name="valorCredito"
+                                                defaultValue={propertyData.buyerClient?.valorCredito}
+                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                Crédito Aprovado?
+                                            </label>
+                                            <select
+                                                name="creditoAprovado"
+                                                defaultValue={propertyData.buyerClient?.creditoAprovado ? 'true' : 'false'}
+                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                            >
+                                                <option value="false">Não</option>
+                                                <option value="true">Sim</option>
+                                            </select>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                Banco
+                                            </label>
+                                            <input
+                                                type="text"
+                                                name="banco"
+                                                defaultValue={propertyData.buyerClient?.banco}
+                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="border-t pt-3">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                            Motivo da Compra
+                                        </label>
+                                        <textarea
+                                            name="motivoCompra"
+                                            defaultValue={propertyData.buyerClient?.motivoCompra}
+                                            rows="2"
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                            placeholder="Habitação própria, investimento, etc..."
+                                        />
+                                    </div>
+
+                                    <div className="mt-3">
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                            Prazo para Compra
+                                        </label>
+                                        <select
+                                            name="prazoCompra"
+                                            defaultValue={propertyData.buyerClient?.prazoCompra || '3_meses'}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                        >
+                                            <option value="imediato">Imediato</option>
+                                            <option value="1_mes">1 Mês</option>
+                                            <option value="3_meses">3 Meses</option>
+                                            <option value="6_meses">6 Meses</option>
+                                            <option value="1_ano">1 Ano</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div className="flex justify-end space-x-3 mt-6">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowBuyerClientModal(false)}
+                                        className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                                    >
+                                        Cancelar
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+                                    >
+                                        {propertyData.buyerClient ? 'Atualizar' : 'Adicionar'}
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* 🆕 Modal Agente Parceiro */}
+            {showShareAgentModal && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white rounded-xl p-6 max-w-lg w-full">
+                        <h3 className="text-lg font-semibold mb-4 flex items-center">
+                            <UsersIcon className="w-5 h-5 mr-2 text-blue-500" />
+                            {propertyData.shareAgent ? 'Editar' : 'Adicionar'} Agente Parceiro
+                        </h3>
+
+                        <form onSubmit={(e) => {
+                            e.preventDefault();
+                            const formData = new FormData(e.target);
+                            handleAddShareAgent(Object.fromEntries(formData.entries()));
+                        }}>
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Nome do Agente *
+                                    </label>
+                                    <input
+                                        type="text"
+                                        name="nome"
+                                        defaultValue={propertyData.shareAgent?.nome}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                        required
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Agência/Imobiliária *
+                                    </label>
+                                    <input
+                                        type="text"
+                                        name="agencia"
+                                        defaultValue={propertyData.shareAgent?.agencia}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                        required
+                                    />
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                            Telefone
+                                        </label>
+                                        <input
+                                            type="tel"
+                                            name="telefone"
+                                            defaultValue={propertyData.shareAgent?.telefone}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                            Licença AMI
+                                        </label>
+                                        <input
+                                            type="text"
+                                            name="licenca"
+                                            defaultValue={propertyData.shareAgent?.licenca}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Email
+                                    </label>
+                                    <input
+                                        type="email"
+                                        name="email"
+                                        defaultValue={propertyData.shareAgent?.email}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                    />
+                                </div>
+
+                                <div className="border-t pt-3">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                            Percentagem da Minha Comissão (%) *
+                                        </label>
+                                        <input
+                                            type="number"
+                                            name="percentagemPartilha"
+                                            defaultValue={propertyData.shareAgent?.percentagemPartilha || 50}
+                                            min="0"
+                                            max="100"
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                            required
+                                        />
+                                        <p className="text-xs text-gray-500 mt-1">
+                                            Ex: 50% significa que você recebe metade da comissão total
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Notas/Observações
+                                    </label>
+                                    <textarea
+                                        name="notas"
+                                        defaultValue={propertyData.shareAgent?.notas}
+                                        rows="2"
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                        placeholder="Informações adicionais sobre a parceria..."
+                                    />
+                                </div>
+
+                                <div className="flex justify-end space-x-3 mt-6">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowShareAgentModal(false)}
+                                        className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                                    >
+                                        Cancelar
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                                    >
+                                        {propertyData.shareAgent ? 'Atualizar' : 'Adicionar'}
                                     </button>
                                 </div>
                             </div>
