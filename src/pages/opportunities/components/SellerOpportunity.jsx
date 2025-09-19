@@ -1,10 +1,12 @@
 /**
  * SELLER OPPORTUNITY - Componente específico para Vendedores
  * Gestão completa de imóveis para venda
+ * ✅ CORRIGIDO - Sem infinity loop
+ * 
  * Caminho: src/pages/opportunities/components/SellerOpportunity.jsx
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
     HomeIcon,
     DocumentTextIcon,
@@ -96,7 +98,7 @@ const RECEIVED_OFFER_STATUS = {
     COUNTER_PROPOSED: 'contraproposta',
     ACCEPTED: 'aceite',
     REJECTED: 'rejeitada',
-    EXPIRED: 'expirada'
+    EXPIRED: 'expirado'
 };
 
 const RECEIVED_OFFER_LABELS = {
@@ -105,7 +107,7 @@ const RECEIVED_OFFER_LABELS = {
     [RECEIVED_OFFER_STATUS.COUNTER_PROPOSED]: '↔️ Contraproposta',
     [RECEIVED_OFFER_STATUS.ACCEPTED]: '✅ Aceite',
     [RECEIVED_OFFER_STATUS.REJECTED]: '❌ Rejeitada',
-    [RECEIVED_OFFER_STATUS.EXPIRED]: '⏰ Expirada'
+    [RECEIVED_OFFER_STATUS.EXPIRED]: '⏰ Expirado'
 };
 
 const SellerOpportunity = ({
@@ -116,8 +118,23 @@ const SellerOpportunity = ({
     opportunityId
 }) => {
 
-    // Estado do imóvel para venda (único, não array)
-    const [propertyData, setPropertyData] = useState({
+    // Helper para prevenir propagação de eventos
+    const stopPropagation = (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+    };
+
+    // Helper para handlers com stopPropagation
+    const handleClickWithStop = (callback) => {
+        return (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            if (callback) callback();
+        };
+    };
+
+    // Função para criar estado inicial vazio
+    const createInitialPropertyData = () => ({
         // Identificação
         referencia: '',
         titulo: '',
@@ -197,6 +214,11 @@ const SellerOpportunity = ({
         observacoes: ''
     });
 
+    // Estado do imóvel para venda - inicializa com dados do formData ou vazio
+    const [propertyData, setPropertyData] = useState(() => {
+        return formData.imovelVenda || createInitialPropertyData();
+    });
+
     // Estados dos modals
     const [showDocModal, setShowDocModal] = useState(false);
     const [selectedDoc, setSelectedDoc] = useState(null);
@@ -210,29 +232,28 @@ const SellerOpportunity = ({
     const [editingVisit, setEditingVisit] = useState(null);
     const [editingOffer, setEditingOffer] = useState(null);
 
-    // Inicialização
-    useEffect(() => {
-        if (formData.imovelVenda) {
-            setPropertyData(formData.imovelVenda);
-        }
-    }, [formData.imovelVenda]);
-
-    // Atualiza o formData quando propertyData muda
-    useEffect(() => {
-        updateFormData({ imovelVenda: propertyData });
-    }, [propertyData]);
+    // Função helper para atualizar propertyData e formData simultaneamente
+    const updatePropertyDataAndForm = (updater) => {
+        setPropertyData(prev => {
+            const newData = typeof updater === 'function' ? updater(prev) : updater;
+            // Atualiza o formData com os novos dados
+            updateFormData({ imovelVenda: newData });
+            return newData;
+        });
+    };
 
     // Handlers
     const handlePropertyChange = (e) => {
+        e.stopPropagation();
         const { name, value, type, checked } = e.target;
-        setPropertyData(prev => ({
+        updatePropertyDataAndForm(prev => ({
             ...prev,
             [name]: type === 'checkbox' ? checked : value
         }));
     };
 
     const handleDocStatusUpdate = (docType, updates) => {
-        setPropertyData(prev => ({
+        updatePropertyDataAndForm(prev => ({
             ...prev,
             documentos: {
                 ...prev.documentos,
@@ -245,7 +266,7 @@ const SellerOpportunity = ({
     };
 
     const handleMarketingChannelToggle = (channel) => {
-        setPropertyData(prev => ({
+        updatePropertyDataAndForm(prev => ({
             ...prev,
             canaisMarketing: prev.canaisMarketing.includes(channel)
                 ? prev.canaisMarketing.filter(c => c !== channel)
@@ -256,7 +277,7 @@ const SellerOpportunity = ({
     const handleAddPontoForte = () => {
         const ponto = prompt('Adicionar ponto forte para marketing:');
         if (ponto) {
-            setPropertyData(prev => ({
+            updatePropertyDataAndForm(prev => ({
                 ...prev,
                 pontosFortesMarketing: [...prev.pontosFortesMarketing, ponto]
             }));
@@ -264,7 +285,7 @@ const SellerOpportunity = ({
     };
 
     const handleRemovePontoForte = (index) => {
-        setPropertyData(prev => ({
+        updatePropertyDataAndForm(prev => ({
             ...prev,
             pontosFortesMarketing: prev.pontosFortesMarketing.filter((_, i) => i !== index)
         }));
@@ -277,7 +298,7 @@ const SellerOpportunity = ({
             dataRegisto: new Date().toISOString()
         };
 
-        setPropertyData(prev => ({
+        updatePropertyDataAndForm(prev => ({
             ...prev,
             visitasCompradores: [...prev.visitasCompradores, newVisit]
         }));
@@ -285,7 +306,7 @@ const SellerOpportunity = ({
     };
 
     const handleUpdateVisit = (visitId, updates) => {
-        setPropertyData(prev => ({
+        updatePropertyDataAndForm(prev => ({
             ...prev,
             visitasCompradores: prev.visitasCompradores.map(v =>
                 v.id === visitId ? { ...v, ...updates } : v
@@ -295,7 +316,7 @@ const SellerOpportunity = ({
 
     const handleDeleteVisit = (visitId) => {
         if (window.confirm('Tem certeza que deseja remover esta visita?')) {
-            setPropertyData(prev => ({
+            updatePropertyDataAndForm(prev => ({
                 ...prev,
                 visitasCompradores: prev.visitasCompradores.filter(v => v.id !== visitId)
             }));
@@ -309,7 +330,7 @@ const SellerOpportunity = ({
             dataRecebimento: new Date().toISOString()
         };
 
-        setPropertyData(prev => ({
+        updatePropertyDataAndForm(prev => ({
             ...prev,
             ofertasRecebidas: [...prev.ofertasRecebidas, newOffer]
         }));
@@ -317,7 +338,7 @@ const SellerOpportunity = ({
     };
 
     const handleUpdateOffer = (offerId, updates) => {
-        setPropertyData(prev => ({
+        updatePropertyDataAndForm(prev => ({
             ...prev,
             ofertasRecebidas: prev.ofertasRecebidas.map(o =>
                 o.id === offerId ? { ...o, ...updates } : o
@@ -327,7 +348,7 @@ const SellerOpportunity = ({
 
     const handleDeleteOffer = (offerId) => {
         if (window.confirm('Tem certeza que deseja remover esta oferta?')) {
-            setPropertyData(prev => ({
+            updatePropertyDataAndForm(prev => ({
                 ...prev,
                 ofertasRecebidas: prev.ofertasRecebidas.filter(o => o.id !== offerId)
             }));
@@ -335,7 +356,7 @@ const SellerOpportunity = ({
     };
 
     const handleMarkCPCV = (cpcvData) => {
-        setPropertyData(prev => ({
+        updatePropertyDataAndForm(prev => ({
             ...prev,
             cpcvAssinado: true,
             ...cpcvData
@@ -344,7 +365,7 @@ const SellerOpportunity = ({
     };
 
     const handleMarkEscritura = (escrituraData) => {
-        setPropertyData(prev => ({
+        updatePropertyDataAndForm(prev => ({
             ...prev,
             escrituraRealizada: true,
             ...escrituraData
@@ -375,10 +396,45 @@ const SellerOpportunity = ({
 
     const status = getPropertyStatus();
 
+    // Evita loop infinito: memoriza último payload sincronizado e
+    // executa updateFormData de forma assíncrona apenas quando muda.
+    const lastSyncedRef = useRef(null);
+    useEffect(() => {
+        if (typeof updateFormData !== 'function') return;
+        try {
+            const payload = propertyData;
+            const json = JSON.stringify(payload);
+            if (lastSyncedRef.current !== json) {
+                lastSyncedRef.current = json;
+                // chama async para garantir que não ocorre "setState during render"
+                setTimeout(() => {
+                    try { updateFormData({ imovelVenda: payload }); }
+                    catch (e) { console.error('SellerOpportunity:updateFormData failed', e); }
+                }, 0);
+            }
+        } catch (err) {
+            console.error('SellerOpportunity: falha ao preparar sincronização:', err);
+        }
+    }, [propertyData, updateFormData]);
+
     return (
-        <div className="space-y-6">
+        <div
+            className="space-y-6"
+            onClick={(e) => {
+                e.stopPropagation();
+                e.nativeEvent.stopImmediatePropagation();
+            }}
+            onMouseDown={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+        >
             {/* Card Principal do Imóvel */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+            <div
+                className="bg-white rounded-xl shadow-sm border border-gray-100 p-6"
+                onClick={(e) => {
+                    e.stopPropagation();
+                    e.nativeEvent.stopImmediatePropagation();
+                }}
+            >
                 <div className="flex items-center justify-between mb-6">
                     <h2 className="text-xl font-semibold text-gray-900 flex items-center">
                         <HomeIcon className="w-6 h-6 mr-2 text-blue-500" />
@@ -400,6 +456,7 @@ const SellerOpportunity = ({
                             name="referencia"
                             value={propertyData.referencia}
                             onChange={handlePropertyChange}
+                            onClick={(e) => e.stopPropagation()}
                             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                             placeholder="REF-001"
                         />
@@ -611,9 +668,10 @@ const SellerOpportunity = ({
                                     name="garagem"
                                     checked={propertyData.garagem}
                                     onChange={handlePropertyChange}
+                                    onClick={(e) => e.stopPropagation()}
                                     className="mr-2"
                                 />
-                                <span className="text-sm">Garagem</span>
+                                <span className="text-sm" onClick={(e) => e.stopPropagation()}>Garagem</span>
                             </label>
                             {propertyData.garagem && (
                                 <input
@@ -621,6 +679,7 @@ const SellerOpportunity = ({
                                     name="numLugaresGaragem"
                                     value={propertyData.numLugaresGaragem}
                                     onChange={handlePropertyChange}
+                                    onClick={(e) => e.stopPropagation()}
                                     placeholder="Nº lugares"
                                     className="w-24 px-2 py-1 border border-gray-300 rounded text-sm"
                                 />
@@ -631,9 +690,10 @@ const SellerOpportunity = ({
                                     name="elevador"
                                     checked={propertyData.elevador}
                                     onChange={handlePropertyChange}
+                                    onClick={(e) => e.stopPropagation()}
                                     className="mr-2"
                                 />
-                                <span className="text-sm">Elevador</span>
+                                <span className="text-sm" onClick={(e) => e.stopPropagation()}>Elevador</span>
                             </label>
                             <label className="flex items-center">
                                 <input
@@ -641,9 +701,10 @@ const SellerOpportunity = ({
                                     name="varanda"
                                     checked={propertyData.varanda}
                                     onChange={handlePropertyChange}
+                                    onClick={(e) => e.stopPropagation()}
                                     className="mr-2"
                                 />
-                                <span className="text-sm">Varanda</span>
+                                <span className="text-sm" onClick={(e) => e.stopPropagation()}>Varanda</span>
                             </label>
                             <label className="flex items-center">
                                 <input
@@ -651,9 +712,10 @@ const SellerOpportunity = ({
                                     name="terraco"
                                     checked={propertyData.terraco}
                                     onChange={handlePropertyChange}
+                                    onClick={(e) => e.stopPropagation()}
                                     className="mr-2"
                                 />
-                                <span className="text-sm">Terraço</span>
+                                <span className="text-sm" onClick={(e) => e.stopPropagation()}>Terraço</span>
                             </label>
                             <label className="flex items-center">
                                 <input
@@ -661,9 +723,10 @@ const SellerOpportunity = ({
                                     name="jardim"
                                     checked={propertyData.jardim}
                                     onChange={handlePropertyChange}
+                                    onClick={(e) => e.stopPropagation()}
                                     className="mr-2"
                                 />
-                                <span className="text-sm">Jardim</span>
+                                <span className="text-sm" onClick={(e) => e.stopPropagation()}>Jardim</span>
                             </label>
                             <label className="flex items-center">
                                 <input
@@ -671,9 +734,10 @@ const SellerOpportunity = ({
                                     name="piscina"
                                     checked={propertyData.piscina}
                                     onChange={handlePropertyChange}
+                                    onClick={(e) => e.stopPropagation()}
                                     className="mr-2"
                                 />
-                                <span className="text-sm">Piscina</span>
+                                <span className="text-sm" onClick={(e) => e.stopPropagation()}>Piscina</span>
                             </label>
                         </div>
                     </div>
@@ -769,7 +833,7 @@ const SellerOpportunity = ({
             </div>
 
             {/* Documentação */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6" onClick={(e) => e.stopPropagation()}>
                 <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
                     <DocumentTextIcon className="w-5 h-5 mr-2 text-indigo-500" />
                     Documentação Necessária
@@ -787,7 +851,8 @@ const SellerOpportunity = ({
                         <div
                             key={key}
                             className="border rounded-lg p-3 hover:shadow-md transition-shadow cursor-pointer"
-                            onClick={() => {
+                            onClick={(e) => {
+                                e.stopPropagation();
                                 setSelectedDoc(key);
                                 setShowDocModal(true);
                             }}
@@ -816,14 +881,17 @@ const SellerOpportunity = ({
             </div>
 
             {/* Marketing */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center justify-between mb-4">
                     <h3 className="text-lg font-semibold text-gray-900 flex items-center">
                         <MegaphoneIcon className="w-5 h-5 mr-2 text-purple-500" />
                         Marketing e Promoção
                     </h3>
                     <button
-                        onClick={() => setShowMarketingModal(true)}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setShowMarketingModal(true);
+                        }}
                         className="px-3 py-1 bg-purple-50 text-purple-600 rounded-lg hover:bg-purple-100 text-sm font-medium"
                     >
                         Configurar Marketing
@@ -839,7 +907,10 @@ const SellerOpportunity = ({
                         {Object.entries(MARKETING_LABELS).map(([channel, label]) => (
                             <button
                                 key={channel}
-                                onClick={() => handleMarketingChannelToggle(channel)}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleMarketingChannelToggle(channel);
+                                }}
                                 className={`px-3 py-1 rounded-full text-sm transition-colors ${propertyData.canaisMarketing.includes(channel)
                                     ? 'bg-purple-500 text-white'
                                     : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
@@ -893,7 +964,10 @@ const SellerOpportunity = ({
                             Pontos Fortes para Marketing
                         </label>
                         <button
-                            onClick={handleAddPontoForte}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                handleAddPontoForte();
+                            }}
                             className="text-xs text-purple-600 hover:text-purple-700"
                         >
                             + Adicionar
@@ -905,7 +979,10 @@ const SellerOpportunity = ({
                                 <li key={index} className="flex items-center justify-between text-sm text-gray-600 bg-gray-50 px-2 py-1 rounded">
                                     <span>• {ponto}</span>
                                     <button
-                                        onClick={() => handleRemovePontoForte(index)}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleRemovePontoForte(index);
+                                        }}
                                         className="text-red-500 hover:text-red-700"
                                     >
                                         <TrashIcon className="w-3 h-3" />
@@ -920,14 +997,17 @@ const SellerOpportunity = ({
             </div>
 
             {/* Visitas de Compradores */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center justify-between mb-4">
                     <h3 className="text-lg font-semibold text-gray-900 flex items-center">
                         <UserGroupIcon className="w-5 h-5 mr-2 text-blue-500" />
                         Visitas de Potenciais Compradores ({propertyData.visitasCompradores.length})
                     </h3>
                     <button
-                        onClick={() => setShowVisitModal(true)}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setShowVisitModal(true);
+                        }}
                         className="px-3 py-1 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 text-sm font-medium"
                     >
                         + Nova Visita
@@ -971,7 +1051,8 @@ const SellerOpportunity = ({
                                 )}
                                 <div className="flex justify-end mt-2 space-x-2">
                                     <button
-                                        onClick={() => {
+                                        onClick={(e) => {
+                                            e.stopPropagation();
                                             setEditingVisit(visit);
                                             setShowVisitModal(true);
                                         }}
@@ -980,7 +1061,10 @@ const SellerOpportunity = ({
                                         <PencilIcon className="w-4 h-4" />
                                     </button>
                                     <button
-                                        onClick={() => handleDeleteVisit(visit.id)}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleDeleteVisit(visit.id);
+                                        }}
                                         className="text-red-600 hover:text-red-700"
                                     >
                                         <TrashIcon className="w-4 h-4" />
@@ -997,14 +1081,17 @@ const SellerOpportunity = ({
             </div>
 
             {/* Ofertas Recebidas */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center justify-between mb-4">
                     <h3 className="text-lg font-semibold text-gray-900 flex items-center">
                         <CurrencyEuroIcon className="w-5 h-5 mr-2 text-green-500" />
                         Ofertas Recebidas ({propertyData.ofertasRecebidas.length})
                     </h3>
                     <button
-                        onClick={() => setShowOfferModal(true)}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setShowOfferModal(true);
+                        }}
                         className="px-3 py-1 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 text-sm font-medium"
                     >
                         + Registar Oferta
@@ -1060,7 +1147,8 @@ const SellerOpportunity = ({
                                 )}
                                 <div className="flex justify-end mt-2 space-x-2">
                                     <button
-                                        onClick={() => {
+                                        onClick={(e) => {
+                                            e.stopPropagation();
                                             setEditingOffer(offer);
                                             setShowOfferModal(true);
                                         }}
@@ -1069,7 +1157,10 @@ const SellerOpportunity = ({
                                         <PencilIcon className="w-4 h-4" />
                                     </button>
                                     <button
-                                        onClick={() => handleDeleteOffer(offer.id)}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleDeleteOffer(offer.id);
+                                        }}
                                         className="text-red-600 hover:text-red-700"
                                     >
                                         <TrashIcon className="w-4 h-4" />
@@ -1086,7 +1177,7 @@ const SellerOpportunity = ({
             </div>
 
             {/* CPCV e Escritura */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6" onClick={(e) => e.stopPropagation()}>
                 <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
                     <DocumentCheckIcon className="w-5 h-5 mr-2 text-indigo-500" />
                     Formalização da Venda
@@ -1120,7 +1211,10 @@ const SellerOpportunity = ({
                             <div>
                                 <p className="text-sm text-gray-400 mb-3">CPCV ainda não assinado</p>
                                 <button
-                                    onClick={() => setShowCPCVModal(true)}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setShowCPCVModal(true);
+                                    }}
                                     disabled={!propertyData.ofertasRecebidas.some(o => o.status === RECEIVED_OFFER_STATUS.ACCEPTED)}
                                     className="w-full px-3 py-2 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 disabled:bg-gray-100 disabled:text-gray-400 text-sm font-medium"
                                 >
@@ -1153,7 +1247,10 @@ const SellerOpportunity = ({
                             <div>
                                 <p className="text-sm text-gray-400 mb-3">Escritura ainda não realizada</p>
                                 <button
-                                    onClick={() => setShowEscrituraModal(true)}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setShowEscrituraModal(true);
+                                    }}
                                     disabled={!propertyData.cpcvAssinado}
                                     className="w-full px-3 py-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 disabled:bg-gray-100 disabled:text-gray-400 text-sm font-medium"
                                 >
@@ -1166,17 +1263,20 @@ const SellerOpportunity = ({
             </div>
 
             {/* Notas e Observações */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6" onClick={(e) => e.stopPropagation()}>
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Notas e Observações</h3>
                 <textarea
                     name="observacoes"
                     value={propertyData.observacoes}
                     onChange={handlePropertyChange}
+                    onClick={(e) => e.stopPropagation()}
                     rows="4"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     placeholder="Adicione notas relevantes sobre o imóvel ou o processo de venda..."
                 />
             </div>
+
+            {/* TODOS OS MODALS */}
 
             {/* Modal de Documentação */}
             {showDocModal && selectedDoc && (
