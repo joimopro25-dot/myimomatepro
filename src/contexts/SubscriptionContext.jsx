@@ -13,168 +13,165 @@ export function SubscriptionProvider({ children }) {
     const [subscription, setSubscription] = useState(null);
     const [loading, setLoading] = useState(true);
     const [stats, setStats] = useState({
-        totalClientes: 0,
-        totalNegocios: 0,
-        valorNegocios: 0
+        totalClients: 0,      // Changed from 'totalClientes'
+        totalDeals: 0,        // Changed from 'totalNegocios'
+        businessVolume: 0     // Changed from 'valorNegocios'
     });
 
     const { currentUser } = useAuth();
 
-    // Criar subscrição inicial
-    async function createSubscription(planoData, metodoPagamento = 'pending') {
+    // Create subscription
+    async function createSubscription(planData, paymentMethod = 'pending') {
         if (!currentUser) return;
 
         const subscriptionData = {
-            plano: planoData.nome,
-            preco: planoData.preco,
-            precoAnual: planoData.precoAnual,
-            limiteClientes: planoData.limiteClientes,
-            limiteVolumeNegocios: planoData.limiteVolumeNegocios,
-            ciclo: 'mensal', // mensal ou anual
-            status: 'active', // active, cancelled, expired
-            criadoEm: new Date(),
-            proximoPagamento: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // +30 dias
-            ultimoPagamento: {
-                data: new Date(),
-                valor: planoData.preco,
+            plan: planData.name,
+            price: planData.price,
+            annualPrice: planData.annualPrice,
+            clientLimit: planData.clientLimit,
+            volumeLimit: planData.volumeLimit,
+            cycle: 'monthly',                  // Changed from 'mensal'
+            status: 'active',
+            createdAt: new Date(),
+            nextPayment: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+            lastPayment: {
+                date: new Date(),
+                amount: planData.price,
                 status: 'pending'
             },
-            metodoPagamento: metodoPagamento,
+            paymentMethod: paymentMethod,
             trial: true,
-            trialFim: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000) // +14 dias trial
+            trialEnd: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
         };
 
         await setDoc(doc(db, 'subscriptions', currentUser.uid), subscriptionData);
         return subscriptionData;
     }
 
-    // Atualizar método de pagamento
-    async function updatePaymentMethod(metodoPagamento) {
+    // Update payment method
+    async function updatePaymentMethod(paymentMethod) {
         if (!currentUser) return;
 
         await setDoc(doc(db, 'subscriptions', currentUser.uid), {
-            metodoPagamento,
+            paymentMethod,
             updatedAt: new Date()
         }, { merge: true });
     }
 
-    // Cancelar plano
+    // Cancel subscription
     async function cancelSubscription() {
         if (!currentUser) return;
 
         await setDoc(doc(db, 'subscriptions', currentUser.uid), {
             status: 'cancelled',
-            canceladoEm: new Date(),
+            cancelledAt: new Date(),           // Changed from 'canceladoEm'
             updatedAt: new Date()
         }, { merge: true });
     }
 
-    // Alterar ciclo de pagamento
-    async function changeBillingCycle(ciclo) {
+    // Change billing cycle
+    async function changeBillingCycle(cycle) {
         if (!currentUser || !subscription) return;
 
-        const novoPreco = ciclo === 'anual' ? subscription.precoAnual : subscription.preco;
-        const proximoPagamento = ciclo === 'anual'
+        const newPrice = cycle === 'annual' ? subscription.annualPrice : subscription.price;
+        const nextPayment = cycle === 'annual'
             ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
             : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
         await setDoc(doc(db, 'subscriptions', currentUser.uid), {
-            ciclo,
-            proximoPagamento,
-            precoAtual: novoPreco,
+            cycle,
+            nextPayment,
+            currentPrice: newPrice,
             updatedAt: new Date()
         }, { merge: true });
     }
 
-    // Upgrade/Downgrade plano
-    async function changePlan(novoPlano) {
+    // Upgrade/Downgrade plan
+    async function changePlan(newPlan) {
         if (!currentUser) return;
 
         await setDoc(doc(db, 'subscriptions', currentUser.uid), {
-            plano: novoPlano.nome,
-            preco: novoPlano.preco,
-            precoAnual: novoPlano.precoAnual,
-            limiteClientes: novoPlano.limiteClientes,
-            limiteVolumeNegocios: novoPlano.limiteVolumeNegocios,
+            plan: newPlan.name,
+            price: newPlan.price,
+            annualPrice: newPlan.annualPrice,
+            clientLimit: newPlan.clientLimit,
+            volumeLimit: newPlan.volumeLimit,
             updatedAt: new Date()
         }, { merge: true });
     }
 
-    // Carregar estatísticas
+    // Load statistics
     async function loadStats() {
         if (!currentUser) return;
 
         try {
-            // Por enquanto, usar valores padrão
-            // Quando implementarmos os novos módulos, buscaremos do Firestore
+            // For now, using default values
+            // When implementing new modules, we'll fetch from Firestore
             setStats({
-                totalClientes: 0,
-                totalNegocios: 0,
-                valorNegocios: 0
+                totalClients: 0,
+                totalDeals: 0,
+                businessVolume: 0
             });
 
         } catch (error) {
-            console.error('Erro ao carregar estatísticas:', error);
+            console.error('Error loading statistics:', error);
             setStats({
-                totalClientes: 0,
-                totalNegocios: 0,
-                valorNegocios: 0
+                totalClients: 0,
+                totalDeals: 0,
+                businessVolume: 0
             });
         }
     }
 
-    // Verificar se está no limite de clientes
+    // Check if client limit reached
     function isClientLimitReached() {
-        if (!subscription || subscription.limiteClientes === 'unlimited') return false;
-        return stats.totalClientes >= subscription.limiteClientes;
+        if (!subscription || subscription.clientLimit === 'unlimited') return false;
+        return stats.totalClients >= subscription.clientLimit;
     }
 
-    // Verificar se está no limite de volume de negócios
+    // Check if volume limit reached
     function isVolumeLimitReached() {
-        if (!subscription || subscription.limiteVolumeNegocios === 'unlimited') return false;
-        return stats.valorNegocios >= subscription.limiteVolumeNegocios;
+        if (!subscription || subscription.volumeLimit === 'unlimited') return false;
+        return stats.businessVolume >= subscription.volumeLimit;
     }
 
-    // Verificar se qualquer limite foi atingido
+    // Check if any limit reached
     function isAnyLimitReached() {
         return isClientLimitReached() || isVolumeLimitReached();
     }
 
-    // Percentagem de uso de clientes
+    // Get client usage percentage
     function getClientUsagePercentage() {
-        if (!subscription || subscription.limiteClientes === 'unlimited') return 0;
-        return Math.min(100, (stats.totalClientes / subscription.limiteClientes) * 100);
+        if (!subscription || subscription.clientLimit === 'unlimited') return 0;
+        return Math.round((stats.totalClients / subscription.clientLimit) * 100);
     }
 
-    // Percentagem de uso de volume
+    // Get volume usage percentage
     function getVolumeUsagePercentage() {
-        if (!subscription || subscription.limiteVolumeNegocios === 'unlimited') return 0;
-        return Math.min(100, (stats.valorNegocios / subscription.limiteVolumeNegocios) * 100);
+        if (!subscription || subscription.volumeLimit === 'unlimited') return 0;
+        return Math.round((stats.businessVolume / subscription.volumeLimit) * 100);
     }
 
-    // Dias restantes do trial
+    // Get trial days left
     function getTrialDaysLeft() {
-        if (!subscription?.trial || !subscription?.trialFim) return 0;
-        const hoje = new Date();
-        const fimTrial = new Date(subscription.trialFim);
-        const diffTime = fimTrial - hoje;
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        return Math.max(0, diffDays);
+        if (!subscription || !subscription.trial) return 0;
+        const today = new Date();
+        const trialEnd = new Date(subscription.trialEnd);
+        const daysLeft = Math.ceil((trialEnd - today) / (1000 * 60 * 60 * 24));
+        return daysLeft > 0 ? daysLeft : 0;
     }
 
-    // Dias até próximo pagamento
+    // Get days until next payment
     function getDaysUntilNextPayment() {
-        if (!subscription?.proximoPagamento) return 0;
-        const hoje = new Date();
-        const proximoPagamento = new Date(subscription.proximoPagamento);
-        const diffTime = proximoPagamento - hoje;
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        return Math.max(0, diffDays);
+        if (!subscription) return 0;
+        const today = new Date();
+        const nextPayment = new Date(subscription.nextPayment);
+        return Math.ceil((nextPayment - today) / (1000 * 60 * 60 * 24));
     }
 
-    // Formatação de valores monetários
+    // Format currency values
     function formatCurrency(value) {
-        if (value === 'unlimited') return 'Ilimitado';
+        if (value === 'unlimited') return 'Unlimited';
         return new Intl.NumberFormat('pt-PT', {
             style: 'currency',
             currency: 'EUR',
@@ -201,7 +198,7 @@ export function SubscriptionProvider({ children }) {
                 setLoading(false);
             },
             (error) => {
-                console.error('Erro ao carregar subscrição:', error);
+                console.error('Error loading subscription:', error);
                 setLoading(false);
             }
         );

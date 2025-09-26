@@ -1,7 +1,7 @@
 /**
  * LAYOUT COMPONENT - MyImoMatePro
- * Layout principal com Sidebar para todas as páginas do CRM
- * Inclui responsive design e controlo de colapso da sidebar
+ * Main layout with Sidebar for all CRM pages
+ * Includes responsive design and sidebar collapse control
  */
 
 import React, { useState, useEffect } from 'react';
@@ -11,7 +11,7 @@ const Layout = ({ children, title, subtitle }) => {
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
     const [isMobile, setIsMobile] = useState(false);
 
-    // Detectar tamanho da tela
+    // Detect screen size
     useEffect(() => {
         const checkScreenSize = () => {
             const mobile = window.innerWidth < 768;
@@ -41,7 +41,7 @@ const Layout = ({ children, title, subtitle }) => {
                 />
             </div>
 
-            {/* Overlay para mobile */}
+            {/* Mobile overlay */}
             {isMobile && !isSidebarCollapsed && (
                 <div
                     className="fixed inset-0 bg-black bg-opacity-50 z-40"
@@ -49,14 +49,14 @@ const Layout = ({ children, title, subtitle }) => {
                 />
             )}
 
-            {/* Área de Conteúdo Principal */}
+            {/* Main Content Area */}
             <div className={`flex-1 flex flex-col transition-all duration-300 ${isMobile ? 'ml-0' : isSidebarCollapsed ? 'ml-16' : 'ml-64'
                 }`}>
-                {/* Header da Página (opcional) */}
+                {/* Page Header (optional) */}
                 {(title || subtitle) && (
                     <div className="bg-white shadow-sm border-b border-gray-200">
                         <div className="px-6 py-4">
-                            {/* Botão mobile menu */}
+                            {/* Mobile menu button */}
                             {isMobile && (
                                 <button
                                     onClick={toggleSidebar}
@@ -78,7 +78,7 @@ const Layout = ({ children, title, subtitle }) => {
                     </div>
                 )}
 
-                {/* Conteúdo da Página */}
+                {/* Page Content */}
                 <main className="flex-1 overflow-auto">
                     {children}
                 </main>

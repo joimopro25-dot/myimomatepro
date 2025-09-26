@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import RegistoModal from '../components/RegistoModal';
+import RegistrationModal from '../components/RegistrationModal';
 import {
     BuildingOfficeIcon,
     CheckIcon,
@@ -11,15 +11,15 @@ import {
     ArrowRightIcon
 } from '@heroicons/react/24/outline';
 
-const planos = [
+const plans = [
     {
-        nome: 'Rookie',
-        preco: '5',
-        precoAnual: '50',
-        periodo: 'mês',
-        descricao: 'Perfeito para consultores iniciantes',
-        limiteClientes: 50,
-        limiteVolumeNegocios: 25000,
+        name: 'Rookie',
+        price: 5,
+        annualPrice: 50,
+        period: 'mês',
+        description: 'Perfeito para consultores iniciantes',
+        clientLimit: 50,
+        volumeLimit: 25000,
         features: [
             'Todas as funcionalidades',
             'Até 50 clientes',
@@ -30,16 +30,16 @@ const planos = [
             'Deals plenos'
         ],
         popular: false,
-        cor: 'from-gray-500 to-gray-600'
+        color: 'from-gray-500 to-gray-600'
     },
     {
-        nome: 'Professional',
-        preco: '9',
-        precoAnual: '90',
-        periodo: 'mês',
-        descricao: 'Ideal para consultores experientes',
-        limiteClientes: 200,
-        limiteVolumeNegocios: 100000,
+        name: 'Professional',
+        price: 9,
+        annualPrice: 90,
+        period: 'mês',
+        description: 'Ideal para consultores experientes',
+        clientLimit: 200,
+        volumeLimit: 100000,
         features: [
             'Todas as funcionalidades',
             'Até 200 clientes',
@@ -50,16 +50,16 @@ const planos = [
             'Integrações incluídas'
         ],
         popular: true,
-        cor: 'from-primary-500 to-primary-600'
+        color: 'from-primary-500 to-primary-600'
     },
     {
-        nome: 'Shark',
-        preco: '25',
-        precoAnual: '250',
-        periodo: 'mês',
-        descricao: 'Para consultores de elite sem limites',
-        limiteClientes: 'unlimited',
-        limiteVolumeNegocios: 'unlimited',
+        name: 'Shark',
+        price: 25,
+        annualPrice: 250,
+        period: 'mês',
+        description: 'Para consultores de elite sem limites',
+        clientLimit: 'unlimited',
+        volumeLimit: 'unlimited',
         features: [
             'Todas as funcionalidades',
             'Clientes ilimitados',
@@ -70,22 +70,22 @@ const planos = [
             'Integrações custom'
         ],
         popular: false,
-        cor: 'from-secondary-500 to-secondary-600'
+        color: 'from-secondary-500 to-secondary-600'
     }
 ];
 
 export default function LandingPage() {
-    const [planoSelecionado, setPlanoSelecionado] = useState(null);
-    const [modalRegistoAberto, setModalRegistoAberto] = useState(false);
+    const [selectedPlan, setSelectedPlan] = useState(null);
+    const [registrationModalOpen, setRegistrationModalOpen] = useState(false);
 
-    const handleEscolherPlano = (plano) => {
-        setPlanoSelecionado(plano);
-        setModalRegistoAberto(true);
+    const handleChoosePlan = (plan) => {
+        setSelectedPlan(plan);
+        setRegistrationModalOpen(true);
     };
 
-    const fecharModalRegisto = () => {
-        setModalRegistoAberto(false);
-        setPlanoSelecionado(null);
+    const closeRegistrationModal = () => {
+        setRegistrationModalOpen(false);
+        setSelectedPlan(null);
     };
 
     return (
@@ -129,7 +129,7 @@ export default function LandingPage() {
 
                         <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-16">
                             <button
-                                onClick={() => handleEscolherPlano(planos.find(p => p.popular))}
+                                onClick={() => handleChoosePlan(plans.find(p => p.popular))}
                                 className="bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white px-8 py-4 rounded-xl font-semibold text-lg transition-all duration-200 transform hover:scale-105 shadow-xl"
                             >
                                 Começar Gratuitamente
@@ -201,15 +201,16 @@ export default function LandingPage() {
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                        {planos.map((plano) => (
+                        {plans.map((plan) => (
                             <div
-                                key={plano.nome}
-                                className={`bg-gray-800 rounded-2xl border-2 transition-all duration-200 relative ${plano.popular
-                                    ? 'border-primary-500 transform scale-105'
-                                    : 'border-gray-700 hover:border-gray-600'
-                                    }`}
+                                key={plan.name}
+                                className={`bg-gray-800 rounded-2xl border-2 transition-all duration-200 relative ${
+                                    plan.popular
+                                        ? 'border-primary-500 transform scale-105'
+                                        : 'border-gray-700 hover:border-gray-600'
+                                }`}
                             >
-                                {plano.popular && (
+                                {plan.popular && (
                                     <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
                                         <div className="bg-gradient-to-r from-primary-500 to-primary-600 text-white px-6 py-2 rounded-full text-sm font-semibold">
                                             Mais Popular
@@ -218,20 +219,20 @@ export default function LandingPage() {
                                 )}
 
                                 <div className="p-8">
-                                    <div className={`w-12 h-12 bg-gradient-to-r ${plano.cor} rounded-lg flex items-center justify-center mb-6`}>
+                                    <div className={`w-12 h-12 bg-gradient-to-r ${plan.color} rounded-lg flex items-center justify-center mb-6`}>
                                         <StarIcon className="w-6 h-6 text-white" />
                                     </div>
 
-                                    <h3 className="text-2xl font-bold text-white mb-2">{plano.nome}</h3>
-                                    <p className="text-gray-400 mb-6">{plano.descricao}</p>
+                                    <h3 className="text-2xl font-bold text-white mb-2">{plan.name}</h3>
+                                    <p className="text-gray-400 mb-6">{plan.description}</p>
 
                                     <div className="flex items-baseline mb-8">
-                                        <span className="text-5xl font-bold text-white">€{plano.preco}</span>
-                                        <span className="text-gray-400 ml-2">/{plano.periodo}</span>
+                                        <span className="text-5xl font-bold text-white">€{plan.price}</span>
+                                        <span className="text-gray-400 ml-2">/{plan.period}</span>
                                     </div>
 
                                     <ul className="space-y-4 mb-8">
-                                        {plano.features.map((feature, index) => (
+                                        {plan.features.map((feature, index) => (
                                             <li key={index} className="flex items-center text-gray-300">
                                                 <CheckIcon className="w-5 h-5 text-primary-500 mr-3 flex-shrink-0" />
                                                 {feature}
@@ -240,13 +241,14 @@ export default function LandingPage() {
                                     </ul>
 
                                     <button
-                                        onClick={() => handleEscolherPlano(plano)}
-                                        className={`w-full py-4 rounded-xl font-semibold transition-all duration-200 flex items-center justify-center space-x-2 ${plano.popular
-                                            ? 'bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white'
-                                            : 'border border-gray-600 hover:border-gray-500 text-gray-300 hover:text-white'
-                                            }`}
+                                        onClick={() => handleChoosePlan(plan)}
+                                        className={`w-full py-4 rounded-xl font-semibold transition-all duration-200 flex items-center justify-center space-x-2 ${
+                                            plan.popular
+                                                ? 'bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white'
+                                                : 'border border-gray-600 hover:border-gray-500 text-gray-300 hover:text-white'
+                                        }`}
                                     >
-                                        <span>Escolher {plano.nome}</span>
+                                        <span>Escolher {plan.name}</span>
                                         <ArrowRightIcon className="w-5 h-5" />
                                     </button>
                                 </div>
@@ -271,11 +273,11 @@ export default function LandingPage() {
                 </div>
             </footer>
 
-            {/* Modal de Registo */}
-            <RegistoModal
-                isOpen={modalRegistoAberto}
-                onClose={fecharModalRegisto}
-                planoSelecionado={planoSelecionado}
+            {/* Registration Modal */}
+            <RegistrationModal
+                isOpen={registrationModalOpen}
+                onClose={closeRegistrationModal}
+                selectedPlan={selectedPlan}
             />
         </div>
     );

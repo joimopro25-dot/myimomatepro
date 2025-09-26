@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import RegistoModal from '../components/RegistoModal';
+import RegistoModal from '../components/RegistrationModal';
 import {
     BuildingOfficeIcon,
     CheckIcon,

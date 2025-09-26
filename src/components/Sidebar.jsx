@@ -1,7 +1,7 @@
 /**
  * SIDEBAR COMPONENT - RealEstateCRM Pro
- * Navegação lateral unificada para todo o CRM
- * Versão limpa - Pronta para novos módulos
+ * Unified lateral navigation for entire CRM
+ * Clean version - Ready for new modules
  */
 
 import React, { useState } from 'react';
@@ -34,11 +34,11 @@ const Sidebar = ({ isCollapsed = false, onToggleCollapse }) => {
             await logout();
             navigate('/');
         } catch (error) {
-            console.error('Erro ao fazer logout:', error);
+            console.error('Logout error:', error);
         }
     };
 
-    // Itens de navegação - Dashboard apenas por agora
+    // Navigation items - Dashboard only for now
     const navigationItems = [
         {
             name: 'Dashboard',
@@ -47,7 +47,7 @@ const Sidebar = ({ isCollapsed = false, onToggleCollapse }) => {
             iconSolid: HomeIconSolid,
             description: 'Visão geral do sistema'
         }
-        // Novos módulos serão adicionados aqui
+        // New modules will be added here
     ];
 
     const isActiveRoute = (href) => {
@@ -58,9 +58,10 @@ const Sidebar = ({ isCollapsed = false, onToggleCollapse }) => {
     };
 
     return (
-        <div className={`bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 text-white transition-all duration-300 flex flex-col ${isCollapsed ? 'w-16' : 'w-64'
-            }`}>
-            {/* Header da Sidebar */}
+        <div className={`bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 text-white transition-all duration-300 flex flex-col ${
+            isCollapsed ? 'w-16' : 'w-64'
+        }`}>
+            {/* Sidebar Header */}
             <div className="p-4 border-b border-slate-700/50">
                 <div className="flex items-center justify-between">
                     {!isCollapsed && (
@@ -77,7 +78,7 @@ const Sidebar = ({ isCollapsed = false, onToggleCollapse }) => {
                         </div>
                     )}
 
-                    {/* Botão Toggle */}
+                    {/* Toggle Button */}
                     <button
                         onClick={onToggleCollapse}
                         className="p-1.5 rounded-lg hover:bg-slate-700/50 transition-colors"
@@ -92,7 +93,7 @@ const Sidebar = ({ isCollapsed = false, onToggleCollapse }) => {
                 </div>
             </div>
 
-            {/* Navegação Principal */}
+            {/* Main Navigation */}
             <nav className="flex-1 p-4 space-y-2">
                 {navigationItems.map((item) => {
                     const isActive = isActiveRoute(item.href);
@@ -102,21 +103,24 @@ const Sidebar = ({ isCollapsed = false, onToggleCollapse }) => {
                         <Link
                             key={item.name}
                             to={item.href}
-                            className={`group flex items-center px-3 py-3 rounded-xl transition-all duration-200 ${isActive
+                            className={`group flex items-center px-3 py-3 rounded-xl transition-all duration-200 ${
+                                isActive
                                     ? 'bg-gradient-to-r from-blue-500/20 to-purple-500/20 border border-blue-500/30 shadow-lg shadow-blue-500/10'
                                     : 'hover:bg-slate-700/30 hover:shadow-md'
-                                }`}
+                            }`}
                             title={isCollapsed ? item.description : ''}
                         >
                             <div className="flex items-center justify-center w-6 h-6">
-                                <Icon className={`w-5 h-5 transition-colors ${isActive ? 'text-blue-400' : 'text-slate-400 group-hover:text-white'
-                                    }`} />
+                                <Icon className={`w-5 h-5 transition-colors ${
+                                    isActive ? 'text-blue-400' : 'text-slate-400 group-hover:text-white'
+                                }`} />
                             </div>
 
                             {!isCollapsed && (
                                 <div className="ml-3 flex-1">
-                                    <p className={`font-medium ${isActive ? 'text-white' : 'text-slate-300 group-hover:text-white'
-                                        }`}>
+                                    <p className={`font-medium ${
+                                        isActive ? 'text-white' : 'text-slate-300 group-hover:text-white'
+                                    }`}>
                                         {item.name}
                                     </p>
                                     <p className="text-xs text-slate-500 group-hover:text-slate-400">
@@ -129,18 +133,18 @@ const Sidebar = ({ isCollapsed = false, onToggleCollapse }) => {
                 })}
             </nav>
 
-            {/* Informações da Subscrição */}
+            {/* Subscription Information */}
             {!isCollapsed && subscription && (
                 <div className="p-4 border-t border-slate-700/50">
                     <div className="bg-slate-800/50 rounded-lg p-3 border border-slate-700/30">
                         <div className="flex items-center justify-between mb-2">
                             <span className="text-sm font-medium text-slate-300">Plano Atual</span>
                             <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                subscription.plano === 'Shark' ? 'bg-purple-500/20 text-purple-300' :
-                                subscription.plano === 'Professional' ? 'bg-blue-500/20 text-blue-300' :
+                                subscription.plan === 'Shark' ? 'bg-purple-500/20 text-purple-300' :    // Changed from 'plano'
+                                subscription.plan === 'Professional' ? 'bg-blue-500/20 text-blue-300' : // Changed from 'plano'
                                 'bg-green-500/20 text-green-300'
                             }`}>
-                                {subscription.plano}
+                                {subscription.plan}  {/* Changed from 'plano' */}
                             </span>
                         </div>
 
@@ -153,13 +157,14 @@ const Sidebar = ({ isCollapsed = false, onToggleCollapse }) => {
                 </div>
             )}
 
-            {/* Menu do Utilizador */}
+            {/* User Menu */}
             <div className="p-4 border-t border-slate-700/50">
                 <div className="relative">
                     <button
                         onClick={() => setShowUserMenu(!showUserMenu)}
-                        className={`w-full flex items-center space-x-3 p-3 rounded-xl hover:bg-slate-700/30 transition-colors ${isCollapsed ? 'justify-center' : ''
-                            }`}
+                        className={`w-full flex items-center space-x-3 p-3 rounded-xl hover:bg-slate-700/30 transition-colors ${
+                            isCollapsed ? 'justify-center' : ''
+                        }`}
                         title={isCollapsed ? currentUser?.displayName || currentUser?.email : ''}
                     >
                         <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center">

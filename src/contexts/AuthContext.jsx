@@ -20,83 +20,83 @@ export function AuthProvider({ children }) {
     const [loading, setLoading] = useState(true);
     const [userProfile, setUserProfile] = useState(null);
 
-    // Registar novo utilizador
+    // Register new user
     async function signup(email, password, userData) {
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         const user = userCredential.user;
 
-        // Atualizar nome do utilizador
+        // Update user display name
         await updateProfile(user, {
-            displayName: userData.nome
+            displayName: userData.name
         });
 
-        // Criar perfil do utilizador no Firestore
-        await setDoc(doc(db, 'consultores', user.uid), {
-            nome: userData.nome,
+        // Create user profile in Firestore
+        await setDoc(doc(db, 'consultants', user.uid), {
+            name: userData.name,
             email: userData.email,
-            telefone: userData.telefone,
-            empresa: userData.empresa,
-            plano: userData.plano,
-            criadoEm: new Date(),
-            ativo: true
+            phone: userData.phone,
+            company: userData.company,
+            plan: userData.plan,
+            createdAt: new Date(),
+            active: true
         });
 
-        // Criar subscrição inicial
-        const planoData = getPlanoData(userData.plano);
-        await createInitialSubscription(user.uid, planoData);
+        // Create initial subscription
+        const planData = getPlanData(userData.plan);
+        await createInitialSubscription(user.uid, planData);
 
         return userCredential;
     }
 
-    // Obter dados do plano baseado no nome
-    function getPlanoData(nomePlano) {
-        const planos = {
+    // Get plan data based on plan name
+    function getPlanData(planName) {
+        const plans = {
             'Rookie': {
-                nome: 'Rookie',
-                preco: '5',
-                precoAnual: '50',
-                limiteClientes: 50,
-                limiteVolumeNegocios: 25000
+                name: 'Rookie',
+                price: 5,
+                annualPrice: 50,
+                clientLimit: 50,
+                volumeLimit: 25000
             },
             'Professional': {
-                nome: 'Professional',
-                preco: '9',
-                precoAnual: '90',
-                limiteClientes: 200,
-                limiteVolumeNegocios: 100000
+                name: 'Professional',
+                price: 9,
+                annualPrice: 90,
+                clientLimit: 200,
+                volumeLimit: 100000
             },
             'Shark': {
-                nome: 'Shark',
-                preco: '25',
-                precoAnual: '250',
-                limiteClientes: 'unlimited',
-                limiteVolumeNegocios: 'unlimited'
+                name: 'Shark',
+                price: 25,
+                annualPrice: 250,
+                clientLimit: 'unlimited',
+                volumeLimit: 'unlimited'
             }
         };
 
-        return planos[nomePlano] || planos['Professional'];
+        return plans[planName] || plans['Professional'];
     }
 
-    // Criar subscrição inicial
-    async function createInitialSubscription(userId, planoData) {
+    // Create initial subscription
+    async function createInitialSubscription(userId, planData) {
         const subscriptionData = {
-            plano: planoData.nome,
-            preco: planoData.preco,
-            precoAnual: planoData.precoAnual,
-            limiteClientes: planoData.limiteClientes,
-            limiteVolumeNegocios: planoData.limiteVolumeNegocios,
-            ciclo: 'mensal',
+            plan: planData.name,
+            price: planData.price,
+            annualPrice: planData.annualPrice,
+            clientLimit: planData.clientLimit,
+            volumeLimit: planData.volumeLimit,
+            cycle: 'monthly',
             status: 'active',
-            criadoEm: new Date(),
-            proximoPagamento: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-            ultimoPagamento: {
-                data: new Date(),
-                valor: planoData.preco,
+            createdAt: new Date(),
+            nextPayment: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+            lastPayment: {
+                date: new Date(),
+                amount: planData.price,
                 status: 'pending'
             },
-            metodoPagamento: 'pending',
+            paymentMethod: 'pending',
             trial: true,
-            trialFim: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
+            trialEnd: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
         };
 
         await setDoc(doc(db, 'subscriptions', userId), subscriptionData);
@@ -112,17 +112,17 @@ export function AuthProvider({ children }) {
         return signOut(auth);
     }
 
-    // Carregar perfil do utilizador
+    // Load user profile
     async function loadUserProfile(uid) {
         try {
-            const docRef = doc(db, 'consultores', uid);
+            const docRef = doc(db, 'consultants', uid);
             const docSnap = await getDoc(docRef);
 
             if (docSnap.exists()) {
                 setUserProfile(docSnap.data());
             }
         } catch (error) {
-            console.error('Erro ao carregar perfil:', error);
+            console.error('Error loading profile:', error);
         }
     }
 

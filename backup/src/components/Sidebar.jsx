@@ -1,7 +1,7 @@
 /**
  * SIDEBAR COMPONENT - MyImoMatePro
- * Navegação lateral unificada para todo o CRM
- * Tema: Corporate Glamour - Elegante e Profissional
+ * Unified lateral navigation for entire CRM
+ * Theme: Corporate Glamour - Elegant and Professional
  */
 
 import React, { useState } from 'react';
@@ -36,11 +36,11 @@ const Sidebar = ({ isCollapsed = false, onToggleCollapse }) => {
             await logout();
             navigate('/');
         } catch (error) {
-            console.error('Erro ao fazer logout:', error);
+            console.error('Logout error:', error);
         }
     };
 
-    // Itens de navegação - apenas funcionalidades existentes
+    // Navigation items - only existing features
     const navigationItems = [
         {
             name: 'Dashboard',
@@ -55,7 +55,7 @@ const Sidebar = ({ isCollapsed = false, onToggleCollapse }) => {
             icon: UsersIcon,
             iconSolid: UsersIconSolid,
             description: 'Gerir carteira de clientes',
-            badge: stats?.totalClientes || 0
+            badge: stats?.totalClients || 0  // Changed from totalClientes
         }
     ];
 
@@ -69,7 +69,7 @@ const Sidebar = ({ isCollapsed = false, onToggleCollapse }) => {
     return (
         <div className={`bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 text-white transition-all duration-300 flex flex-col ${isCollapsed ? 'w-16' : 'w-64'
             }`}>
-            {/* Header da Sidebar */}
+            {/* Sidebar Header */}
             <div className="p-4 border-b border-slate-700/50">
                 <div className="flex items-center justify-between">
                     {!isCollapsed && (
@@ -86,7 +86,7 @@ const Sidebar = ({ isCollapsed = false, onToggleCollapse }) => {
                         </div>
                     )}
 
-                    {/* Botão Toggle */}
+                    {/* Toggle Button */}
                     <button
                         onClick={onToggleCollapse}
                         className="p-1.5 rounded-lg hover:bg-slate-700/50 transition-colors"
@@ -101,7 +101,7 @@ const Sidebar = ({ isCollapsed = false, onToggleCollapse }) => {
                 </div>
             </div>
 
-            {/* Navegação Principal */}
+            {/* Main Navigation */}
             <nav className="flex-1 p-4 space-y-2">
                 {navigationItems.map((item) => {
                     const isActive = isActiveRoute(item.href);
@@ -149,34 +149,36 @@ const Sidebar = ({ isCollapsed = false, onToggleCollapse }) => {
                 })}
             </nav>
 
-            {/* Informações da Subscrição */}
+            {/* Subscription Information */}
             {!isCollapsed && subscription && (
                 <div className="p-4 border-t border-slate-700/50">
                     <div className="bg-slate-800/50 rounded-lg p-3 border border-slate-700/30">
                         <div className="flex items-center justify-between mb-2">
                             <span className="text-sm font-medium text-slate-300">Plano</span>
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${subscription.plano === 'Shark' ? 'bg-purple-500/20 text-purple-300' :
-                                    subscription.plano === 'Professional' ? 'bg-blue-500/20 text-blue-300' :
-                                        'bg-green-500/20 text-green-300'
-                                }`}>
-                                {subscription.plano}
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                subscription.plan === 'Shark' ? 'bg-purple-500/20 text-purple-300' :  // Changed from plano
+                                subscription.plan === 'Professional' ? 'bg-blue-500/20 text-blue-300' :  // Changed from plano
+                                'bg-green-500/20 text-green-300'
+                            }`}>
+                                {subscription.plan}  {/* Changed from plano */}
                             </span>
                         </div>
 
-                        {subscription.limiteClientes !== 'unlimited' && (
+                        {subscription.clientLimit !== 'unlimited' && (  // Changed from limiteClientes
                             <div className="space-y-1">
                                 <div className="flex justify-between text-xs text-slate-400">
                                     <span>Clientes</span>
-                                    <span>{stats?.totalClientes || 0}/{subscription.limiteClientes}</span>
+                                    <span>{stats?.totalClients || 0}/{subscription.clientLimit}</span>  {/* Changed from totalClientes and limiteClientes */}
                                 </div>
                                 <div className="w-full bg-slate-700 rounded-full h-1.5">
                                     <div
-                                        className={`h-1.5 rounded-full transition-all duration-300 ${((stats?.totalClientes || 0) / subscription.limiteClientes) > 0.8
+                                        className={`h-1.5 rounded-full transition-all duration-300 ${
+                                            ((stats?.totalClients || 0) / subscription.clientLimit) > 0.8  // Changed from totalClientes and limiteClientes
                                                 ? 'bg-gradient-to-r from-red-500 to-orange-500'
                                                 : 'bg-gradient-to-r from-blue-500 to-purple-500'
-                                            }`}
+                                        }`}
                                         style={{
-                                            width: `${Math.min(((stats?.totalClientes || 0) / subscription.limiteClientes) * 100, 100)}%`
+                                            width: `${Math.min(((stats?.totalClients || 0) / subscription.clientLimit) * 100, 100)}%`  // Changed from totalClientes and limiteClientes
                                         }}
                                     ></div>
                                 </div>
@@ -186,13 +188,14 @@ const Sidebar = ({ isCollapsed = false, onToggleCollapse }) => {
                 </div>
             )}
 
-            {/* Menu do Utilizador */}
+            {/* User Menu */}
             <div className="p-4 border-t border-slate-700/50">
                 <div className="relative">
                     <button
                         onClick={() => setShowUserMenu(!showUserMenu)}
-                        className={`w-full flex items-center space-x-3 p-3 rounded-xl hover:bg-slate-700/30 transition-colors ${isCollapsed ? 'justify-center' : ''
-                            }`}
+                        className={`w-full flex items-center space-x-3 p-3 rounded-xl hover:bg-slate-700/30 transition-colors ${
+                            isCollapsed ? 'justify-center' : ''
+                        }`}
                         title={isCollapsed ? currentUser?.displayName || currentUser?.email : ''}
                     >
                         <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center">

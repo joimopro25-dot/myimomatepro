@@ -11,13 +11,13 @@ import ClientList from './pages/ClientList';
 import ClientForm from './pages/ClientForm';
 import './index.css';
 
-// Componente para proteger rotas autenticadas
+// Component to protect authenticated routes
 function ProtectedRoute({ children }) {
   const { currentUser } = useAuth();
   return currentUser ? children : <Navigate to="/login" />;
 }
 
-// Componente para redirecionar utilizadores já autenticados
+// Component to redirect already authenticated users
 function PublicRoute({ children }) {
   const { currentUser } = useAuth();
   return !currentUser ? children : <Navigate to="/dashboard" />;
@@ -27,7 +27,7 @@ function AppRoutes() {
   return (
     <Router>
       <Routes>
-        {/* ===== ROTAS PÚBLICAS ===== */}
+        {/* ===== PUBLIC ROUTES ===== */}
         <Route path="/" element={
           <PublicRoute>
             <LandingPage />
@@ -40,7 +40,7 @@ function AppRoutes() {
           </PublicRoute>
         } />
 
-        {/* ===== ROTAS PROTEGIDAS - DASHBOARD ===== */}
+        {/* ===== PROTECTED ROUTES - DASHBOARD ===== */}
         <Route path="/dashboard" element={
           <ProtectedRoute>
             <Dashboard />
@@ -53,7 +53,7 @@ function AppRoutes() {
           </ProtectedRoute>
         } />
 
-        {/* ===== ROTAS PROTEGIDAS - SISTEMA DE CLIENTES ===== */}
+        {/* ===== PROTECTED ROUTES - CLIENT SYSTEM ===== */}
         <Route path="/clients" element={
           <ProtectedRoute>
             <ClientList />
@@ -78,37 +78,37 @@ function AppRoutes() {
           </ProtectedRoute>
         } />
 
-        {/* ===== FUTURAS ROTAS DO SISTEMA ===== */}
+        {/* ===== FUTURE SYSTEM ROUTES ===== */}
         {/* 
-        Rotas planejadas para próximas fases:
+        Planned routes for next phases:
         
-        // SISTEMA DE LEADS
+        // LEAD SYSTEM
         <Route path="/leads" element={<ProtectedRoute><LeadList /></ProtectedRoute>} />
         <Route path="/leads/new" element={<ProtectedRoute><LeadForm /></ProtectedRoute>} />
         <Route path="/leads/:leadId/edit" element={<ProtectedRoute><LeadForm /></ProtectedRoute>} />
         
-        // SISTEMA DE OPORTUNIDADES
+        // OPPORTUNITY SYSTEM
         <Route path="/opportunities" element={<ProtectedRoute><OpportunityList /></ProtectedRoute>} />
         <Route path="/opportunities/new" element={<ProtectedRoute><OpportunityForm /></ProtectedRoute>} />
         <Route path="/opportunities/:opportunityId" element={<ProtectedRoute><OpportunityDetail /></ProtectedRoute>} />
         
-        // SISTEMA DE DEALS
+        // DEAL SYSTEM
         <Route path="/deals" element={<ProtectedRoute><DealList /></ProtectedRoute>} />
         <Route path="/deals/new" element={<ProtectedRoute><DealForm /></ProtectedRoute>} />
         <Route path="/deals/:dealId" element={<ProtectedRoute><DealDetail /></ProtectedRoute>} />
         
-        // SISTEMA DE RELATÓRIOS
+        // REPORTING SYSTEM
         <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
         <Route path="/reports/performance" element={<ProtectedRoute><PerformanceReport /></ProtectedRoute>} />
         <Route path="/reports/commissions" element={<ProtectedRoute><CommissionReport /></ProtectedRoute>} />
         
-        // SISTEMA DE CONFIGURAÇÕES
+        // SETTINGS SYSTEM
         <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
         <Route path="/settings/profile" element={<ProtectedRoute><ProfileSettings /></ProtectedRoute>} />
         <Route path="/settings/integrations" element={<ProtectedRoute><IntegrationSettings /></ProtectedRoute>} />
         */}
 
-        {/* ===== ROTA FALLBACK ===== */}
+        {/* ===== FALLBACK ROUTE ===== */}
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </Router>

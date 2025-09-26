@@ -14,9 +14,9 @@ export default function LoginPage() {
         email: '',
         password: ''
     });
-    const [mostrarPassword, setMostrarPassword] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(false);
-    const [erro, setErro] = useState('');
+    const [error, setError] = useState('');
 
     const { login } = useAuth();
     const navigate = useNavigate();
@@ -26,35 +26,35 @@ export default function LoginPage() {
             ...formData,
             [e.target.name]: e.target.value
         });
-        setErro(''); // Limpar erro quando utilizador escreve
+        setError(''); // Clear error when user types
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
-        setErro('');
+        setError('');
 
         try {
             await login(formData.email, formData.password);
             navigate('/dashboard');
         } catch (error) {
-            console.error('Erro no login:', error);
+            console.error('Login error:', error);
 
             switch (error.code) {
                 case 'auth/user-not-found':
-                    setErro('Utilizador não encontrado');
+                    setError('Utilizador não encontrado');
                     break;
                 case 'auth/wrong-password':
-                    setErro('Password incorreta');
+                    setError('Password incorreta');
                     break;
                 case 'auth/invalid-email':
-                    setErro('Email inválido');
+                    setError('Email inválido');
                     break;
                 case 'auth/too-many-requests':
-                    setErro('Muitas tentativas. Tente novamente mais tarde');
+                    setError('Muitas tentativas. Tente novamente mais tarde');
                     break;
                 default:
-                    setErro('Erro ao fazer login. Tente novamente');
+                    setError('Erro ao fazer login. Tente novamente');
             }
         } finally {
             setLoading(false);
@@ -64,7 +64,7 @@ export default function LoginPage() {
     return (
         <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex items-center justify-center p-4">
             <div className="max-w-md w-full">
-                {/* Logo e Título */}
+                {/* Logo and Title */}
                 <div className="text-center mb-8">
                     <Link to="/" className="inline-flex items-center space-x-3 mb-6">
                         <div className="w-12 h-12 bg-gradient-to-r from-primary-500 to-secondary-500 rounded-xl flex items-center justify-center">
@@ -81,11 +81,11 @@ export default function LoginPage() {
                     </p>
                 </div>
 
-                {/* Formulário */}
+                {/* Form */}
                 <div className="bg-gray-800 rounded-2xl border border-gray-700 p-8 shadow-2xl">
-                    {erro && (
+                    {error && (
                         <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4 mb-6">
-                            <p className="text-red-400 text-sm text-center">{erro}</p>
+                            <p className="text-red-400 text-sm text-center">{error}</p>
                         </div>
                     )}
 
@@ -118,7 +118,7 @@ export default function LoginPage() {
                             <div className="relative">
                                 <LockClosedIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
                                 <input
-                                    type={mostrarPassword ? 'text' : 'password'}
+                                    type={showPassword ? 'text' : 'password'}
                                     id="password"
                                     name="password"
                                     value={formData.password}
@@ -129,10 +129,10 @@ export default function LoginPage() {
                                 />
                                 <button
                                     type="button"
-                                    onClick={() => setMostrarPassword(!mostrarPassword)}
+                                    onClick={() => setShowPassword(!showPassword)}
                                     className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-300 transition-colors duration-200"
                                 >
-                                    {mostrarPassword ? (
+                                    {showPassword ? (
                                         <EyeSlashIcon className="w-5 h-5" />
                                     ) : (
                                         <EyeIcon className="w-5 h-5" />
@@ -141,7 +141,7 @@ export default function LoginPage() {
                             </div>
                         </div>
 
-                        {/* Opções */}
+                        {/* Options */}
                         <div className="flex items-center justify-between">
                             <label className="flex items-center">
                                 <input
@@ -159,7 +159,7 @@ export default function LoginPage() {
                             </button>
                         </div>
 
-                        {/* Botão Submit */}
+                        {/* Submit Button */}
                         <button
                             type="submit"
                             disabled={loading}
@@ -176,7 +176,7 @@ export default function LoginPage() {
                         </button>
                     </form>
 
-                    {/* Link para registo */}
+                    {/* Registration link */}
                     <div className="mt-8 text-center">
                         <p className="text-gray-400">
                             Ainda não tem conta?{' '}
