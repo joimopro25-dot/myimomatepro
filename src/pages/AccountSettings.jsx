@@ -46,20 +46,20 @@ const plans = [
 ];
 
 export default function AccountSettings() {
-    const { currentUser } = useAuth();
-    const {
-        subscription,
-        stats,
-        updatePaymentMethod,
-        cancelSubscription,
-        changeBillingCycle,
-        changePlan,
-        getTrialDaysLeft,
-        getDaysUntilNextPayment,
-        getClientUsagePercentage,
-        getVolumeUsagePercentage,
-        formatCurrency
-    } = useSubscription();
+  const {
+    subscription,
+    stats,
+    getTrialDaysLeft,
+    getDaysUntilNextPayment,   // <-- added
+    getVolumeUsagePercentage,
+    isVolumeLimitReached,
+    isAnyLimitReached,
+    changePlan,
+    changeBillingCycle,
+    cancelSubscription,
+    updatePaymentMethod,
+    formatCurrency
+  } = useSubscription(); // removed: getClientUsagePercentage, isClientLimitReached
 
     const [showCancelModal, setShowCancelModal] = useState(false);
     const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -113,8 +113,20 @@ export default function AccountSettings() {
     }
 
     const trialDaysLeft = getTrialDaysLeft();
-    const daysUntilPayment = getDaysUntilNextPayment();
+    const daysUntilPayment = getDaysUntilNextPayment(); // still available if you display it
     const isTrialActive = subscription.trial && trialDaysLeft > 0;
+
+    // Helper to safely format Firestore Timestamp or Date
+    function formatNextPayment(dt) {
+      if (!dt) return '-';
+      if (typeof dt.toDate === 'function') {
+        return dt.toDate().toLocaleDateString();
+      }
+      if (dt instanceof Date) {
+        return dt.toLocaleDateString();
+      }
+      return '-';
+    }
 
     return (
         <Layout>
@@ -127,34 +139,6 @@ export default function AccountSettings() {
 
                 {/* Statistics and Limits */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                    {/* Clients */}
-                    <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-                        <div className="flex items-center justify-between mb-4">
-                            <div className="flex items-center">
-                                <div className="w-12 h-12 bg-blue-500 rounded-lg flex items-center justify-center">
-                                    <UsersIcon className="w-6 h-6 text-white" />
-                                </div>
-                                <div className="ml-4">
-                                    <p className="text-2xl font-bold text-gray-900">{stats.totalClients}</p>
-                                    <p className="text-sm text-gray-500">
-                                        {subscription.clientLimit === 'unlimited' ? 'Clientes' : `de ${subscription.clientLimit} clientes`}
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-
-                        {subscription.clientLimit !== 'unlimited' && (
-                            <div className="w-full bg-gray-200 rounded-full h-2">
-                                <div
-                                    className={`h-2 rounded-full transition-all duration-300 ${getClientUsagePercentage() > 90 ? 'bg-red-500' :
-                                        getClientUsagePercentage() > 75 ? 'bg-yellow-500' : 'bg-blue-500'
-                                        }`}
-                                    style={{ width: `${getClientUsagePercentage()}%` }}
-                                ></div>
-                            </div>
-                        )}
-                    </div>
-
                     {/* Deals */}
                     <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
                         <div className="flex items-center justify-between mb-4">
@@ -237,10 +221,11 @@ export default function AccountSettings() {
                                 </span>
                             </div>
 
+                            {/* Próximo Pagamento */}
                             <div className="flex justify-between">
                                 <span className="text-gray-600">Próximo Pagamento</span>
                                 <span className="font-medium text-gray-900">
-                                    {new Date(subscription.nextPayment.toDate()).toLocaleDateString()}
+                                  {formatNextPayment(subscription.nextPayment)}
                                 </span>
                             </div>
 

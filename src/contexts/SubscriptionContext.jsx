@@ -23,13 +23,12 @@ export function SubscriptionProvider({ children }) {
 
     // Create initial subscription (removed clientLimit)
     async function createSubscription(planData, paymentMethod = 'pending') {
-        if (!currentUser) return;
-
+        if (!currentUser) return null;
         const subscriptionData = {
             plan: planData.name,
             price: planData.price,
             annualPrice: planData.annualPrice,
-            volumeLimit: planData.volumeLimit, // keep if you still want volume control
+            volumeLimit: planData.volumeLimit,
             cycle: 'monthly',
             status: 'active',
             createdAt: new Date(),
@@ -43,7 +42,6 @@ export function SubscriptionProvider({ children }) {
             trial: true,
             trialEnd: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
         };
-
         await setDoc(doc(db, 'subscriptions', currentUser.uid), subscriptionData);
         return subscriptionData;
     }
@@ -71,7 +69,6 @@ export function SubscriptionProvider({ children }) {
         const nextPayment = cycle === 'annual'
             ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
             : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-
         await setDoc(doc(db, 'subscriptions', currentUser.uid), {
             cycle,
             nextPayment,
