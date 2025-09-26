@@ -121,9 +121,7 @@ function App() {
   return (
     <AuthProvider>
       <SubscriptionProvider>
-        <ClientProvider>
-          <AppRoutes />
-        </ClientProvider>
+        <AppRoutes />
       </SubscriptionProvider>
     </AuthProvider>
   );

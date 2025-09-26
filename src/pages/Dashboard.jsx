@@ -11,12 +11,10 @@ import { useSubscription } from '../contexts/SubscriptionContext';
 import Layout from '../components/Layout';
 import {
     ChartBarIcon,
-    UsersIcon,
     BriefcaseIcon,
     CurrencyEuroIcon,
-    PlusIcon,
-    ExclamationTriangleIcon,
     ArrowTrendingUpIcon,
+    ExclamationTriangleIcon,
     CheckCircleIcon,
     ClockIcon
 } from '@heroicons/react/24/outline';
@@ -28,44 +26,32 @@ export default function Dashboard() {
         stats,
         getTrialDaysLeft,
         isAnyLimitReached,
-        getClientUsagePercentage,
-        getVolumeUsagePercentage
+        getVolumeUsagePercentage,
+        isVolumeLimitReached // kept if you will later show volume limit warnings
     } = useSubscription();
 
     const trialDaysLeft = getTrialDaysLeft();
     const isTrialActive = subscription?.trial && trialDaysLeft > 0;
     const limitReached = isAnyLimitReached();
 
-    // Statistics for cards
+    // Updated stats (removed clients)
     const dashboardStats = [
         {
-            name: 'Total Clientes',
-            value: stats?.totalClients || 0,  // Changed from totalClientes
-            change: '+12%',
-            changeType: 'positive',
-            icon: UsersIcon,
-            color: 'blue',
-            limit: subscription?.clientLimit,  // Changed from limiteClientes
-            percentage: getClientUsagePercentage(),
-            href: '/clients'
-        },
-        {
             name: 'Oportunidades',
-            value: stats?.totalDeals || 0,  // Changed from totalNegocios
+            value: stats?.totalDeals || 0,
             change: '+5%',
             changeType: 'positive',
             icon: BriefcaseIcon,
-            color: 'green',
-            href: '/clients' // When we implement opportunities, change to /opportunities
+            color: 'green'
         },
         {
             name: 'Volume de Negócios',
-            value: `€${(stats?.businessVolume || 0).toLocaleString()}`,  // Changed from valorNegocios
+            value: `€${(stats?.businessVolume || 0).toLocaleString()}`,
             change: '+18%',
             changeType: 'positive',
             icon: CurrencyEuroIcon,
             color: 'purple',
-            limit: subscription?.volumeLimit,  // Changed from limiteVolumeNegocios
+            limit: subscription?.volumeLimit,
             percentage: getVolumeUsagePercentage()
         },
         {
@@ -80,12 +66,11 @@ export default function Dashboard() {
 
     const getStatCardStyle = (color) => {
         const colors = {
-            blue: 'from-blue-500 to-blue-600',
             green: 'from-green-500 to-green-600',
             purple: 'from-purple-500 to-purple-600',
             orange: 'from-orange-500 to-orange-600'
         };
-        return colors[color] || colors.blue;
+        return colors[color] || 'from-green-500 to-green-600';
     };
 
     return (
@@ -141,21 +126,13 @@ export default function Dashboard() {
                 )}
 
                 {/* Main Statistics */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
                     {dashboardStats.map((stat) => {
                         const Icon = stat.icon;
-                        const isClickable = stat.href;
-
-                        const CardComponent = isClickable ? Link : 'div';
-                        const cardProps = isClickable ? { to: stat.href } : {};
-
                         return (
-                            <CardComponent
+                            <div
                                 key={stat.name}
-                                {...cardProps}
-                                className={`bg-white rounded-xl p-6 shadow-sm border border-gray-100 ${
-                                    isClickable ? 'hover:shadow-lg hover:scale-105 cursor-pointer' : ''
-                                } transition-all duration-200`}
+                                className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 transition-all"
                             >
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center">
@@ -169,7 +146,6 @@ export default function Dashboard() {
                                     </div>
                                 </div>
 
-                                {/* Progress bar for limits */}
                                 {stat.limit && stat.limit !== 'unlimited' && stat.percentage !== undefined && (
                                     <div className="mt-4">
                                         <div className="flex justify-between text-xs text-gray-500 mb-1">
@@ -185,7 +161,6 @@ export default function Dashboard() {
                                     </div>
                                 )}
 
-                                {/* Change indicator */}
                                 {stat.change && (
                                     <div className="mt-2 flex items-center">
                                         <span className={`text-sm font-medium ${
@@ -196,14 +171,13 @@ export default function Dashboard() {
                                         <span className="text-xs text-gray-500 ml-1">vs mês anterior</span>
                                     </div>
                                 )}
-                            </CardComponent>
+                            </div>
                         );
                     })}
                 </div>
 
-                {/* Quick Actions */}
+                {/* Getting Started (trimmed, no client steps) */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-                    {/* Getting Started */}
                     <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl p-6 text-white">
                         <h2 className="text-xl font-semibold mb-2">Começar a usar o MyImoMatePro</h2>
                         <p className="text-blue-100 mb-4">
@@ -221,33 +195,25 @@ export default function Dashboard() {
                                 <div className="w-5 h-5 bg-white/20 rounded-full flex items-center justify-center">
                                     <span className="text-xs font-bold">2</span>
                                 </div>
-                                <span className="text-sm">Adicione o seu primeiro cliente</span>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                                <div className="w-5 h-5 bg-white/20 rounded-full flex items-center justify-center">
-                                    <span className="text-xs font-bold">3</span>
-                                </div>
                                 <span className="text-sm">Explore as funcionalidades</span>
                             </div>
                         </div>
 
                         <Link
-                            to="/clients/new"
+                            to="/account"
                             className="mt-4 inline-flex items-center gap-2 bg-white text-blue-600 px-6 py-2 rounded-lg font-medium hover:bg-blue-50 transition-colors shadow-lg"
                         >
-                            <PlusIcon className="w-4 h-4" />
-                            Adicionar Primeiro Cliente
+                            <ChartBarIcon className="w-4 h-4" />
+                            Gerir Plano
                         </Link>
                     </div>
 
-                    {/* Recent Activity */}
                     <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
                         <h2 className="text-xl font-semibold text-gray-900 mb-4">Atividade Recente</h2>
-
                         <div className="space-y-4">
                             <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
                                 <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                                    <UsersIcon className="w-4 h-4 text-blue-600" />
+                                    <ChartBarIcon className="w-4 h-4 text-blue-600" />
                                 </div>
                                 <div className="flex-1">
                                     <p className="text-sm font-medium text-gray-900">Sistema iniciado</p>
@@ -258,56 +224,14 @@ export default function Dashboard() {
                                     Agora
                                 </div>
                             </div>
-
-                            {stats?.totalClients === 0 && (  // Changed from totalClientes
-                                <div className="text-center py-4">
-                                    <p className="text-sm text-gray-500 mb-3">
-                                        Adicione o seu primeiro cliente para começar a ver atividade aqui
-                                    </p>
-                                    <Link
-                                        to="/clients/new"
-                                        className="inline-flex items-center gap-2 text-sm text-blue-600 hover:text-blue-700 font-medium"
-                                    >
-                                        <PlusIcon className="w-4 h-4" />
-                                        Adicionar Cliente
-                                    </Link>
-                                </div>
-                            )}
                         </div>
                     </div>
                 </div>
 
-                {/* Quick Actions - Links */}
+                {/* Quick Actions (client links removed) */}
                 <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
                     <h2 className="text-xl font-semibold text-gray-900 mb-4">Ações Rápidas</h2>
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <Link
-                            to="/clients/new"
-                            className="flex items-center space-x-3 p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors group"
-                        >
-                            <div className="w-10 h-10 bg-blue-100 group-hover:bg-blue-200 rounded-lg flex items-center justify-center transition-colors">
-                                <PlusIcon className="w-5 h-5 text-blue-600" />
-                            </div>
-                            <div>
-                                <p className="font-medium text-gray-900">Novo Cliente</p>
-                                <p className="text-sm text-gray-500">Adicionar à carteira</p>
-                            </div>
-                        </Link>
-
-                        <Link
-                            to="/clients"
-                            className="flex items-center space-x-3 p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-green-500 hover:bg-green-50 transition-colors group"
-                        >
-                            <div className="w-10 h-10 bg-green-100 group-hover:bg-green-200 rounded-lg flex items-center justify-center transition-colors">
-                                <UsersIcon className="w-5 h-5 text-green-600" />
-                            </div>
-                            <div>
-                                <p className="font-medium text-gray-900">Ver Clientes</p>
-                                <p className="text-sm text-gray-500">Gerir carteira</p>
-                            </div>
-                        </Link>
-
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <Link
                             to="/account"
                             className="flex items-center space-x-3 p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-purple-500 hover:bg-purple-50 transition-colors group"
