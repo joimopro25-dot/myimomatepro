@@ -1,198 +1,365 @@
+/**
+ * SUBSCRIPTION CONTEXT - RealEstateCRM Pro
+ * Complete subscription management with client and volume limits
+ * Multi-tenant architecture support
+ */
+
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { doc, setDoc, onSnapshot } from 'firebase/firestore';
+import { doc, setDoc, onSnapshot, getDoc, updateDoc, collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { useAuth } from './AuthContext';
+import { 
+  PLANS, 
+  createSubscriptionData, 
+  checkLimits,
+  getTrialDaysRemaining,
+  getDaysUntilPayment,
+  canPerformOperation 
+} from '../models/subscriptionModel';
+import { formatCurrency } from '../utils/validation';
 
 const SubscriptionContext = createContext();
 
 export function useSubscription() {
-    return useContext(SubscriptionContext);
+  const context = useContext(SubscriptionContext);
+  if (!context) {
+    throw new Error('useSubscription must be used within a SubscriptionProvider');
+  }
+  return context;
 }
 
 export function SubscriptionProvider({ children }) {
-    const [subscription, setSubscription] = useState(null);
-    const [loading, setLoading] = useState(true);
+  const [subscription, setSubscription] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({
+    totalClients: 0,
+    totalDeals: 0,
+    businessVolume: 0
+  });
+  const [limitWarnings, setLimitWarnings] = useState([]);
 
-    // Stats now exclude clients
-    const [stats, setStats] = useState({
+  const { currentUser } = useAuth();
+
+  // Create initial subscription
+  async function createSubscription(planName, paymentMethod = 'pending') {
+    if (!currentUser) return null;
+    
+    try {
+      const subscriptionData = createSubscriptionData(
+        planName, 
+        currentUser.uid, 
+        paymentMethod
+      );
+      
+      await setDoc(
+        doc(db, 'subscriptions', currentUser.uid), 
+        subscriptionData
+      );
+      
+      return subscriptionData;
+    } catch (error) {
+      console.error('Error creating subscription:', error);
+      throw error;
+    }
+  }
+
+  // Update payment method
+  async function updatePaymentMethod(paymentMethod) {
+    if (!currentUser) return;
+    
+    try {
+      await updateDoc(doc(db, 'subscriptions', currentUser.uid), {
+        paymentMethod,
+        updatedAt: new Date()
+      });
+    } catch (error) {
+      console.error('Error updating payment method:', error);
+      throw error;
+    }
+  }
+
+  // Cancel subscription
+  async function cancelSubscription(reason = '') {
+    if (!currentUser) return;
+    
+    try {
+      await updateDoc(doc(db, 'subscriptions', currentUser.uid), {
+        status: 'cancelled',
+        cancelledAt: new Date(),
+        cancellationReason: reason,
+        updatedAt: new Date()
+      });
+    } catch (error) {
+      console.error('Error cancelling subscription:', error);
+      throw error;
+    }
+  }
+
+  // Change billing cycle
+  async function changeBillingCycle(cycle) {
+    if (!currentUser || !subscription) return;
+    
+    try {
+      const newPrice = cycle === 'annual' 
+        ? subscription.annualPrice 
+        : subscription.price;
+      
+      const nextPayment = cycle === 'annual'
+        ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
+        : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      
+      await updateDoc(doc(db, 'subscriptions', currentUser.uid), {
+        cycle,
+        nextPayment,
+        currentPrice: newPrice,
+        updatedAt: new Date()
+      });
+    } catch (error) {
+      console.error('Error changing billing cycle:', error);
+      throw error;
+    }
+  }
+
+  // Change plan
+  async function changePlan(newPlanName) {
+    if (!currentUser) return;
+    
+    try {
+      const newPlan = PLANS[newPlanName.toUpperCase()];
+      if (!newPlan) {
+        throw new Error('Invalid plan');
+      }
+
+      // Check if downgrading and validate current usage
+      if (subscription) {
+        const currentPlan = PLANS[subscription.planId?.toUpperCase()];
+        
+        // Check client limit on downgrade
+        if (newPlan.clientLimit !== 'unlimited' && 
+            stats.totalClients > newPlan.clientLimit) {
+          throw new Error(`Cannot downgrade: You have ${stats.totalClients} clients but the ${newPlan.name} plan only allows ${newPlan.clientLimit}`);
+        }
+        
+        // Check volume limit on downgrade
+        if (newPlan.volumeLimit !== 'unlimited' && 
+            stats.businessVolume > newPlan.volumeLimit) {
+          throw new Error(`Cannot downgrade: Your business volume (${formatCurrency(stats.businessVolume)}) exceeds the ${newPlan.name} plan limit (${formatCurrency(newPlan.volumeLimit)})`);
+        }
+      }
+
+      await updateDoc(doc(db, 'subscriptions', currentUser.uid), {
+        plan: newPlan.name,
+        planId: newPlan.id,
+        price: newPlan.price,
+        annualPrice: newPlan.annualPrice,
+        clientLimit: newPlan.clientLimit,
+        volumeLimit: newPlan.volumeLimit,
+        updatedAt: new Date()
+      });
+    } catch (error) {
+      console.error('Error changing plan:', error);
+      throw error;
+    }
+  }
+
+  // Load statistics
+  async function loadStats() {
+    if (!currentUser) return;
+    
+    try {
+      // Get total clients
+      const clientsRef = collection(db, 'consultants', currentUser.uid, 'clients');
+      const clientsSnapshot = await getDocs(
+        query(clientsRef, where('isDeleted', '==', false))
+      );
+      const totalClients = clientsSnapshot.size;
+
+      // Get total deals and volume (placeholder for now)
+      // TODO: Implement when deals module is ready
+      const totalDeals = 0;
+      const businessVolume = 0;
+
+      const newStats = {
+        totalClients,
+        totalDeals,
+        businessVolume
+      };
+
+      setStats(newStats);
+
+      // Update usage in subscription
+      if (subscription) {
+        await updateDoc(doc(db, 'subscriptions', currentUser.uid), {
+          'currentUsage.clients': totalClients,
+          'currentUsage.deals': totalDeals,
+          'currentUsage.volume': businessVolume,
+          updatedAt: new Date()
+        });
+      }
+
+      return newStats;
+    } catch (error) {
+      console.error('Error loading stats:', error);
+      setStats({
+        totalClients: 0,
         totalDeals: 0,
         businessVolume: 0
-    });
-
-    const { currentUser } = useAuth();
-
-    // Create initial subscription (removed clientLimit)
-    async function createSubscription(planData, paymentMethod = 'pending') {
-        if (!currentUser) return null;
-        const subscriptionData = {
-            plan: planData.name,
-            price: planData.price,
-            annualPrice: planData.annualPrice,
-            volumeLimit: planData.volumeLimit,
-            cycle: 'monthly',
-            status: 'active',
-            createdAt: new Date(),
-            nextPayment: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-            lastPayment: {
-                date: new Date(),
-                amount: planData.price,
-                status: 'pending'
-            },
-            paymentMethod,
-            trial: true,
-            trialEnd: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
-        };
-        await setDoc(doc(db, 'subscriptions', currentUser.uid), subscriptionData);
-        return subscriptionData;
+      });
     }
+  }
 
-    async function updatePaymentMethod(paymentMethod) {
-        if (!currentUser) return;
-        await setDoc(doc(db, 'subscriptions', currentUser.uid), {
-            paymentMethod,
-            updatedAt: new Date()
-        }, { merge: true });
-    }
+  // Check if client limit is reached
+  function isClientLimitReached() {
+    if (!subscription || subscription.clientLimit === 'unlimited') return false;
+    return stats.totalClients >= subscription.clientLimit;
+  }
 
-    async function cancelSubscription() {
-        if (!currentUser) return;
-        await setDoc(doc(db, 'subscriptions', currentUser.uid), {
-            status: 'cancelled',
-            cancelledAt: new Date(),
-            updatedAt: new Date()
-        }, { merge: true });
-    }
+  // Check if volume limit is reached
+  function isVolumeLimitReached() {
+    if (!subscription || subscription.volumeLimit === 'unlimited') return false;
+    return stats.businessVolume >= subscription.volumeLimit;
+  }
 
-    async function changeBillingCycle(cycle) {
-        if (!currentUser || !subscription) return;
-        const newPrice = cycle === 'annual' ? subscription.annualPrice : subscription.price;
-        const nextPayment = cycle === 'annual'
-            ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
-            : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-        await setDoc(doc(db, 'subscriptions', currentUser.uid), {
-            cycle,
-            nextPayment,
-            currentPrice: newPrice,
-            updatedAt: new Date()
-        }, { merge: true });
-    }
+  // Check if any limit is reached
+  function isAnyLimitReached() {
+    return isClientLimitReached() || isVolumeLimitReached();
+  }
 
-    async function changePlan(newPlan) {
-        if (!currentUser) return;
-        await setDoc(doc(db, 'subscriptions', currentUser.uid), {
-            plan: newPlan.name,
-            price: newPlan.price,
-            annualPrice: newPlan.annualPrice,
-            volumeLimit: newPlan.volumeLimit,
-            updatedAt: new Date()
-        }, { merge: true });
-    }
+  // Get client usage percentage
+  function getClientUsagePercentage() {
+    if (!subscription || subscription.clientLimit === 'unlimited') return 0;
+    return Math.min(100, (stats.totalClients / subscription.clientLimit) * 100);
+  }
 
-    // Load stats (now just resets / future: fetch deals)
-    async function loadStats() {
-        if (!currentUser) return;
-        try {
-            setStats({
-                totalDeals: 0,
-                businessVolume: 0
-            });
-        } catch {
-            setStats({
-                totalDeals: 0,
-                businessVolume: 0
-            });
+  // Get volume usage percentage
+  function getVolumeUsagePercentage() {
+    if (!subscription || subscription.volumeLimit === 'unlimited') return 0;
+    return Math.min(100, (stats.businessVolume / subscription.volumeLimit) * 100);
+  }
+
+  // Get trial days left
+  function getTrialDaysLeft() {
+    if (!subscription) return 0;
+    return getTrialDaysRemaining(subscription);
+  }
+
+  // Get days until next payment
+  function getDaysUntilNextPayment() {
+    if (!subscription) return null;
+    return getDaysUntilPayment(subscription);
+  }
+
+  // Check if can add client
+  function canAddClient() {
+    if (!subscription) return false;
+    return canPerformOperation(subscription, 'addClient');
+  }
+
+  // Check if can add volume
+  function canAddVolume(amount) {
+    if (!subscription) return false;
+    return canPerformOperation(subscription, 'addVolume', amount);
+  }
+
+  // Update limit warnings
+  useEffect(() => {
+    if (subscription && stats) {
+      const warnings = checkLimits({
+        ...subscription,
+        currentUsage: {
+          clients: stats.totalClients,
+          volume: stats.businessVolume,
+          deals: stats.totalDeals
         }
+      });
+      setLimitWarnings(warnings);
+    }
+  }, [subscription, stats]);
+
+  // Subscribe to subscription changes
+  useEffect(() => {
+    if (!currentUser) {
+      setSubscription(null);
+      setLoading(false);
+      return;
     }
 
-    function isVolumeLimitReached() {
-        if (!subscription || subscription.volumeLimit === 'unlimited') return false;
-        return stats.businessVolume >= subscription.volumeLimit;
-    }
-
-    function isAnyLimitReached() {
-        return isVolumeLimitReached();
-    }
-
-    function getVolumeUsagePercentage() {
-        if (!subscription || subscription.volumeLimit === 'unlimited') return 0;
-        return Math.min(100, (stats.businessVolume / subscription.volumeLimit) * 100);
-    }
-
-    function getTrialDaysLeft() {
-        if (!subscription?.trial || !subscription?.trialEnd) return 0;
-        const today = new Date();
-        const trialEndDate = new Date(subscription.trialEnd);
-        const diffTime = trialEndDate - today;
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        return Math.max(0, diffDays);
-    }
-
-    function getDaysUntilNextPayment() {
-        if (!subscription?.nextPayment) return 0;
-        const today = new Date();
-        const nextPaymentDate = new Date(subscription.nextPayment);
-        const diffTime = nextPaymentDate - today;
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        return Math.max(0, diffDays);
-    }
-
-    function formatCurrency(value) {
-        if (value === 'unlimited') return 'Ilimitado';
-        return new Intl.NumberFormat('pt-PT', {
-            style: 'currency',
-            currency: 'EUR',
-            minimumFractionDigits: 0,
-            maximumFractionDigits: 0,
-        }).format(value);
-    }
-
-    useEffect(() => {
-        if (!currentUser) {
-            setSubscription(null);
-            setLoading(false);
-            return;
+    const unsubscribe = onSnapshot(
+      doc(db, 'subscriptions', currentUser.uid),
+      (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          setSubscription({ 
+            id: docSnap.id, 
+            ...data,
+            // Ensure dates are properly formatted
+            createdAt: data.createdAt?.toDate?.() || data.createdAt,
+            updatedAt: data.updatedAt?.toDate?.() || data.updatedAt,
+            nextPayment: data.nextPayment?.toDate?.() || data.nextPayment,
+            trialEnd: data.trialEnd?.toDate?.() || data.trialEnd
+          });
+        } else {
+          // No subscription found, create trial
+          createSubscription('Professional');
         }
-
-        const unsubscribe = onSnapshot(
-            doc(db, 'subscriptions', currentUser.uid),
-            (docSnap) => {
-                if (docSnap.exists()) {
-                    setSubscription({ id: docSnap.id, ...docSnap.data() });
-                } else {
-                    setSubscription(null);
-                }
-                setLoading(false);
-            },
-            () => {
-                setLoading(false);
-            }
-        );
-
-        loadStats();
-        return unsubscribe;
-    }, [currentUser]);
-
-    const value = {
-        subscription,
-        stats,
-        loading,
-        createSubscription,
-        updatePaymentMethod,
-        cancelSubscription,
-        changeBillingCycle,
-        changePlan,
-        loadStats,
-        isVolumeLimitReached,
-        isAnyLimitReached,
-        getVolumeUsagePercentage,
-        getTrialDaysLeft,
-        getDaysUntilNextPayment,
-        formatCurrency
-    };
-
-    return (
-        <SubscriptionContext.Provider value={value}>
-            {children}
-        </SubscriptionContext.Provider>
+        setLoading(false);
+      },
+      (error) => {
+        console.error('Error fetching subscription:', error);
+        setLoading(false);
+      }
     );
+
+    // Load initial stats
+    loadStats();
+
+    return unsubscribe;
+  }, [currentUser]);
+
+  // Reload stats when subscription changes
+  useEffect(() => {
+    if (subscription) {
+      loadStats();
+    }
+  }, [subscription?.planId]);
+
+  const value = {
+    // State
+    subscription,
+    stats,
+    loading,
+    limitWarnings,
+    
+    // Actions
+    createSubscription,
+    updatePaymentMethod,
+    cancelSubscription,
+    changeBillingCycle,
+    changePlan,
+    loadStats,
+    
+    // Limit checks
+    isClientLimitReached,
+    isVolumeLimitReached,
+    isAnyLimitReached,
+    getClientUsagePercentage,
+    getVolumeUsagePercentage,
+    canAddClient,
+    canAddVolume,
+    
+    // Helpers
+    getTrialDaysLeft,
+    getDaysUntilNextPayment,
+    formatCurrency,
+    
+    // Plan data
+    plans: PLANS,
+    currentPlan: subscription ? PLANS[subscription.planId?.toUpperCase()] : null
+  };
+
+  return (
+    <SubscriptionContext.Provider value={value}>
+      {children}
+    </SubscriptionContext.Provider>
+  );
 }

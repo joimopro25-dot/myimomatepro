@@ -1,58 +1,69 @@
-﻿# Dependencies
-node_modules/
-/.pnp
-.pnp.js
-
-# Production builds
-/dist
-/build
-
-# Environment variables
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-
-# IDE
-.vscode/settings.json
-.idea/
-*.swp
-*.swo
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Logs
+﻿# Logs
+logs
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-# Runtime data
-pids
-*.pid
-*.seed
-*.pid.lock
+node_modules
+dist
+dist-ssr
+*.local
 
-# Coverage directory used by tools like istanbul
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Environment variables - NEVER commit these!
+.env
+.env.local
+.env.production
+.env.development
+
+# Firebase
+.firebase/
+.firebaserc
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+database-debug.log
+pubsub-debug.log
+firebase.json
+firestore.indexes.json
+storage.rules
+
+# Testing
 coverage/
-*.lcov
+.nyc_output
 
-# Temporary folders
-tmp/
-temp/
+# Build files
+build/
+out/
 
-# Optional npm cache directory
-.npm
+# OS files
+.DS_Store
+Thumbs.db
 
-# Optional REPL history
-.node_repl_history
+# IDE files
+*.sublime-project
+*.sublime-workspace
+.vscode/
+*.code-workspace
 
-# Output of 'npm pack'
-*.tgz
+# Temporary files
+*.tmp
+*.temp
+*~
 
-# Yarn Integrity file
-.yarn-integrity
+# Package manager locks (optional - you may want to keep package-lock.json)
+# yarn.lock
+# pnpm-lock.yaml

@@ -1,0 +1,208 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(consultantId) {
+      return isAuthenticated() && request.auth.uid == consultantId;
+    }
+    
+    function hasValidSubscription() {
+      return isAuthenticated() && 
+        exists(/databases/$(database)/documents/subscriptions/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/subscriptions/$(request.auth.uid)).data.status in ['active', 'trial'];
+    }
+    
+    function canAddClient() {
+      let subscription = get(/databases/$(database)/documents/subscriptions/$(request.auth.uid)).data;
+      return subscription.clientLimit == 'unlimited' || 
+             subscription.currentUsage.clients < subscription.clientLimit;
+    }
+    
+    function canAddVolume(amount) {
+      let subscription = get(/databases/$(database)/documents/subscriptions/$(request.auth.uid)).data;
+      return subscription.volumeLimit == 'unlimited' || 
+             (subscription.currentUsage.volume + amount) <= subscription.volumeLimit;
+    }
+    
+    // ===== CONSULTANTS COLLECTION =====
+    // Each consultant can only read/update their own profile
+    match /consultants/{consultantId} {
+      allow read: if isOwner(consultantId);
+      allow create: if isOwner(consultantId);
+      allow update: if isOwner(consultantId) && 
+        // Prevent changing critical fields
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['uid', 'createdAt']);
+      allow delete: if false; // Consultants cannot delete their profiles
+    }
+    
+    // ===== SUBSCRIPTIONS COLLECTION =====
+    // Consultants can read their subscription but only system can modify
+    match /subscriptions/{consultantId} {
+      allow read: if isOwner(consultantId);
+      allow create: if isOwner(consultantId) && 
+        // Only during registration
+        !exists(/databases/$(database)/documents/subscriptions/$(consultantId));
+      allow update: if false; // Only system/admin can update subscriptions
+      allow delete: if false; // Subscriptions cannot be deleted
+    }
+    
+    // ===== CLIENTS COLLECTION (Multi-tenant) =====
+    match /consultants/{consultantId}/clients/{clientId} {
+      allow read: if isOwner(consultantId);
+      allow create: if isOwner(consultantId) && 
+        hasValidSubscription() && 
+        canAddClient() &&
+        // Ensure consultantId is included in the document
+        request.resource.data.consultantId == consultantId;
+      allow update: if isOwner(consultantId) && 
+        // Prevent changing ownership
+        request.resource.data.consultantId == consultantId &&
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['consultantId', 'createdAt']);
+      allow delete: if isOwner(consultantId);
+    }
+    
+    // ===== PROPERTIES COLLECTION (Multi-tenant) =====
+    match /consultants/{consultantId}/properties/{propertyId} {
+      allow read: if isOwner(consultantId);
+      allow create: if isOwner(consultantId) && 
+        hasValidSubscription() &&
+        request.resource.data.consultantId == consultantId;
+      allow update: if isOwner(consultantId) && 
+        request.resource.data.consultantId == consultantId &&
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['consultantId', 'createdAt']);
+      allow delete: if isOwner(consultantId);
+    }
+    
+    // ===== PARTNERS COLLECTION (Multi-tenant) =====
+    match /consultants/{consultantId}/partners/{partnerId} {
+      allow read: if isOwner(consultantId);
+      allow create: if isOwner(consultantId) && 
+        hasValidSubscription() &&
+        request.resource.data.consultantId == consultantId;
+      allow update: if isOwner(consultantId) && 
+        request.resource.data.consultantId == consultantId &&
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['consultantId', 'createdAt']);
+      allow delete: if isOwner(consultantId);
+    }
+    
+    // ===== OPPORTUNITIES COLLECTION (Multi-tenant) =====
+    match /consultants/{consultantId}/opportunities/{opportunityId} {
+      allow read: if isOwner(consultantId);
+      allow create: if isOwner(consultantId) && 
+        hasValidSubscription() &&
+        request.resource.data.consultantId == consultantId;
+      allow update: if isOwner(consultantId) && 
+        request.resource.data.consultantId == consultantId &&
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['consultantId', 'createdAt']);
+      allow delete: if isOwner(consultantId);
+    }
+    
+    // ===== DEALS COLLECTION (Multi-tenant) =====
+    match /consultants/{consultantId}/deals/{dealId} {
+      allow read: if isOwner(consultantId);
+      allow create: if isOwner(consultantId) && 
+        hasValidSubscription() &&
+        // Check volume limit when creating deal
+        canAddVolume(request.resource.data.value) &&
+        request.resource.data.consultantId == consultantId;
+      allow update: if isOwner(consultantId) && 
+        request.resource.data.consultantId == consultantId &&
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['consultantId', 'createdAt']) &&
+        // Check volume limit if value is being increased
+        (request.resource.data.value <= resource.data.value || 
+         canAddVolume(request.resource.data.value - resource.data.value));
+      allow delete: if isOwner(consultantId);
+    }
+    
+    // ===== DOCUMENTS COLLECTION (Multi-tenant) =====
+    match /consultants/{consultantId}/documents/{documentId} {
+      allow read: if isOwner(consultantId);
+      allow create: if isOwner(consultantId) && 
+        hasValidSubscription() &&
+        request.resource.data.consultantId == consultantId &&
+        // Limit file size to 10MB
+        request.resource.data.size <= 10 * 1024 * 1024;
+      allow update: if isOwner(consultantId) && 
+        request.resource.data.consultantId == consultantId;
+      allow delete: if isOwner(consultantId);
+    }
+    
+    // ===== ACTIVITY LOGS COLLECTION =====
+    // Only for reading own activities, system writes
+    match /activity_logs/{logId} {
+      allow read: if isAuthenticated() && 
+        resource.data.uid == request.auth.uid;
+      allow create: if isAuthenticated() && 
+        request.resource.data.uid == request.auth.uid;
+      allow update: if false; // Logs are immutable
+      allow delete: if false; // Logs cannot be deleted
+    }
+    
+    // ===== NOTIFICATIONS COLLECTION =====
+    match /consultants/{consultantId}/notifications/{notificationId} {
+      allow read: if isOwner(consultantId);
+      allow create: if false; // Only system creates notifications
+      allow update: if isOwner(consultantId) && 
+        // Can only mark as read
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read', 'readAt']);
+      allow delete: if isOwner(consultantId);
+    }
+    
+    // ===== SETTINGS COLLECTION =====
+    match /consultants/{consultantId}/settings/{settingId} {
+      allow read: if isOwner(consultantId);
+      allow write: if isOwner(consultantId) &&
+        request.resource.data.consultantId == consultantId;
+    }
+    
+    // ===== DENY ALL OTHER ACCESS =====
+    // This is a catch-all rule to deny any access not explicitly allowed above
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
+
+// ===== STORAGE RULES =====
+// These would go in storage.rules file
+// rules_version = '2';
+// service firebase.storage {
+//   match /b/{bucket}/o {
+//     // Consultant profile images
+//     match /consultants/{consultantId}/profile/{fileName} {
+//       allow read: if request.auth != null;
+//       allow write: if request.auth != null && 
+//         request.auth.uid == consultantId &&
+//         request.resource.size < 5 * 1024 * 1024 && // 5MB limit
+//         request.resource.contentType.matches('image/.*');
+//     }
+    
+//     // Property images
+//     match /consultants/{consultantId}/properties/{propertyId}/{fileName} {
+//       allow read: if request.auth != null;
+//       allow write: if request.auth != null && 
+//         request.auth.uid == consultantId &&
+//         request.resource.size < 10 * 1024 * 1024 && // 10MB limit
+//         request.resource.contentType.matches('image/.*');
+//     }
+    
+//     // Documents
+//     match /consultants/{consultantId}/documents/{documentId}/{fileName} {
+//       allow read: if request.auth != null && 
+//         request.auth.uid == consultantId;
+//       allow write: if request.auth != null && 
+//         request.auth.uid == consultantId &&
+//         request.resource.size < 10 * 1024 * 1024; // 10MB limit
+//     }
+    
+//     // Deny all other access
+//     match /{allPaths=**} {
+//       allow read, write: if false;
+//     }
+//   }
+// }
