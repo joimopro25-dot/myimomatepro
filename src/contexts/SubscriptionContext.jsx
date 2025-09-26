@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { doc, setDoc, getDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { useAuth } from './AuthContext';
+import { getClientStats } from '../services/clientService';
 
 const SubscriptionContext = createContext();
 
@@ -13,35 +14,35 @@ export function SubscriptionProvider({ children }) {
     const [subscription, setSubscription] = useState(null);
     const [loading, setLoading] = useState(true);
     const [stats, setStats] = useState({
-        totalClients: 0,      // Changed from 'totalClientes'
-        totalDeals: 0,        // Changed from 'totalNegocios'
-        businessVolume: 0     // Changed from 'valorNegocios'
+        totalClients: 0,
+        totalDeals: 0,
+        businessVolume: 0
     });
 
     const { currentUser } = useAuth();
 
-    // Create subscription
+    // Create initial subscription
     async function createSubscription(planData, paymentMethod = 'pending') {
         if (!currentUser) return;
 
         const subscriptionData = {
-            plan: planData.name,
-            price: planData.price,
-            annualPrice: planData.annualPrice,
-            clientLimit: planData.clientLimit,
-            volumeLimit: planData.volumeLimit,
-            cycle: 'monthly',                  // Changed from 'mensal'
-            status: 'active',
-            createdAt: new Date(),
-            nextPayment: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-            lastPayment: {
-                date: new Date(),
-                amount: planData.price,
+            plan: planData.name,                // Changed from plano and nome
+            price: planData.price,              // Changed from preco
+            annualPrice: planData.annualPrice,  // Changed from precoAnual
+            clientLimit: planData.clientLimit,  // Changed from limiteClientes
+            volumeLimit: planData.volumeLimit,  // Changed from limiteVolumeNegocios
+            cycle: 'monthly',                    // Changed from 'mensal', // monthly or annual
+            status: 'active',                    // active, cancelled, expired
+            createdAt: new Date(),              // Changed from criadoEm
+            nextPayment: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // Changed from proximoPagamento, +30 days
+            lastPayment: {                      // Changed from ultimoPagamento
+                date: new Date(),                // Changed from data
+                amount: planData.price,          // Changed from valor
                 status: 'pending'
             },
-            paymentMethod: paymentMethod,
+            paymentMethod: paymentMethod,       // Changed from metodoPagamento
             trial: true,
-            trialEnd: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
+            trialEnd: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000) // Changed from trialFim, +14 days trial
         };
 
         await setDoc(doc(db, 'subscriptions', currentUser.uid), subscriptionData);
@@ -49,11 +50,11 @@ export function SubscriptionProvider({ children }) {
     }
 
     // Update payment method
-    async function updatePaymentMethod(paymentMethod) {
+    async function updatePaymentMethod(paymentMethod) {  // Changed parameter from metodoPagamento
         if (!currentUser) return;
 
         await setDoc(doc(db, 'subscriptions', currentUser.uid), {
-            paymentMethod,
+            paymentMethod,  // Changed from metodoPagamento
             updatedAt: new Date()
         }, { merge: true });
     }
@@ -64,38 +65,38 @@ export function SubscriptionProvider({ children }) {
 
         await setDoc(doc(db, 'subscriptions', currentUser.uid), {
             status: 'cancelled',
-            cancelledAt: new Date(),           // Changed from 'canceladoEm'
+            cancelledAt: new Date(),  // Changed from canceladoEm
             updatedAt: new Date()
         }, { merge: true });
     }
 
     // Change billing cycle
-    async function changeBillingCycle(cycle) {
+    async function changeBillingCycle(cycle) {  // Changed parameter from ciclo
         if (!currentUser || !subscription) return;
 
-        const newPrice = cycle === 'annual' ? subscription.annualPrice : subscription.price;
-        const nextPayment = cycle === 'annual'
+        const newPrice = cycle === 'annual' ? subscription.annualPrice : subscription.price;  // Changed from novoPreco, 'anual', precoAnual, preco
+        const nextPayment = cycle === 'annual'  // Changed from proximoPagamento
             ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
             : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
         await setDoc(doc(db, 'subscriptions', currentUser.uid), {
-            cycle,
-            nextPayment,
-            currentPrice: newPrice,
+            cycle,  // Changed from ciclo
+            nextPayment,  // Changed from proximoPagamento
+            currentPrice: newPrice,  // Changed from precoAtual
             updatedAt: new Date()
         }, { merge: true });
     }
 
     // Upgrade/Downgrade plan
-    async function changePlan(newPlan) {
+    async function changePlan(newPlan) {  // Changed parameter from novoPlano
         if (!currentUser) return;
 
         await setDoc(doc(db, 'subscriptions', currentUser.uid), {
-            plan: newPlan.name,
-            price: newPlan.price,
-            annualPrice: newPlan.annualPrice,
-            clientLimit: newPlan.clientLimit,
-            volumeLimit: newPlan.volumeLimit,
+            plan: newPlan.name,                  // Changed from plano and nome
+            price: newPlan.price,                // Changed from preco
+            annualPrice: newPlan.annualPrice,    // Changed from precoAnual
+            clientLimit: newPlan.clientLimit,    // Changed from limiteClientes
+            volumeLimit: newPlan.volumeLimit,    // Changed from limiteVolumeNegocios
             updatedAt: new Date()
         }, { merge: true });
     }
@@ -105,73 +106,85 @@ export function SubscriptionProvider({ children }) {
         if (!currentUser) return;
 
         try {
-            // For now, using default values
-            // When implementing new modules, we'll fetch from Firestore
+            console.log('📊 SubscriptionContext: Loading real statistics...');  // Changed from 'Carregando estatísticas reais...'
+
+            // ✅ FETCH REAL STATISTICS FROM FIRESTORE
+            const clientStats = await getClientStats(currentUser.uid);
+
             setStats({
-                totalClients: 0,
-                totalDeals: 0,
-                businessVolume: 0
+                totalClients: clientStats.total || 0,  // Changed from totalClientes
+                totalDeals: 0,                         // Changed from totalNegocios, TODO: Implement when we have deals
+                businessVolume: 0                      // Changed from valorNegocios, TODO: Implement when we have deals
             });
 
+            console.log('✅ SubscriptionContext: Statistics loaded:',  // Changed from 'Estatísticas carregadas:'
+                {
+                    totalClients: clientStats.total || 0  // Changed from totalClientes
+                });
+
         } catch (error) {
-            console.error('Error loading statistics:', error);
+            console.error('❌ SubscriptionContext: Error loading statistics:', error);  // Changed from 'Erro ao carregar estatísticas:'
+            // In case of error, keep values at zero
             setStats({
-                totalClients: 0,
-                totalDeals: 0,
-                businessVolume: 0
+                totalClients: 0,    // Changed from totalClientes
+                totalDeals: 0,      // Changed from totalNegocios
+                businessVolume: 0   // Changed from valorNegocios
             });
         }
     }
 
-    // Check if client limit reached
+    // Check if client limit is reached
     function isClientLimitReached() {
-        if (!subscription || subscription.clientLimit === 'unlimited') return false;
-        return stats.totalClients >= subscription.clientLimit;
+        if (!subscription || subscription.clientLimit === 'unlimited') return false;  // Changed from limiteClientes
+        return stats.totalClients >= subscription.clientLimit;  // Changed from totalClientes and limiteClientes
     }
 
-    // Check if volume limit reached
+    // Check if business volume limit is reached
     function isVolumeLimitReached() {
-        if (!subscription || subscription.volumeLimit === 'unlimited') return false;
-        return stats.businessVolume >= subscription.volumeLimit;
+        if (!subscription || subscription.volumeLimit === 'unlimited') return false;  // Changed from limiteVolumeNegocios
+        return stats.businessVolume >= subscription.volumeLimit;  // Changed from valorNegocios and limiteVolumeNegocios
     }
 
-    // Check if any limit reached
+    // Check if any limit is reached
     function isAnyLimitReached() {
         return isClientLimitReached() || isVolumeLimitReached();
     }
 
-    // Get client usage percentage
+    // Client usage percentage
     function getClientUsagePercentage() {
-        if (!subscription || subscription.clientLimit === 'unlimited') return 0;
-        return Math.round((stats.totalClients / subscription.clientLimit) * 100);
+        if (!subscription || subscription.clientLimit === 'unlimited') return 0;  // Changed from limiteClientes
+        return Math.min(100, (stats.totalClients / subscription.clientLimit) * 100);  // Changed from totalClientes and limiteClientes
     }
 
-    // Get volume usage percentage
+    // Volume usage percentage
     function getVolumeUsagePercentage() {
-        if (!subscription || subscription.volumeLimit === 'unlimited') return 0;
-        return Math.round((stats.businessVolume / subscription.volumeLimit) * 100);
+        if (!subscription || subscription.volumeLimit === 'unlimited') return 0;  // Changed from limiteVolumeNegocios
+        return Math.min(100, (stats.businessVolume / subscription.volumeLimit) * 100);  // Changed from valorNegocios and limiteVolumeNegocios
     }
 
-    // Get trial days left
+    // Trial days remaining
     function getTrialDaysLeft() {
-        if (!subscription || !subscription.trial) return 0;
-        const today = new Date();
-        const trialEnd = new Date(subscription.trialEnd);
-        const daysLeft = Math.ceil((trialEnd - today) / (1000 * 60 * 60 * 24));
-        return daysLeft > 0 ? daysLeft : 0;
+        if (!subscription?.trial || !subscription?.trialEnd) return 0;  // Changed from trialFim
+        const today = new Date();  // Changed from hoje
+        const trialEndDate = new Date(subscription.trialEnd);  // Changed from fimTrial and trialFim
+        const diffTime = trialEndDate - today;
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        return Math.max(0, diffDays);
     }
 
-    // Get days until next payment
+    // Days until next payment
     function getDaysUntilNextPayment() {
-        if (!subscription) return 0;
-        const today = new Date();
-        const nextPayment = new Date(subscription.nextPayment);
-        return Math.ceil((nextPayment - today) / (1000 * 60 * 60 * 24));
+        if (!subscription?.nextPayment) return 0;  // Changed from proximoPagamento
+        const today = new Date();  // Changed from hoje
+        const nextPaymentDate = new Date(subscription.nextPayment);  // Changed from proximoPagamento
+        const diffTime = nextPaymentDate - today;
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        return Math.max(0, diffDays);
     }
 
-    // Format currency values
+    // Currency formatting
     function formatCurrency(value) {
-        if (value === 'unlimited') return 'Unlimited';
+        if (value === 'unlimited') return 'Ilimitado';  // Keep Portuguese for user display
         return new Intl.NumberFormat('pt-PT', {
             style: 'currency',
             currency: 'EUR',
@@ -198,7 +211,7 @@ export function SubscriptionProvider({ children }) {
                 setLoading(false);
             },
             (error) => {
-                console.error('Error loading subscription:', error);
+                console.error('Error loading subscription:', error);  // Changed from 'Erro ao carregar subscrição:'
                 setLoading(false);
             }
         );

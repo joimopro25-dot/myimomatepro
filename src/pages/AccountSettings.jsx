@@ -1,7 +1,7 @@
 /**
  * ACCOUNT SETTINGS PAGE - MyImoMatePro
- * Página de configurações da conta com layout unificado
- * MODIFICAÇÃO: Integrado com Layout component e Sidebar
+ * Account settings page with unified layout
+ * MODIFICATION: Integrated with Layout component and Sidebar
  */
 
 import React, { useState } from 'react';
@@ -21,26 +21,26 @@ import {
     CurrencyEuroIcon
 } from '@heroicons/react/24/outline';
 
-const planos = [
+const plans = [
     {
-        nome: 'Rookie',
-        preco: '5',
-        precoAnual: '50',
-        limiteClientes: 50,
+        name: 'Rookie',
+        price: 5,
+        annualPrice: 50,
+        clientLimit: 50,
         features: ['Até 50 clientes', 'Gestão básica de leads', '3 tipos de oportunidades', 'Relatórios básicos', 'Suporte por email']
     },
     {
-        nome: 'Professional',
-        preco: '9',
-        precoAnual: '90',
-        limiteClientes: 200,
+        name: 'Professional',
+        price: 9,
+        annualPrice: 90,
+        clientLimit: 200,
         features: ['Até 200 clientes', 'Todos os tipos de oportunidades', 'Deals plenos', 'Automações avançadas', 'Relatórios completos', 'Suporte prioritário']
     },
     {
-        nome: 'Shark',
-        preco: '25',
-        precoAnual: '250',
-        limiteClientes: 'unlimited',
+        name: 'Shark',
+        price: 25,
+        annualPrice: 250,
+        clientLimit: 'unlimited',
         features: ['Clientes ilimitados', 'Tudo do Professional', 'Multi-utilizador', 'API personalizada', 'Suporte dedicado', 'Formação personalizada']
     }
 ];
@@ -71,29 +71,29 @@ export default function AccountSettings() {
             await cancelSubscription();
             setShowCancelModal(false);
         } catch (error) {
-            console.error('Erro ao cancelar subscrição:', error);
+            console.error('Error cancelling subscription:', error);
         } finally {
             setLoading(false);
         }
     };
 
-    const handleChangeBillingCycle = async (ciclo) => {
+    const handleChangeBillingCycle = async (cycle) => {
         setLoading(true);
         try {
-            await changeBillingCycle(ciclo);
+            await changeBillingCycle(cycle);
         } catch (error) {
-            console.error('Erro ao alterar ciclo:', error);
+            console.error('Error changing cycle:', error);
         } finally {
             setLoading(false);
         }
     };
 
-    const handleChangePlan = async (plano) => {
+    const handleChangePlan = async (plan) => {
         setLoading(true);
         try {
-            await changePlan(plano);
+            await changePlan(plan);
         } catch (error) {
-            console.error('Erro ao alterar plano:', error);
+            console.error('Error changing plan:', error);
         } finally {
             setLoading(false);
         }
@@ -125,9 +125,9 @@ export default function AccountSettings() {
                     <p className="text-gray-600">Gerir o seu plano e configurações de pagamento</p>
                 </div>
 
-                {/* Estatísticas e Limites */}
+                {/* Statistics and Limits */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                    {/* Clientes */}
+                    {/* Clients */}
                     <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
                         <div className="flex items-center justify-between mb-4">
                             <div className="flex items-center">
@@ -135,15 +135,15 @@ export default function AccountSettings() {
                                     <UsersIcon className="w-6 h-6 text-white" />
                                 </div>
                                 <div className="ml-4">
-                                    <p className="text-2xl font-bold text-gray-900">{stats.totalClientes}</p>
+                                    <p className="text-2xl font-bold text-gray-900">{stats.totalClients}</p>
                                     <p className="text-sm text-gray-500">
-                                        {subscription.limiteClientes === 'unlimited' ? 'Clientes' : `de ${subscription.limiteClientes} clientes`}
+                                        {subscription.clientLimit === 'unlimited' ? 'Clientes' : `de ${subscription.clientLimit} clientes`}
                                     </p>
                                 </div>
                             </div>
                         </div>
 
-                        {subscription.limiteClientes !== 'unlimited' && (
+                        {subscription.clientLimit !== 'unlimited' && (
                             <div className="w-full bg-gray-200 rounded-full h-2">
                                 <div
                                     className={`h-2 rounded-full transition-all duration-300 ${getClientUsagePercentage() > 90 ? 'bg-red-500' :
@@ -155,7 +155,7 @@ export default function AccountSettings() {
                         )}
                     </div>
 
-                    {/* Negócios */}
+                    {/* Deals */}
                     <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
                         <div className="flex items-center justify-between mb-4">
                             <div className="flex items-center">
@@ -163,14 +163,14 @@ export default function AccountSettings() {
                                     <BriefcaseIcon className="w-6 h-6 text-white" />
                                 </div>
                                 <div className="ml-4">
-                                    <p className="text-2xl font-bold text-gray-900">{stats.totalNegocios}</p>
+                                    <p className="text-2xl font-bold text-gray-900">{stats.totalDeals}</p>
                                     <p className="text-sm text-gray-500">Negócios</p>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    {/* Volume de Negócios */}
+                    {/* Business Volume */}
                     <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
                         <div className="flex items-center justify-between mb-4">
                             <div className="flex items-center">
@@ -178,15 +178,15 @@ export default function AccountSettings() {
                                     <CurrencyEuroIcon className="w-6 h-6 text-white" />
                                 </div>
                                 <div className="ml-4">
-                                    <p className="text-2xl font-bold text-gray-900">€{stats.valorNegocios.toLocaleString()}</p>
+                                    <p className="text-2xl font-bold text-gray-900">€{stats.businessVolume.toLocaleString()}</p>
                                     <p className="text-sm text-gray-500">
-                                        {subscription.limiteVolumeNegocios === 'unlimited' ? 'Volume' : `de ${formatCurrency(subscription.limiteVolumeNegocios)}`}
+                                        {subscription.volumeLimit === 'unlimited' ? 'Volume' : `de ${formatCurrency(subscription.volumeLimit)}`}
                                     </p>
                                 </div>
                             </div>
                         </div>
 
-                        {subscription.limiteVolumeNegocios !== 'unlimited' && (
+                        {subscription.volumeLimit !== 'unlimited' && (
                             <div className="w-full bg-gray-200 rounded-full h-2">
                                 <div
                                     className={`h-2 rounded-full transition-all duration-300 ${getVolumeUsagePercentage() > 90 ? 'bg-red-500' :
@@ -199,7 +199,7 @@ export default function AccountSettings() {
                     </div>
                 </div>
 
-                {/* Alertas Trial e Limites */}
+                {/* Trial and Limit Alerts */}
                 {(isTrialActive || trialDaysLeft < 0) && (
                     <div className={`mb-8 p-4 rounded-lg border ${isTrialActive ? 'bg-blue-50 border-blue-200' : 'bg-red-50 border-red-200'}`}>
                         <div className="flex items-center">
@@ -220,38 +220,39 @@ export default function AccountSettings() {
                 )}
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                    {/* Detalhes da Subscrição */}
+                    {/* Subscription Details */}
                     <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
                         <h2 className="text-xl font-semibold text-gray-900 mb-6">Detalhes da Subscrição</h2>
 
                         <div className="space-y-4">
                             <div className="flex justify-between">
                                 <span className="text-gray-600">Plano Atual</span>
-                                <span className="font-medium text-gray-900">{subscription.plano}</span>
+                                <span className="font-medium text-gray-900">{subscription.plan}</span>
                             </div>
 
                             <div className="flex justify-between">
                                 <span className="text-gray-600">Preço</span>
                                 <span className="font-medium text-gray-900">
-                                    €{subscription.preco}/{subscription.ciclo === 'mensal' ? 'mês' : 'ano'}
+                                    €{subscription.price}/{subscription.cycle === 'monthly' ? 'mês' : 'ano'}
                                 </span>
                             </div>
 
                             <div className="flex justify-between">
                                 <span className="text-gray-600">Próximo Pagamento</span>
                                 <span className="font-medium text-gray-900">
-                                    {new Date(subscription.proximoPagamento.toDate()).toLocaleDateString()}
+                                    {new Date(subscription.nextPayment.toDate()).toLocaleDateString()}
                                 </span>
                             </div>
 
                             <div className="flex justify-between">
                                 <span className="text-gray-600">Status</span>
-                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${subscription.status === 'ativo' ? 'bg-green-100 text-green-800' :
-                                        subscription.status === 'trial' ? 'bg-blue-100 text-blue-800' :
-                                            'bg-red-100 text-red-800'
-                                    }`}>
-                                    {subscription.status === 'ativo' ? 'Ativo' :
-                                        subscription.status === 'trial' ? 'Trial' : 'Inativo'}
+                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                    subscription.status === 'active' ? 'bg-green-100 text-green-800' :
+                                    subscription.status === 'trial' ? 'bg-blue-100 text-blue-800' :
+                                    'bg-red-100 text-red-800'
+                                }`}>
+                                    {subscription.status === 'active' ? 'Ativo' :
+                                     subscription.status === 'trial' ? 'Trial' : 'Inativo'}
                                 </span>
                             </div>
                         </div>
@@ -260,35 +261,37 @@ export default function AccountSettings() {
                             <h3 className="font-medium text-gray-900 mb-3">Opções de Faturação</h3>
                             <div className="space-y-2">
                                 <button
-                                    onClick={() => handleChangeBillingCycle('mensal')}
-                                    disabled={loading || subscription.ciclo === 'mensal'}
-                                    className={`w-full text-left p-3 rounded-lg border transition-colors ${subscription.ciclo === 'mensal'
+                                    onClick={() => handleChangeBillingCycle('monthly')}
+                                    disabled={loading || subscription.cycle === 'monthly'}
+                                    className={`w-full text-left p-3 rounded-lg border transition-colors ${
+                                        subscription.cycle === 'monthly'
                                             ? 'border-blue-500 bg-blue-50'
                                             : 'border-gray-200 hover:border-gray-300'
-                                        }`}
+                                    }`}
                                 >
                                     <div className="flex justify-between items-center">
                                         <span>Faturação Mensal</span>
-                                        {subscription.ciclo === 'mensal' && (
+                                        {subscription.cycle === 'monthly' && (
                                             <CheckCircleIcon className="w-5 h-5 text-blue-600" />
                                         )}
                                     </div>
                                 </button>
 
                                 <button
-                                    onClick={() => handleChangeBillingCycle('anual')}
-                                    disabled={loading || subscription.ciclo === 'anual'}
-                                    className={`w-full text-left p-3 rounded-lg border transition-colors ${subscription.ciclo === 'anual'
+                                    onClick={() => handleChangeBillingCycle('annual')}
+                                    disabled={loading || subscription.cycle === 'annual'}
+                                    className={`w-full text-left p-3 rounded-lg border transition-colors ${
+                                        subscription.cycle === 'annual'
                                             ? 'border-blue-500 bg-blue-50'
                                             : 'border-gray-200 hover:border-gray-300'
-                                        }`}
+                                    }`}
                                 >
                                     <div className="flex justify-between items-center">
                                         <span>Faturação Anual</span>
                                         <span className="text-sm text-green-600 font-medium">
                                             2 meses grátis
                                         </span>
-                                        {subscription.ciclo === 'anual' && (
+                                        {subscription.cycle === 'annual' && (
                                             <CheckCircleIcon className="w-5 h-5 text-blue-600" />
                                         )}
                                     </div>
@@ -297,32 +300,33 @@ export default function AccountSettings() {
                         </div>
                     </div>
 
-                    {/* Mudança de Plano */}
+                    {/* Change Plan */}
                     <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
                         <h2 className="text-xl font-semibold text-gray-900 mb-6">Planos Disponíveis</h2>
 
                         <div className="space-y-4">
-                            {planos.map((plano) => (
+                            {plans.map((plan) => (
                                 <div
-                                    key={plano.nome}
-                                    className={`p-4 rounded-lg border transition-colors ${subscription.plano === plano.nome
+                                    key={plan.name}
+                                    className={`p-4 rounded-lg border transition-colors ${
+                                        subscription.plan === plan.name
                                             ? 'border-blue-500 bg-blue-50'
                                             : 'border-gray-200 hover:border-gray-300'
-                                        }`}
+                                    }`}
                                 >
                                     <div className="flex justify-between items-start mb-3">
                                         <div>
-                                            <h3 className="font-semibold text-gray-900">{plano.nome}</h3>
+                                            <h3 className="font-semibold text-gray-900">{plan.name}</h3>
                                             <p className="text-sm text-gray-600">
-                                                €{subscription.ciclo === 'anual' ? plano.precoAnual : plano.preco}
-                                                /{subscription.ciclo === 'anual' ? 'ano' : 'mês'}
+                                                €{subscription.cycle === 'annual' ? plan.annualPrice : plan.price}
+                                                /{subscription.cycle === 'annual' ? 'ano' : 'mês'}
                                             </p>
                                         </div>
-                                        {subscription.plano === plano.nome ? (
+                                        {subscription.plan === plan.name ? (
                                             <CheckCircleIcon className="w-5 h-5 text-blue-600" />
                                         ) : (
                                             <button
-                                                onClick={() => handleChangePlan(plano.nome)}
+                                                onClick={() => handleChangePlan(plan)}
                                                 disabled={loading}
                                                 className="px-3 py-1 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
                                             >
@@ -332,7 +336,7 @@ export default function AccountSettings() {
                                     </div>
 
                                     <ul className="text-xs text-gray-600 space-y-1">
-                                        {plano.features.map((feature, index) => (
+                                        {plan.features.map((feature, index) => (
                                             <li key={index} className="flex items-center">
                                                 <CheckCircleIcon className="w-3 h-3 text-green-500 mr-2 flex-shrink-0" />
                                                 {feature}
@@ -345,7 +349,7 @@ export default function AccountSettings() {
                     </div>
                 </div>
 
-                {/* Gestão de Pagamento */}
+                {/* Payment Management */}
                 <div className="mt-8 bg-white rounded-xl p-6 shadow-sm border border-gray-100">
                     <h2 className="text-xl font-semibold text-gray-900 mb-6">Gestão de Pagamento</h2>
 
@@ -368,7 +372,7 @@ export default function AccountSettings() {
                     </div>
                 </div>
 
-                {/* Modal Cancelar Subscrição */}
+                {/* Cancel Subscription Modal */}
                 {showCancelModal && (
                     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
                         <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4">
@@ -396,7 +400,7 @@ export default function AccountSettings() {
                     </div>
                 )}
 
-                {/* Modal Método de Pagamento */}
+                {/* Payment Method Modal */}
                 {showPaymentModal && (
                     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
                         <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4">

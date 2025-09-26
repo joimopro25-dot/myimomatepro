@@ -1,7 +1,7 @@
 /**
  * DASHBOARD PAGE - MyImoMatePro
- * Página principal do dashboard com layout unificado
- * MODIFICAÇÃO: Integrado com Layout component e Sidebar
+ * Main dashboard page with unified layout
+ * MODIFICATION: Integrated with Layout component and Sidebar
  */
 
 import React from 'react';
@@ -36,36 +36,36 @@ export default function Dashboard() {
     const isTrialActive = subscription?.trial && trialDaysLeft > 0;
     const limitReached = isAnyLimitReached();
 
-    // Estatísticas para os cards
+    // Statistics for cards
     const dashboardStats = [
         {
             name: 'Total Clientes',
-            value: stats?.totalClientes || 0,
+            value: stats?.totalClients || 0,  // Changed from totalClientes
             change: '+12%',
             changeType: 'positive',
             icon: UsersIcon,
             color: 'blue',
-            limit: subscription?.limiteClientes,
+            limit: subscription?.clientLimit,  // Changed from limiteClientes
             percentage: getClientUsagePercentage(),
             href: '/clients'
         },
         {
             name: 'Oportunidades',
-            value: stats?.totalNegocios || 0,
+            value: stats?.totalDeals || 0,  // Changed from totalNegocios
             change: '+5%',
             changeType: 'positive',
             icon: BriefcaseIcon,
             color: 'green',
-            href: '/clients' // Quando implementarmos oportunidades, mudar para /opportunities
+            href: '/clients' // When we implement opportunities, change to /opportunities
         },
         {
             name: 'Volume de Negócios',
-            value: `€${(stats?.valorNegocios || 0).toLocaleString()}`,
+            value: `€${(stats?.businessVolume || 0).toLocaleString()}`,  // Changed from valorNegocios
             change: '+18%',
             changeType: 'positive',
             icon: CurrencyEuroIcon,
             color: 'purple',
-            limit: subscription?.limiteVolumeNegocios,
+            limit: subscription?.volumeLimit,  // Changed from limiteVolumeNegocios
             percentage: getVolumeUsagePercentage()
         },
         {
@@ -101,7 +101,7 @@ export default function Dashboard() {
                     </p>
                 </div>
 
-                {/* Alertas */}
+                {/* Alerts */}
                 {isTrialActive && (
                     <div className="mb-6 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4">
                         <div className="flex items-center">
@@ -140,7 +140,7 @@ export default function Dashboard() {
                     </div>
                 )}
 
-                {/* Estatísticas Principais */}
+                {/* Main Statistics */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                     {dashboardStats.map((stat) => {
                         const Icon = stat.icon;
@@ -153,8 +153,9 @@ export default function Dashboard() {
                             <CardComponent
                                 key={stat.name}
                                 {...cardProps}
-                                className={`bg-white rounded-xl p-6 shadow-sm border border-gray-100 ${isClickable ? 'hover:shadow-lg hover:scale-105 cursor-pointer' : ''
-                                    } transition-all duration-200`}
+                                className={`bg-white rounded-xl p-6 shadow-sm border border-gray-100 ${
+                                    isClickable ? 'hover:shadow-lg hover:scale-105 cursor-pointer' : ''
+                                } transition-all duration-200`}
                             >
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center">
@@ -168,7 +169,7 @@ export default function Dashboard() {
                                     </div>
                                 </div>
 
-                                {/* Barra de progresso para limites */}
+                                {/* Progress bar for limits */}
                                 {stat.limit && stat.limit !== 'unlimited' && stat.percentage !== undefined && (
                                     <div className="mt-4">
                                         <div className="flex justify-between text-xs text-gray-500 mb-1">
@@ -184,11 +185,12 @@ export default function Dashboard() {
                                     </div>
                                 )}
 
-                                {/* Indicador de mudança */}
+                                {/* Change indicator */}
                                 {stat.change && (
                                     <div className="mt-2 flex items-center">
-                                        <span className={`text-sm font-medium ${stat.changeType === 'positive' ? 'text-green-600' : 'text-red-600'
-                                            }`}>
+                                        <span className={`text-sm font-medium ${
+                                            stat.changeType === 'positive' ? 'text-green-600' : 'text-red-600'
+                                        }`}>
                                             {stat.change}
                                         </span>
                                         <span className="text-xs text-gray-500 ml-1">vs mês anterior</span>
@@ -199,7 +201,7 @@ export default function Dashboard() {
                     })}
                 </div>
 
-                {/* Ações Rápidas */}
+                {/* Quick Actions */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
                     {/* Getting Started */}
                     <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl p-6 text-white">
@@ -238,7 +240,7 @@ export default function Dashboard() {
                         </Link>
                     </div>
 
-                    {/* Atividade Recente */}
+                    {/* Recent Activity */}
                     <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
                         <h2 className="text-xl font-semibold text-gray-900 mb-4">Atividade Recente</h2>
 
@@ -257,7 +259,7 @@ export default function Dashboard() {
                                 </div>
                             </div>
 
-                            {stats?.totalClientes === 0 && (
+                            {stats?.totalClients === 0 && (  // Changed from totalClientes
                                 <div className="text-center py-4">
                                     <p className="text-sm text-gray-500 mb-3">
                                         Adicione o seu primeiro cliente para começar a ver atividade aqui
@@ -275,7 +277,7 @@ export default function Dashboard() {
                     </div>
                 </div>
 
-                {/* Ações Rápidas - Links */}
+                {/* Quick Actions - Links */}
                 <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
                     <h2 className="text-xl font-semibold text-gray-900 mb-4">Ações Rápidas</h2>
 
