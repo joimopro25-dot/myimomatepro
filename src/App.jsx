@@ -2,6 +2,7 @@
  * APP COMPONENT - RealEstateCRM Pro
  * Main application component with all providers and routing
  * Multi-tenant CRM with complete error handling and i18n
+ * Updated with Client Module
  */
 
 import React from 'react';
@@ -14,6 +15,7 @@ import { SubscriptionProvider } from './contexts/SubscriptionContext';
 import { LanguageProvider } from './contexts/LanguageContext';
 import { LoadingProvider } from './contexts/LoadingContext';
 import { ToastProvider, useToast } from './contexts/ToastContext';
+import { ClientProvider } from './contexts/ClientContext';
 
 // Components
 import ErrorBoundary from './components/ErrorBoundary';
@@ -26,6 +28,11 @@ import ForgotPassword from './pages/auth/ForgotPassword';
 // Pages - Protected
 import Dashboard from './pages/Dashboard';
 import AccountSettings from './pages/AccountSettings';
+
+// Client Pages - Import them
+import { ClientList } from './pages/clients/ClientList';
+import { ClientForm } from './pages/clients/ClientForm';
+import { ClientDetail } from './pages/clients/ClientDetail';
 
 // Styles
 import './index.css';
@@ -169,8 +176,7 @@ function AppRoutes() {
           </ProtectedRoute>
         } />
 
-        {/* ===== CLIENT ROUTES (PHASE 2) ===== */}
-        {/* 
+        {/* ===== CLIENT ROUTES (PHASE 2) - ACTIVATED ===== */}
         <Route path="/clients" element={
           <ProtectedRoute>
             <EmailVerificationCheck>
@@ -187,7 +193,7 @@ function AppRoutes() {
           </ProtectedRoute>
         } />
 
-        <Route path="/clients/:clientId" element={
+        <Route path="/clients/:id" element={
           <ProtectedRoute>
             <EmailVerificationCheck>
               <ClientDetail />
@@ -195,14 +201,13 @@ function AppRoutes() {
           </ProtectedRoute>
         } />
 
-        <Route path="/clients/:clientId/edit" element={
+        <Route path="/clients/:id/edit" element={
           <ProtectedRoute>
             <EmailVerificationCheck>
               <ClientForm />
             </EmailVerificationCheck>
           </ProtectedRoute>
         } />
-        */}
 
         {/* ===== PROPERTY ROUTES (PHASE 3) ===== */}
         {/* 
@@ -284,6 +289,7 @@ function AppRoutes() {
 /**
  * Main App Component
  * Wraps the application with all necessary providers
+ * Now includes ClientProvider for client management
  */
 function App() {
   return (
@@ -293,7 +299,9 @@ function App() {
           <LoadingProvider>
             <AuthProvider>
               <SubscriptionProvider>
-                <AppRoutes />
+                <ClientProvider>
+                  <AppRoutes />
+                </ClientProvider>
               </SubscriptionProvider>
             </AuthProvider>
           </LoadingProvider>

@@ -1,252 +1,311 @@
 /**
- * DASHBOARD PAGE - MyImoMatePro
- * Main dashboard page with unified layout
- * MODIFICATION: Integrated with Layout component and Sidebar
+ * DASHBOARD - RealEstateCRM Pro
+ * Main dashboard with client module integration
  */
 
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import {
+  HomeIcon,
+  UserGroupIcon,
+  BuildingOfficeIcon,
+  CurrencyEuroIcon,
+  ChartBarIcon,
+  CogIcon,
+  ArrowRightOnRectangleIcon,
+  UserCircleIcon,
+  PlusIcon,
+  CalendarIcon,
+  ClockIcon
+} from '@heroicons/react/24/outline';
 import { useAuth } from '../contexts/AuthContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
-import Layout from '../components/Layout';
-import {
-    ChartBarIcon,
-    BriefcaseIcon,
-    CurrencyEuroIcon,
-    ArrowTrendingUpIcon,
-    ExclamationTriangleIcon,
-    CheckCircleIcon,
-    ClockIcon
-} from '@heroicons/react/24/outline';
 
 export default function Dashboard() {
-    const { currentUser } = useAuth();
-    const {
-        subscription,
-        stats,
-        getTrialDaysLeft,
-        isAnyLimitReached,
-        getVolumeUsagePercentage,
-        isVolumeLimitReached // kept if you will later show volume limit warnings
-    } = useSubscription();
+  const navigate = useNavigate();
+  const { currentUser, userProfile, logout } = useAuth();
+  const { subscription } = useSubscription();
 
-    const trialDaysLeft = getTrialDaysLeft();
-    const isTrialActive = subscription?.trial && trialDaysLeft > 0;
-    const limitReached = isAnyLimitReached();
+  const handleLogout = async () => {
+    try {
+      await logout();
+      navigate('/');
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+  };
 
-    // Updated stats (removed clients)
-    const dashboardStats = [
-        {
-            name: 'Oportunidades',
-            value: stats?.totalDeals || 0,
-            change: '+5%',
-            changeType: 'positive',
-            icon: BriefcaseIcon,
-            color: 'green'
-        },
-        {
-            name: 'Volume de Negócios',
-            value: `€${(stats?.businessVolume || 0).toLocaleString()}`,
-            change: '+18%',
-            changeType: 'positive',
-            icon: CurrencyEuroIcon,
-            color: 'purple',
-            limit: subscription?.volumeLimit,
-            percentage: getVolumeUsagePercentage()
-        },
-        {
-            name: 'Taxa de Conversão',
-            value: '24%',
-            change: '+2%',
-            changeType: 'positive',
-            icon: ArrowTrendingUpIcon,
-            color: 'orange'
-        }
-    ];
+  // Quick stats (mock data for now)
+  const stats = {
+    totalClients: 0,
+    activeDeals: 0,
+    monthlyRevenue: 0,
+    pendingTasks: 0
+  };
 
-    const getStatCardStyle = (color) => {
-        const colors = {
-            green: 'from-green-500 to-green-600',
-            purple: 'from-purple-500 to-purple-600',
-            orange: 'from-orange-500 to-orange-600'
-        };
-        return colors[color] || 'from-green-500 to-green-600';
-    };
+  // Quick actions
+  const quickActions = [
+    {
+      title: 'Add Client',
+      description: 'Quick add a new client',
+      icon: PlusIcon,
+      action: () => navigate('/clients/new'),
+      color: 'bg-blue-500'
+    },
+    {
+      title: 'View Clients',
+      description: 'Manage your client database',
+      icon: UserGroupIcon,
+      action: () => navigate('/clients'),
+      color: 'bg-green-500'
+    },
+    {
+      title: 'Schedule',
+      description: 'View your calendar',
+      icon: CalendarIcon,
+      action: () => {}, // Coming soon
+      color: 'bg-purple-500'
+    },
+    {
+      title: 'Tasks',
+      description: 'Check pending tasks',
+      icon: ClockIcon,
+      action: () => {}, // Coming soon
+      color: 'bg-orange-500'
+    }
+  ];
 
-    return (
-        <Layout>
-            <div className="p-6">
-                {/* Welcome Header */}
-                <div className="mb-8">
-                    <h1 className="text-3xl font-bold text-gray-900">
-                        Bem-vindo de volta, {currentUser?.displayName?.split(' ')[0] || 'Consultor'}! 👋
-                    </h1>
-                    <p className="text-gray-600 mt-2">
-                        Aqui está um resumo da sua atividade de hoje
-                    </p>
-                </div>
-
-                {/* Alerts */}
-                {isTrialActive && (
-                    <div className="mb-6 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4">
-                        <div className="flex items-center">
-                            <ExclamationTriangleIcon className="w-5 h-5 text-blue-600 mr-3" />
-                            <div>
-                                <h3 className="font-medium text-blue-900">
-                                    Período de Teste Ativo
-                                </h3>
-                                <p className="text-sm text-blue-700">
-                                    Restam {trialDaysLeft} dias do seu período de teste gratuito.
-                                    <Link to="/account" className="font-medium hover:underline ml-1">
-                                        Escolha o seu plano →
-                                    </Link>
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {limitReached && (
-                    <div className="mb-6 bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200 rounded-xl p-4">
-                        <div className="flex items-center">
-                            <ExclamationTriangleIcon className="w-5 h-5 text-yellow-600 mr-3" />
-                            <div>
-                                <h3 className="font-medium text-yellow-900">
-                                    Limite Atingido
-                                </h3>
-                                <p className="text-sm text-yellow-700">
-                                    Atingiu o limite do seu plano atual.
-                                    <Link to="/account" className="font-medium hover:underline ml-1">
-                                        Fazer upgrade →
-                                    </Link>
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {/* Main Statistics */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-                    {dashboardStats.map((stat) => {
-                        const Icon = stat.icon;
-                        return (
-                            <div
-                                key={stat.name}
-                                className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 transition-all"
-                            >
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center">
-                                        <div className={`w-12 h-12 bg-gradient-to-r ${getStatCardStyle(stat.color)} rounded-lg flex items-center justify-center`}>
-                                            <Icon className="w-6 h-6 text-white" />
-                                        </div>
-                                        <div className="ml-4">
-                                            <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
-                                            <p className="text-sm text-gray-500">{stat.name}</p>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {stat.limit && stat.limit !== 'unlimited' && stat.percentage !== undefined && (
-                                    <div className="mt-4">
-                                        <div className="flex justify-between text-xs text-gray-500 mb-1">
-                                            <span>Utilização</span>
-                                            <span>{stat.percentage.toFixed(0)}%</span>
-                                        </div>
-                                        <div className="w-full bg-gray-200 rounded-full h-2">
-                                            <div
-                                                className={`h-2 rounded-full transition-all duration-300 bg-gradient-to-r ${getStatCardStyle(stat.color)}`}
-                                                style={{ width: `${Math.min(stat.percentage, 100)}%` }}
-                                            ></div>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {stat.change && (
-                                    <div className="mt-2 flex items-center">
-                                        <span className={`text-sm font-medium ${
-                                            stat.changeType === 'positive' ? 'text-green-600' : 'text-red-600'
-                                        }`}>
-                                            {stat.change}
-                                        </span>
-                                        <span className="text-xs text-gray-500 ml-1">vs mês anterior</span>
-                                    </div>
-                                )}
-                            </div>
-                        );
-                    })}
-                </div>
-
-                {/* Getting Started (trimmed, no client steps) */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-                    <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl p-6 text-white">
-                        <h2 className="text-xl font-semibold mb-2">Começar a usar o MyImoMatePro</h2>
-                        <p className="text-blue-100 mb-4">
-                            Complete a configuração inicial para aproveitar ao máximo o seu CRM
-                        </p>
-
-                        <div className="space-y-2">
-                            <div className="flex items-center space-x-2">
-                                <div className="w-5 h-5 bg-blue-400 rounded-full flex items-center justify-center">
-                                    <CheckCircleIcon className="w-3 h-3 font-bold text-white" />
-                                </div>
-                                <span className="text-sm">Conta criada e configurada</span>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                                <div className="w-5 h-5 bg-white/20 rounded-full flex items-center justify-center">
-                                    <span className="text-xs font-bold">2</span>
-                                </div>
-                                <span className="text-sm">Explore as funcionalidades</span>
-                            </div>
-                        </div>
-
-                        <Link
-                            to="/account"
-                            className="mt-4 inline-flex items-center gap-2 bg-white text-blue-600 px-6 py-2 rounded-lg font-medium hover:bg-blue-50 transition-colors shadow-lg"
-                        >
-                            <ChartBarIcon className="w-4 h-4" />
-                            Gerir Plano
-                        </Link>
-                    </div>
-
-                    <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-                        <h2 className="text-xl font-semibold text-gray-900 mb-4">Atividade Recente</h2>
-                        <div className="space-y-4">
-                            <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
-                                <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                                    <ChartBarIcon className="w-4 h-4 text-blue-600" />
-                                </div>
-                                <div className="flex-1">
-                                    <p className="text-sm font-medium text-gray-900">Sistema iniciado</p>
-                                    <p className="text-xs text-gray-500">Bem-vindo ao MyImoMatePro</p>
-                                </div>
-                                <div className="flex items-center text-xs text-gray-400">
-                                    <ClockIcon className="w-3 h-3 mr-1" />
-                                    Agora
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Quick Actions (client links removed) */}
-                <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-                    <h2 className="text-xl font-semibold text-gray-900 mb-4">Ações Rápidas</h2>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <Link
-                            to="/account"
-                            className="flex items-center space-x-3 p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-purple-500 hover:bg-purple-50 transition-colors group"
-                        >
-                            <div className="w-10 h-10 bg-purple-100 group-hover:bg-purple-200 rounded-lg flex items-center justify-center transition-colors">
-                                <ChartBarIcon className="w-5 h-5 text-purple-600" />
-                            </div>
-                            <div>
-                                <p className="font-medium text-gray-900">Configurações</p>
-                                <p className="text-sm text-gray-500">Gerir conta</p>
-                            </div>
-                        </Link>
-                    </div>
-                </div>
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <header className="bg-white shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            {/* Logo */}
+            <div className="flex items-center">
+              <BuildingOfficeIcon className="h-8 w-8 text-primary-600" />
+              <span className="ml-2 text-xl font-bold text-gray-900">
+                RealEstate<span className="text-primary-600">CRM</span>
+              </span>
             </div>
-        </Layout>
-    );
+
+            {/* Nav */}
+            <nav className="hidden md:flex space-x-8">
+              <Link
+                to="/dashboard"
+                className="text-gray-900 hover:text-primary-600 px-3 py-2 text-sm font-medium"
+              >
+                Dashboard
+              </Link>
+              <Link
+                to="/clients"
+                className="text-gray-500 hover:text-primary-600 px-3 py-2 text-sm font-medium flex items-center"
+              >
+                Clients
+                <span className="ml-2 px-2 py-0.5 text-xs bg-green-100 text-green-800 rounded-full">
+                  NEW
+                </span>
+              </Link>
+              <button
+                disabled
+                className="text-gray-400 px-3 py-2 text-sm font-medium cursor-not-allowed"
+              >
+                Properties
+              </button>
+              <button
+                disabled
+                className="text-gray-400 px-3 py-2 text-sm font-medium cursor-not-allowed"
+              >
+                Deals
+              </button>
+            </nav>
+
+            {/* User menu */}
+            <div className="flex items-center space-x-4">
+              <Link
+                to="/account"
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <UserCircleIcon className="h-6 w-6" />
+              </Link>
+              <button
+                onClick={handleLogout}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <ArrowRightOnRectangleIcon className="h-6 w-6" />
+              </button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Welcome Section */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900">
+            Welcome back, {userProfile?.displayName || currentUser?.email?.split('@')[0]}!
+          </h1>
+          <p className="text-gray-600 mt-1">
+            Here's what's happening with your real estate business today.
+          </p>
+        </div>
+
+        {/* Subscription Alert */}
+        {subscription?.plan === 'rookie' && (
+          <div className="mb-6 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-yellow-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-yellow-800">
+                  Rookie Plan - Limited Features
+                </h3>
+                <p className="mt-1 text-sm text-yellow-700">
+                  You're on the Rookie plan with {subscription.clientLimit} client limit.
+                  Upgrade to Professional for unlimited clients and advanced features.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Stats Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <UserGroupIcon className="h-6 w-6 text-blue-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-500">Total Clients</p>
+                <p className="text-2xl font-semibold text-gray-900">{stats.totalClients}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <BuildingOfficeIcon className="h-6 w-6 text-green-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-500">Active Deals</p>
+                <p className="text-2xl font-semibold text-gray-900">{stats.activeDeals}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <CurrencyEuroIcon className="h-6 w-6 text-purple-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-500">Monthly Revenue</p>
+                <p className="text-2xl font-semibold text-gray-900">€{stats.monthlyRevenue}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <ClockIcon className="h-6 w-6 text-orange-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-500">Pending Tasks</p>
+                <p className="text-2xl font-semibold text-gray-900">{stats.pendingTasks}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Quick Actions */}
+        <div className="mb-8">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {quickActions.map((action, index) => {
+              const Icon = action.icon;
+              return (
+                <button
+                  key={index}
+                  onClick={action.action}
+                  className="bg-white rounded-lg shadow p-4 hover:shadow-md transition-shadow text-left"
+                >
+                  <div className={`inline-flex p-2 rounded-lg ${action.color} bg-opacity-10 mb-2`}>
+                    <Icon className={`h-6 w-6 ${action.color.replace('bg-', 'text-')}`} />
+                  </div>
+                  <h3 className="font-medium text-gray-900">{action.title}</h3>
+                  <p className="text-sm text-gray-500 mt-1">{action.description}</p>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Client Module Promo */}
+        <div className="bg-gradient-to-r from-primary-600 to-primary-700 rounded-lg shadow-lg p-6 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold mb-2">
+                🎉 New Client Module Available!
+              </h2>
+              <p className="text-primary-100 mb-4">
+                Complete client management system with Portuguese-specific features:
+              </p>
+              <ul className="space-y-1 text-primary-100 mb-4">
+                <li>✓ Quick Add for rapid client capture</li>
+                <li>✓ Complete profiles with NIF, CC, and Portuguese addresses</li>
+                <li>✓ Qualification system with auto-created opportunities</li>
+                <li>✓ Spouse management with separate profiles</li>
+                <li>✓ Client scoring and categorization (A/B/C)</li>
+              </ul>
+              <div className="flex space-x-4">
+                <Link
+                  to="/clients"
+                  className="inline-flex items-center px-4 py-2 bg-white text-primary-600 rounded-lg hover:bg-primary-50 transition-colors"
+                >
+                  <UserGroupIcon className="h-5 w-5 mr-2" />
+                  View Clients
+                </Link>
+                <Link
+                  to="/clients/new"
+                  className="inline-flex items-center px-4 py-2 bg-primary-800 text-white rounded-lg hover:bg-primary-900 transition-colors"
+                >
+                  <PlusIcon className="h-5 w-5 mr-2" />
+                  Add Client
+                </Link>
+              </div>
+            </div>
+            <div className="hidden lg:block">
+              <UserGroupIcon className="h-32 w-32 text-primary-300 opacity-20" />
+            </div>
+          </div>
+        </div>
+
+        {/* Recent Activity (placeholder) */}
+        <div className="mt-8">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Recent Activity</h2>
+          <div className="bg-white rounded-lg shadow">
+            <div className="p-6 text-center text-gray-500">
+              <ClockIcon className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+              <p>No recent activity</p>
+              <p className="text-sm mt-1">Start by adding your first client!</p>
+              <Link
+                to="/clients/new"
+                className="inline-flex items-center px-4 py-2 mt-4 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+              >
+                <PlusIcon className="h-5 w-5 mr-2" />
+                Add Client
+              </Link>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
 }
