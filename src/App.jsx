@@ -2,13 +2,14 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { SubscriptionProvider } from './contexts/SubscriptionContext';
-//import { ClientProvider } from './contexts/ClientContext';
+import { ClientProvider } from './contexts/ClientContext';
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
 import Dashboard from './pages/Dashboard';
 import AccountSettings from './pages/AccountSettings';
-//import ClientList from './pages/ClientList';
-//import ClientForm from './pages/ClientForm';
+import ClientList from './pages/ClientList';
+import ClientForm from './pages/ClientForm';
+import ClientView from './pages/ClientView';
 import './index.css';
 
 // Component to protect authenticated routes
@@ -54,7 +55,6 @@ function AppRoutes() {
         } />
 
         {/* ===== PROTECTED ROUTES - CLIENT SYSTEM ===== */}
-        {/* 
         <Route path="/clients" element={
           <ProtectedRoute>
             <ClientList />
@@ -69,7 +69,7 @@ function AppRoutes() {
 
         <Route path="/clients/:clientId" element={
           <ProtectedRoute>
-            <ClientList />
+            <ClientView />
           </ProtectedRoute>
         } />
 
@@ -78,7 +78,6 @@ function AppRoutes() {
             <ClientForm />
           </ProtectedRoute>
         } />
-        */}
 
         {/* ===== FUTURE SYSTEM ROUTES ===== */}
         {/* 
@@ -121,7 +120,9 @@ function App() {
   return (
     <AuthProvider>
       <SubscriptionProvider>
-        <AppRoutes />
+        <ClientProvider>
+          <AppRoutes />
+        </ClientProvider>
       </SubscriptionProvider>
     </AuthProvider>
   );

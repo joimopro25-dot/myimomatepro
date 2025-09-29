@@ -10,6 +10,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
 import {
     HomeIcon,
+    UserGroupIcon,
     CogIcon,
     ArrowRightOnRectangleIcon,
     UserCircleIcon,
@@ -19,6 +20,7 @@ import {
 } from '@heroicons/react/24/outline';
 import {
     HomeIcon as HomeIconSolid,
+    UserGroupIcon as UserGroupIconSolid,
     CogIcon as CogIconSolid
 } from '@heroicons/react/24/solid';
 
@@ -37,18 +39,25 @@ const Sidebar = ({ isCollapsed = false, onToggleCollapse }) => {
             console.error('Logout error:', error);
         }
     };
-
-    // Navigation items - Dashboard only for now
-    const navigationItems = [
-        {
-            name: 'Dashboard',
-            href: '/dashboard',
-            icon: HomeIcon,
-            iconSolid: HomeIconSolid,
-            description: 'Visão geral do sistema'
-        }
-        // New modules will be added here
-    ];
+    
+    // Navigation items
+const navigationItems = [
+    {
+        name: 'Dashboard',
+        href: '/dashboard',
+        icon: HomeIcon,
+        iconSolid: HomeIconSolid,
+        description: 'Visão geral do sistema'
+    },
+    {
+        name: 'Clientes',
+        href: '/clients',
+        icon: UserGroupIcon,
+        iconSolid: UserGroupIconSolid,
+        description: 'Gestão de clientes'
+    }
+    // New modules will be added here
+];
 
     const isActiveRoute = (href) => {
         if (href === '/dashboard') {
