@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { SubscriptionProvider } from './contexts/SubscriptionContext';
 import { ClientProvider } from './contexts/ClientContext';
+import { OpportunityProvider } from './contexts/OpportunityContext';
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
 import Dashboard from './pages/Dashboard';
@@ -10,6 +11,8 @@ import AccountSettings from './pages/AccountSettings';
 import ClientList from './pages/ClientList';
 import ClientForm from './pages/ClientForm';
 import ClientView from './pages/ClientView';
+import OpportunityList from './pages/OpportunityList';
+import OpportunityView from './pages/OpportunityView';
 import './index.css';
 
 // Component to protect authenticated routes
@@ -79,24 +82,43 @@ function AppRoutes() {
           </ProtectedRoute>
         } />
 
+        {/* ===== PROTECTED ROUTES - OPPORTUNITY SYSTEM ===== */}
+        <Route path="/opportunities" element={
+          <ProtectedRoute>
+            <OpportunityList />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/clients/:clientId/opportunities/:opportunityId" element={
+          <ProtectedRoute>
+            <OpportunityView />
+          </ProtectedRoute>
+        } />
+
         {/* ===== FUTURE SYSTEM ROUTES ===== */}
         {/* 
         Planned routes for next phases:
+        
+        // OPPORTUNITY EDIT
+        <Route path="/clients/:clientId/opportunities/:opportunityId/edit" element={
+          <ProtectedRoute><OpportunityEdit /></ProtectedRoute>
+        } />
+        
+        // DEAL SYSTEM (inside opportunities)
+        <Route path="/clients/:clientId/opportunities/:opportunityId/deals" element={
+          <ProtectedRoute><DealList /></ProtectedRoute>
+        } />
+        <Route path="/clients/:clientId/opportunities/:opportunityId/deals/new" element={
+          <ProtectedRoute><DealForm /></ProtectedRoute>
+        } />
+        <Route path="/clients/:clientId/opportunities/:opportunityId/deals/:dealId" element={
+          <ProtectedRoute><DealView /></ProtectedRoute>
+        } />
         
         // LEAD SYSTEM
         <Route path="/leads" element={<ProtectedRoute><LeadList /></ProtectedRoute>} />
         <Route path="/leads/new" element={<ProtectedRoute><LeadForm /></ProtectedRoute>} />
         <Route path="/leads/:leadId/edit" element={<ProtectedRoute><LeadForm /></ProtectedRoute>} />
-        
-        // OPPORTUNITY SYSTEM
-        <Route path="/opportunities" element={<ProtectedRoute><OpportunityList /></ProtectedRoute>} />
-        <Route path="/opportunities/new" element={<ProtectedRoute><OpportunityForm /></ProtectedRoute>} />
-        <Route path="/opportunities/:opportunityId" element={<ProtectedRoute><OpportunityDetail /></ProtectedRoute>} />
-        
-        // DEAL SYSTEM
-        <Route path="/deals" element={<ProtectedRoute><DealList /></ProtectedRoute>} />
-        <Route path="/deals/new" element={<ProtectedRoute><DealForm /></ProtectedRoute>} />
-        <Route path="/deals/:dealId" element={<ProtectedRoute><DealDetail /></ProtectedRoute>} />
         
         // REPORTING SYSTEM
         <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
@@ -121,7 +143,9 @@ function App() {
     <AuthProvider>
       <SubscriptionProvider>
         <ClientProvider>
-          <AppRoutes />
+          <OpportunityProvider>
+            <AppRoutes />
+          </OpportunityProvider>
         </ClientProvider>
       </SubscriptionProvider>
     </AuthProvider>

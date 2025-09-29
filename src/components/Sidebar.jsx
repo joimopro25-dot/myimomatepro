@@ -1,7 +1,8 @@
 /**
- * SIDEBAR COMPONENT - RealEstateCRM Pro
+ * SIDEBAR COMPONENT - MyImoMatePro
  * Unified lateral navigation for entire CRM
- * Clean version - Ready for new modules
+ * Theme: Corporate Glamour - Elegant and Professional
+ * Updated to include Opportunities navigation
  */
 
 import React, { useState } from 'react';
@@ -10,7 +11,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { useSubscription } from '../contexts/SubscriptionContext';
 import {
     HomeIcon,
-    UserGroupIcon,
+    UsersIcon,
+    BriefcaseIcon,
     CogIcon,
     ArrowRightOnRectangleIcon,
     UserCircleIcon,
@@ -20,7 +22,8 @@ import {
 } from '@heroicons/react/24/outline';
 import {
     HomeIcon as HomeIconSolid,
-    UserGroupIcon as UserGroupIconSolid,
+    UsersIcon as UsersIconSolid,
+    BriefcaseIcon as BriefcaseIconSolid,
     CogIcon as CogIconSolid
 } from '@heroicons/react/24/solid';
 
@@ -28,7 +31,7 @@ const Sidebar = ({ isCollapsed = false, onToggleCollapse }) => {
     const location = useLocation();
     const navigate = useNavigate();
     const { currentUser, logout } = useAuth();
-    const { subscription } = useSubscription();
+    const { subscription, stats } = useSubscription();
     const [showUserMenu, setShowUserMenu] = useState(false);
 
     const handleLogout = async () => {
@@ -39,25 +42,33 @@ const Sidebar = ({ isCollapsed = false, onToggleCollapse }) => {
             console.error('Logout error:', error);
         }
     };
-    
-    // Navigation items
-const navigationItems = [
-    {
-        name: 'Dashboard',
-        href: '/dashboard',
-        icon: HomeIcon,
-        iconSolid: HomeIconSolid,
-        description: 'Visão geral do sistema'
-    },
-    {
-        name: 'Clientes',
-        href: '/clients',
-        icon: UserGroupIcon,
-        iconSolid: UserGroupIconSolid,
-        description: 'Gestão de clientes'
-    }
-    // New modules will be added here
-];
+
+    // Navigation items - including opportunities
+    const navigationItems = [
+        {
+            name: 'Dashboard',
+            href: '/dashboard',
+            icon: HomeIcon,
+            iconSolid: HomeIconSolid,
+            description: 'Visão geral do seu negócio'
+        },
+        {
+            name: 'Clientes',
+            href: '/clients',
+            icon: UsersIcon,
+            iconSolid: UsersIconSolid,
+            description: 'Gerir carteira de clientes',
+            badge: stats?.totalClients || 0
+        },
+        {
+            name: 'Oportunidades',
+            href: '/opportunities',
+            icon: BriefcaseIcon,
+            iconSolid: BriefcaseIconSolid,
+            description: 'Gestão de oportunidades',
+            badge: stats?.totalOpportunities || 0
+        }
+    ];
 
     const isActiveRoute = (href) => {
         if (href === '/dashboard') {
@@ -80,9 +91,9 @@ const navigationItems = [
                             </div>
                             <div>
                                 <h1 className="font-bold text-lg bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-                                    RealEstateCRM
+                                    MyImoMatePro
                                 </h1>
-                                <p className="text-xs text-slate-400">Professional Edition</p>
+                                <p className="text-xs text-slate-400">CRM Imobiliário</p>
                             </div>
                         </div>
                     )}
@@ -121,57 +132,94 @@ const navigationItems = [
                         >
                             <div className="flex items-center justify-center w-6 h-6">
                                 <Icon className={`w-5 h-5 transition-colors ${
-                                    isActive ? 'text-blue-400' : 'text-slate-400 group-hover:text-white'
+                                    isActive 
+                                        ? 'text-blue-400 drop-shadow-[0_0_8px_rgba(96,165,250,0.5)]' 
+                                        : 'text-slate-400 group-hover:text-white'
                                 }`} />
                             </div>
 
                             {!isCollapsed && (
-                                <div className="ml-3 flex-1">
-                                    <p className={`font-medium ${
+                                <>
+                                    <span className={`ml-3 text-sm font-medium transition-colors ${
                                         isActive ? 'text-white' : 'text-slate-300 group-hover:text-white'
                                     }`}>
                                         {item.name}
-                                    </p>
-                                    <p className="text-xs text-slate-500 group-hover:text-slate-400">
-                                        {item.description}
-                                    </p>
-                                </div>
+                                    </span>
+
+                                    {item.badge !== undefined && item.badge > 0 && (
+                                        <span className={`ml-auto px-2 py-0.5 text-xs rounded-full transition-all ${
+                                            isActive
+                                                ? 'bg-blue-500/30 text-blue-300 border border-blue-400/30'
+                                                : 'bg-slate-700/50 text-slate-400 group-hover:bg-slate-600/50 group-hover:text-white'
+                                        }`}>
+                                            {item.badge}
+                                        </span>
+                                    )}
+                                </>
+                            )}
+
+                            {isCollapsed && item.badge !== undefined && item.badge > 0 && (
+                                <span className="absolute -top-1 -right-1 w-5 h-5 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-xs font-bold">
+                                    {item.badge > 99 ? '99+' : item.badge}
+                                </span>
                             )}
                         </Link>
                     );
                 })}
+
+                {/* Coming Soon Section */}
+                {!isCollapsed && (
+                    <div className="mt-8 pt-6 border-t border-slate-700/50">
+                        <p className="text-xs text-slate-500 uppercase tracking-wider mb-3">Em breve</p>
+                        <div className="space-y-2 opacity-50">
+                            <div className="flex items-center px-3 py-2 text-slate-500">
+                                <div className="w-6 h-6 flex items-center justify-center">
+                                    <div className="w-5 h-5 border-2 border-dashed border-slate-600 rounded"></div>
+                                </div>
+                                <span className="ml-3 text-sm">Propriedades</span>
+                            </div>
+                            <div className="flex items-center px-3 py-2 text-slate-500">
+                                <div className="w-6 h-6 flex items-center justify-center">
+                                    <div className="w-5 h-5 border-2 border-dashed border-slate-600 rounded"></div>
+                                </div>
+                                <span className="ml-3 text-sm">Relatórios</span>
+                            </div>
+                            <div className="flex items-center px-3 py-2 text-slate-500">
+                                <div className="w-6 h-6 flex items-center justify-center">
+                                    <div className="w-5 h-5 border-2 border-dashed border-slate-600 rounded"></div>
+                                </div>
+                                <span className="ml-3 text-sm">Marketing</span>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </nav>
 
-            {/* Subscription Information */}
-            {!isCollapsed && subscription && (
-                <div className="p-4 border-t border-slate-700/50">
-                    <div className="bg-slate-800/50 rounded-lg p-3 border border-slate-700/30">
-                        <div className="flex items-center justify-between mb-2">
-                            <span className="text-sm font-medium text-slate-300">Plano Atual</span>
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                subscription.plan === 'Shark' ? 'bg-purple-500/20 text-purple-300' :    // Changed from 'plano'
-                                subscription.plan === 'Professional' ? 'bg-blue-500/20 text-blue-300' : // Changed from 'plano'
-                                'bg-green-500/20 text-green-300'
-                            }`}>
-                                {subscription.plan}  {/* Changed from 'plano' */}
-                            </span>
-                        </div>
-
-                        {subscription.trial && (
-                            <div className="mt-2 text-xs text-amber-400">
-                                Trial Ativo
+            {/* User Section at Bottom */}
+            <div className="border-t border-slate-700/50 p-4">
+                {/* Subscription Status */}
+                {!isCollapsed && subscription && (
+                    <div className="mb-4 px-3 py-2 bg-slate-800/50 rounded-lg">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-xs text-slate-400">Plano</p>
+                                <p className="text-sm font-medium text-white">
+                                    {subscription.plan === 'premium' ? 'Premium' : 'Básico'}
+                                </p>
                             </div>
-                        )}
+                            {subscription.plan === 'premium' && (
+                                <div className="w-6 h-6 bg-gradient-to-r from-yellow-400 to-amber-500 rounded-full flex items-center justify-center">
+                                    <SparklesIcon className="w-4 h-4 text-white" />
+                                </div>
+                            )}
+                        </div>
                     </div>
-                </div>
-            )}
+                )}
 
-            {/* User Menu */}
-            <div className="p-4 border-t border-slate-700/50">
                 <div className="relative">
                     <button
                         onClick={() => setShowUserMenu(!showUserMenu)}
-                        className={`w-full flex items-center space-x-3 p-3 rounded-xl hover:bg-slate-700/30 transition-colors ${
+                        className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-slate-700/50 transition-colors ${
                             isCollapsed ? 'justify-center' : ''
                         }`}
                         title={isCollapsed ? currentUser?.displayName || currentUser?.email : ''}
