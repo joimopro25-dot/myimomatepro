@@ -2,6 +2,7 @@
  * OPPORTUNITY CONTEXT - MyImoMatePro
  * State management for buyer/seller opportunities
  * Handles CRUD operations for opportunities linked to clients
+ * UPDATED: Works with nested structure /consultants/{id}/clients/{id}/opportunities
  */
 
 import React, { createContext, useContext, useState, useCallback } from 'react';
@@ -36,7 +37,7 @@ export const useOpportunities = () => {
 };
 
 export const OpportunityProvider = ({ children }) => {
-  const { currentUser } = useAuth(); // Changed from 'user' to 'currentUser'
+  const { currentUser } = useAuth();
   const [opportunities, setOpportunities] = useState([]);
   const [currentOpportunity, setCurrentOpportunity] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -44,8 +45,7 @@ export const OpportunityProvider = ({ children }) => {
 
   // ===== CREATE BUYER OPPORTUNITY =====
   const createBuyerOpportunity = useCallback(async (clientId, opportunityData) => {
-    // Fix: Use uid as consultantId
-    const consultantId = currentUser?.consultantId || currentUser?.uid;
+    const consultantId = currentUser?.uid;
     
     if (!consultantId) {
       throw new Error('Utilizador não autenticado');
@@ -61,17 +61,15 @@ export const OpportunityProvider = ({ children }) => {
         throw new Error('Dados inválidos: ' + Object.values(validation.errors).join(', '));
       }
 
-      // No longer checking for existing opportunities - allow multiple
-
       // Calculate buyer score
       const buyerScore = calculateBuyerScore(opportunityData.qualification);
 
-      // Create opportunity document
-      const opportunityRef = doc(collection(db, 'clients', clientId, 'opportunities'));
+      // Create opportunity in NESTED path
+      const opportunityRef = doc(collection(db, 'consultants', consultantId, 'clients', clientId, 'opportunities'));
       const newOpportunity = createBuyerOpportunitySchema({
         ...opportunityData,
         clientId,
-        consultantId: consultantId, // Use the fixed consultantId
+        consultantId: consultantId,
         buyerScore
       });
 
@@ -105,7 +103,7 @@ export const OpportunityProvider = ({ children }) => {
     }
   }, [currentUser]);
 
-  // ===== CREATE OPPORTUNITY (generic) with ownership verification =====
+  // ===== CREATE OPPORTUNITY (generic) =====
   const createOpportunity = useCallback(async (clientId, opportunityData) => {
     try {
       setLoading(true);
@@ -118,18 +116,6 @@ export const OpportunityProvider = ({ children }) => {
       }
       
       console.log('Creating opportunity for client:', clientId);
-      
-      // Verify the client exists and belongs to this consultant
-      const clientRef = doc(db, 'clients', clientId);
-      const clientDoc = await getDoc(clientRef);
-      if (!clientDoc.exists()) {
-        throw new Error('Cliente não encontrado');
-      }
-      const clientData = clientDoc.data();
-      console.log('Client data:', clientData);
-      if (clientData.consultantId !== currentUser.uid) {
-        throw new Error('Não tem permissão para criar oportunidades para este cliente');
-      }
       
       // Create opportunity with required fields
       const newOpportunity = {
@@ -151,9 +137,9 @@ export const OpportunityProvider = ({ children }) => {
         }
       };
       
-      // Correct subcollection path
-      const opportunitiesRef = collection(db, 'clients', clientId, 'opportunities');
-      console.log('Creating opportunity in path: /clients/' + clientId + '/opportunities');
+      // Use NESTED path
+      const opportunitiesRef = collection(db, 'consultants', currentUser.uid, 'clients', clientId, 'opportunities');
+      console.log('Creating opportunity in nested path: /consultants/' + currentUser.uid + '/clients/' + clientId + '/opportunities');
       const docRef = await addDoc(opportunitiesRef, newOpportunity);
       console.log('Opportunity created with ID:', docRef.id);
       
@@ -167,30 +153,31 @@ export const OpportunityProvider = ({ children }) => {
     }
   }, [currentUser]);
 
-  // ===== GET CLIENT OPPORTUNITIES =====
-  // FIX: Get opportunities for a specific client (with ownership check)
+  // ===== GET CLIENT OPPORTUNITIES - SIMPLIFIED =====
   const getClientOpportunities = useCallback(async (clientId) => {
     try {
       setLoading(true);
       
-      if (!clientId) {
-        console.error('Client ID is required');
+      if (!currentUser?.uid || !clientId) {
+        console.error('Missing IDs - User:', currentUser?.uid, 'Client:', clientId);
+        setOpportunities([]);
         return [];
       }
       
-      // Verify client belongs to consultant
-      const clientRef = doc(db, 'clients', clientId);
-      const clientDoc = await getDoc(clientRef);
-      if (!clientDoc.exists()) {
-        throw new Error('Cliente não encontrado');
-      }
-      if (clientDoc.data().consultantId !== currentUser?.uid) {
-        throw new Error('Não tem permissão para ver oportunidades deste cliente');
-      }
+      // Get opportunities from NESTED path - NO VERIFICATION NEEDED
+      const opportunitiesRef = collection(
+        db, 
+        'consultants', 
+        currentUser.uid, 
+        'clients', 
+        clientId, 
+        'opportunities'
+      );
       
-      // Get opportunities from correct path
-      const opportunitiesRef = collection(db, 'clients', clientId, 'opportunities');
+      console.log('Fetching opportunities from nested path:', `consultants/${currentUser.uid}/clients/${clientId}/opportunities`);
+      
       const snapshot = await getDocs(opportunitiesRef);
+      
       const list = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
@@ -199,9 +186,11 @@ export const OpportunityProvider = ({ children }) => {
       console.log(`Found ${list.length} opportunities for client ${clientId}`);
       setOpportunities(list);
       return list;
+      
     } catch (error) {
       console.error('Error fetching opportunities:', error);
-      setError(error.message);
+      // Don't throw error, just return empty array
+      setOpportunities([]);
       return [];
     } finally {
       setLoading(false);
@@ -210,13 +199,14 @@ export const OpportunityProvider = ({ children }) => {
 
   // ===== GET SINGLE OPPORTUNITY =====
   const getOpportunity = useCallback(async (clientId, opportunityId) => {
-    if (!clientId || !opportunityId) return null;
+    if (!currentUser?.uid || !clientId || !opportunityId) return null;
 
     setLoading(true);
     setError(null);
 
     try {
-      const oppRef = doc(db, 'clients', clientId, 'opportunities', opportunityId);
+      // Use NESTED path
+      const oppRef = doc(db, 'consultants', currentUser.uid, 'clients', clientId, 'opportunities', opportunityId);
       const oppDoc = await getDoc(oppRef);
 
       if (!oppDoc.exists()) {
@@ -237,33 +227,18 @@ export const OpportunityProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [currentUser]);
 
   // ===== UPDATE OPPORTUNITY =====
   const updateOpportunity = useCallback(async (clientId, opportunityId, updates) => {
-    if (!clientId || !opportunityId) {
-      throw new Error('Client ID and Opportunity ID are required');
+    if (!currentUser?.uid || !clientId || !opportunityId) {
+      throw new Error('Missing required IDs');
     }
 
     setLoading(true);
     setError(null);
 
     try {
-      const consultantId = currentUser?.uid;
-      if (!consultantId) throw new Error('Utilizador não autenticado');
-
-      // Verify client ownership
-      const clientRef = doc(db, 'clients', clientId);
-      const clientDoc = await getDoc(clientRef);
-
-      if (!clientDoc.exists()) {
-        throw new Error('Cliente não encontrado');
-      }
-
-      if (clientDoc.data().consultantId !== consultantId) {
-        throw new Error('Não tem permissão para atualizar esta oportunidade');
-      }
-
       // Prevent changing consultantId
       const { consultantId: _ignored, ...safeUpdates } = updates || {};
 
@@ -278,7 +253,8 @@ export const OpportunityProvider = ({ children }) => {
         finalUpdates.buyerScore = calculateBuyerScore(mergedQualification);
       }
 
-      const oppRef = doc(db, 'clients', clientId, 'opportunities', opportunityId);
+      // Use NESTED path
+      const oppRef = doc(db, 'consultants', currentUser.uid, 'clients', clientId, 'opportunities', opportunityId);
       await updateDoc(oppRef, {
         ...finalUpdates,
         updatedAt: serverTimestamp()
@@ -313,8 +289,7 @@ export const OpportunityProvider = ({ children }) => {
     }
   }, [currentOpportunity, getOpportunity, currentUser]);
 
-  // ===== GET ALL OPPORTUNITIES (for list view) =====
-  // FIX: Get ALL opportunities across all clients for current consultant
+  // ===== GET ALL OPPORTUNITIES =====
   const getAllOpportunities = useCallback(async () => {
     try {
       setLoading(true);
@@ -325,22 +300,26 @@ export const OpportunityProvider = ({ children }) => {
         return [];
       }
       
-      // First get only the consultant's clients
-      const clientsQuery = query(
-        collection(db, 'clients'),
-        where('consultantId', '==', currentUser.uid)
-      );
+      // Get all clients from NESTED path
+      const clientsRef = collection(db, 'consultants', currentUser.uid, 'clients');
+      console.log('Fetching clients from nested path:', `consultants/${currentUser.uid}/clients`);
       
-      console.log('Fetching clients for consultant:', currentUser.uid);
-      const clientsSnapshot = await getDocs(clientsQuery);
+      const clientsSnapshot = await getDocs(clientsRef);
       console.log(`Found ${clientsSnapshot.size} clients`);
       
       // Then get opportunities for each client
       for (const clientDoc of clientsSnapshot.docs) {
         const clientData = clientDoc.data();
-        console.log(`Checking opportunities for client: ${clientDoc.id} (${clientData.name})`);
+        console.log(`Checking opportunities for client: ${clientDoc.id}`);
         
-        const opportunitiesRef = collection(db, 'clients', clientDoc.id, 'opportunities');
+        const opportunitiesRef = collection(
+          db, 
+          'consultants', 
+          currentUser.uid, 
+          'clients', 
+          clientDoc.id, 
+          'opportunities'
+        );
         const opportunitiesSnapshot = await getDocs(opportunitiesRef);
         
         console.log(`Found ${opportunitiesSnapshot.size} opportunities for client ${clientDoc.id}`);
@@ -371,15 +350,16 @@ export const OpportunityProvider = ({ children }) => {
 
   // ===== DELETE OPPORTUNITY =====
   const deleteOpportunity = useCallback(async (clientId, opportunityId) => {
-    if (!clientId || !opportunityId) {
-      throw new Error('Client ID and Opportunity ID are required');
+    if (!currentUser?.uid || !clientId || !opportunityId) {
+      throw new Error('Missing required IDs');
     }
 
     setLoading(true);
     setError(null);
 
     try {
-      const oppRef = doc(db, 'clients', clientId, 'opportunities', opportunityId);
+      // Use NESTED path
+      const oppRef = doc(db, 'consultants', currentUser.uid, 'clients', clientId, 'opportunities', opportunityId);
       await deleteDoc(oppRef);
 
       // Clear current opportunity if it's the one being deleted
@@ -404,7 +384,7 @@ export const OpportunityProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  }, [currentOpportunity]);
+  }, [currentOpportunity, currentUser]);
 
   // ===== UPDATE OPPORTUNITY STATUS =====
   const updateOpportunityStatus = useCallback(async (clientId, opportunityId, newStatus) => {
@@ -417,11 +397,14 @@ export const OpportunityProvider = ({ children }) => {
   // ===== HELPER: Add activity to client =====
   const addClientActivity = async (clientId, activity) => {
     try {
-      const activityRef = doc(collection(db, 'clients', clientId, 'activities'));
+      if (!currentUser?.uid) return;
+      
+      // Use NESTED path for activities
+      const activityRef = doc(collection(db, 'consultants', currentUser.uid, 'clients', clientId, 'activities'));
       await setDoc(activityRef, {
         ...activity,
         timestamp: Timestamp.now(),
-        createdBy: currentUser?.uid || 'system'
+        createdBy: currentUser.uid
       });
     } catch (err) {
       console.error('Error adding client activity:', err);
