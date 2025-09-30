@@ -14,6 +14,7 @@ import ClientView from './pages/ClientView';
 import OpportunityList from './pages/OpportunityList';
 import OpportunityView from './pages/OpportunityView';
 import './index.css';
+import { DealProvider } from './contexts/DealContext';
 
 // Component to protect authenticated routes
 function ProtectedRoute({ children }) {
@@ -140,15 +141,17 @@ function AppRoutes() {
 
 function App() {
   return (
-    <AuthProvider>
-      <SubscriptionProvider>
-        <ClientProvider>
-          <OpportunityProvider>
-            <AppRoutes />
-          </OpportunityProvider>
-        </ClientProvider>
-      </SubscriptionProvider>
-    </AuthProvider>
+    <AuthProvider>                    // Who is logged in?
+  <SubscriptionProvider>           // What plan does this consultant have?
+    <ClientProvider>               // Load this consultant's clients
+      <OpportunityProvider>        // Load opportunities for these clients
+        <DealProvider>             // Load deals for these opportunities
+          <AppRoutes />
+        </DealProvider>
+      </OpportunityProvider>
+    </ClientProvider>
+  </SubscriptionProvider>
+</AuthProvider>
   );
 }
 
