@@ -47,6 +47,12 @@ export function ClientProvider({ children }) {
   // CRITICAL: Get consultant ID for data isolation
   const consultantId = currentUser?.uid;
 
+  // Helper: nested clients path for current consultant
+  const getClientsPath = () => {
+    if (!currentUser?.uid) return null;
+    return `consultants/${currentUser.uid}/clients`;
+  };
+
   // Create new client
   const createClient = async (clientData) => {
     try {
@@ -95,45 +101,110 @@ export function ClientProvider({ children }) {
     }
   };
 
-  // Update client
-  const updateClient = async (clientId, updates) => {
+  // Get clients (nested under consultants/{uid}/clients)
+  const getClients = async () => {
     try {
-      setError(null);
-      
-      if (!consultantId) {
-        throw new Error('No authenticated consultant');
+      setLoading(true);
+
+      const path = getClientsPath();
+      if (!path) {
+        console.log('No user logged in, skipping client load');
+        setClients([]);
+        return [];
       }
 
-      // Validate updates
-      const validation = validateClient(updates);
-      if (!validation.isValid) {
-        throw new Error('Validation failed: ' + Object.values(validation.errors).join(', '));
+      console.log('Fetching clients from path:', path);
+
+      const clientsRef = collection(db, 'consultants', currentUser.uid, 'clients');
+      const q = query(clientsRef, orderBy('createdAt', 'desc'));
+
+      const querySnapshot = await getDocs(q);
+      const clientsList = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+
+      console.log(`Found ${clientsList.length} clients`);
+      setClients(clientsList);
+      return clientsList;
+    } catch (error) {
+      console.error('Error fetching clients:', error);
+      setError(error.message);
+      return [];
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Add client (create under consultants/{uid}/clients)
+  const addClient = async (clientData) => {
+    try {
+      setLoading(true);
+
+      if (!currentUser?.uid) {
+        throw new Error('Usuário não autenticado');
       }
 
-      // Calculate total household if financial data changed
-      if (updates.financial) {
-        updates.financial.totalHousehold = calculateTotalHousehold(
-          updates.financial.monthlyIncome,
-          updates.financial.spouseMonthlyIncome
-        );
-      }
+      const clientsRef = collection(db, 'consultants', currentUser.uid, 'clients');
 
-      // Update with timestamp
-      const updateData = {
-        ...updates,
-        updatedAt: serverTimestamp()
+      const newClient = {
+        ...clientData,
+        consultantId: currentUser.uid, // keep for reference
+        createdBy: currentUser.uid,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        status: clientData.status || 'active'
       };
 
-      await updateDoc(doc(db, 'consultants', consultantId, 'clients', clientId), updateData);
-      
-      // Log activity
-      await logActivity(clientId, 'updated', 'Client profile updated');
-      
-      return clientId;
+      console.log('Creating client in path: consultants/' + currentUser.uid + '/clients');
+
+      const docRef = await addDoc(clientsRef, newClient);
+      console.log('Client created with ID:', docRef.id);
+
+      // Reload clients after adding
+      await getClients();
+
+      return docRef.id;
+    } catch (error) {
+      console.error('Error adding client:', error);
+      setError(error.message);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Update client (nested path; prevent protected fields updates)
+  const updateClient = async (clientId, updates) => {
+    try {
+      setLoading(true);
+
+      if (!currentUser?.uid || !clientId) {
+        throw new Error('Missing user or client ID');
+      }
+
+      const clientRef = doc(db, 'consultants', currentUser.uid, 'clients', clientId);
+
+      // Remove protected fields
+      const { consultantId: _ignore1, createdBy: _ignore2, createdAt: _ignore3, ...safeUpdates } = updates || {};
+
+      await updateDoc(clientRef, {
+        ...safeUpdates,
+        updatedAt: serverTimestamp()
+      });
+
+      console.log('Client updated successfully');
+
+      // Reload clients
+      await getClients();
+
+      return true;
     } catch (error) {
       console.error('Error updating client:', error);
       setError(error.message);
       throw error;
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -377,19 +448,21 @@ export function ClientProvider({ children }) {
     stats,
     loading,
     error,
-    
+
     // Operations
     createClient,
+    addClient,
+    getClients,
     updateClient,
     getClient,
     deleteClient,
     searchClients,
     checkDuplicate,
-    
+
     // Activities
     logActivity,
     getClientActivities,
-    
+
     // Utilities
     setCurrentClient,
     clearError: () => setError(null)

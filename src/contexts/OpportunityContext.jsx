@@ -17,7 +17,9 @@ import {
   getDocs, 
   orderBy,
   Timestamp,
-  onSnapshot
+  onSnapshot,
+  addDoc,
+  serverTimestamp
 } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { useAuth } from './AuthContext';
@@ -103,34 +105,108 @@ export const OpportunityProvider = ({ children }) => {
     }
   }, [currentUser]);
 
-  // ===== GET CLIENT OPPORTUNITIES =====
-  const getClientOpportunities = useCallback(async (clientId) => {
-    if (!clientId) return [];
-
-    setLoading(true);
-    setError(null);
-
+  // ===== CREATE OPPORTUNITY (generic) with ownership verification =====
+  const createOpportunity = useCallback(async (clientId, opportunityData) => {
     try {
-      const oppsQuery = query(
-        collection(db, 'clients', clientId, 'opportunities'),
-        orderBy('createdAt', 'desc')
-      );
+      setLoading(true);
       
-      const snapshot = await getDocs(oppsQuery);
-      const opps = snapshot.docs.map(doc => ({
+      if (!currentUser?.uid) {
+        throw new Error('Usuário não autenticado');
+      }
+      if (!clientId) {
+        throw new Error('ID do cliente é obrigatório');
+      }
+      
+      console.log('Creating opportunity for client:', clientId);
+      
+      // Verify the client exists and belongs to this consultant
+      const clientRef = doc(db, 'clients', clientId);
+      const clientDoc = await getDoc(clientRef);
+      if (!clientDoc.exists()) {
+        throw new Error('Cliente não encontrado');
+      }
+      const clientData = clientDoc.data();
+      console.log('Client data:', clientData);
+      if (clientData.consultantId !== currentUser.uid) {
+        throw new Error('Não tem permissão para criar oportunidades para este cliente');
+      }
+      
+      // Create opportunity with required fields
+      const newOpportunity = {
+        ...opportunityData,
+        consultantId: currentUser.uid,
+        clientId,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        createdBy: currentUser.uid,
+        status: opportunityData.status || 'active',
+        stats: {
+          totalDeals: 0,
+          activeDeals: 0,
+          wonDeals: 0,
+          lostDeals: 0,
+          propertiesViewed: 0,
+          offersMade: 0,
+          ...opportunityData.stats
+        }
+      };
+      
+      // Correct subcollection path
+      const opportunitiesRef = collection(db, 'clients', clientId, 'opportunities');
+      console.log('Creating opportunity in path: /clients/' + clientId + '/opportunities');
+      const docRef = await addDoc(opportunitiesRef, newOpportunity);
+      console.log('Opportunity created with ID:', docRef.id);
+      
+      return docRef.id;
+    } catch (error) {
+      console.error('Error creating opportunity:', error);
+      setError(error.message);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  }, [currentUser]);
+
+  // ===== GET CLIENT OPPORTUNITIES =====
+  // FIX: Get opportunities for a specific client (with ownership check)
+  const getClientOpportunities = useCallback(async (clientId) => {
+    try {
+      setLoading(true);
+      
+      if (!clientId) {
+        console.error('Client ID is required');
+        return [];
+      }
+      
+      // Verify client belongs to consultant
+      const clientRef = doc(db, 'clients', clientId);
+      const clientDoc = await getDoc(clientRef);
+      if (!clientDoc.exists()) {
+        throw new Error('Cliente não encontrado');
+      }
+      if (clientDoc.data().consultantId !== currentUser?.uid) {
+        throw new Error('Não tem permissão para ver oportunidades deste cliente');
+      }
+      
+      // Get opportunities from correct path
+      const opportunitiesRef = collection(db, 'clients', clientId, 'opportunities');
+      const snapshot = await getDocs(opportunitiesRef);
+      const list = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       }));
-
-      return opps;
-    } catch (err) {
-      console.error('Error fetching client opportunities:', err);
-      setError(err.message);
+      
+      console.log(`Found ${list.length} opportunities for client ${clientId}`);
+      setOpportunities(list);
+      return list;
+    } catch (error) {
+      console.error('Error fetching opportunities:', error);
+      setError(error.message);
       return [];
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [currentUser]);
 
   // ===== GET SINGLE OPPORTUNITY =====
   const getOpportunity = useCallback(async (clientId, opportunityId) => {
@@ -173,13 +249,31 @@ export const OpportunityProvider = ({ children }) => {
     setError(null);
 
     try {
+      const consultantId = currentUser?.uid;
+      if (!consultantId) throw new Error('Utilizador não autenticado');
+
+      // Verify client ownership
+      const clientRef = doc(db, 'clients', clientId);
+      const clientDoc = await getDoc(clientRef);
+
+      if (!clientDoc.exists()) {
+        throw new Error('Cliente não encontrado');
+      }
+
+      if (clientDoc.data().consultantId !== consultantId) {
+        throw new Error('Não tem permissão para atualizar esta oportunidade');
+      }
+
+      // Prevent changing consultantId
+      const { consultantId: _ignored, ...safeUpdates } = updates || {};
+
       // If qualification is being updated, recalculate score
-      let finalUpdates = { ...updates };
-      if (updates.qualification) {
+      let finalUpdates = { ...safeUpdates };
+      if (safeUpdates.qualification) {
         const currentOpp = await getOpportunity(clientId, opportunityId);
         const mergedQualification = {
-          ...currentOpp.qualification,
-          ...updates.qualification
+          ...currentOpp?.qualification,
+          ...safeUpdates.qualification
         };
         finalUpdates.buyerScore = calculateBuyerScore(mergedQualification);
       }
@@ -187,10 +281,10 @@ export const OpportunityProvider = ({ children }) => {
       const oppRef = doc(db, 'clients', clientId, 'opportunities', opportunityId);
       await updateDoc(oppRef, {
         ...finalUpdates,
-        updatedAt: Timestamp.now()
+        updatedAt: serverTimestamp()
       });
 
-      // Update current opportunity if it's the one being edited
+      // Update current opportunity state if needed
       if (currentOpportunity?.id === opportunityId) {
         setCurrentOpportunity(prev => ({
           ...prev,
@@ -205,7 +299,7 @@ export const OpportunityProvider = ({ children }) => {
         description: 'Oportunidade atualizada',
         metadata: {
           opportunityId,
-          updatedFields: Object.keys(updates)
+          updatedFields: Object.keys(updates || {})
         }
       });
 
@@ -217,60 +311,58 @@ export const OpportunityProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  }, [currentOpportunity, getOpportunity]);
+  }, [currentOpportunity, getOpportunity, currentUser]);
 
   // ===== GET ALL OPPORTUNITIES (for list view) =====
+  // FIX: Get ALL opportunities across all clients for current consultant
   const getAllOpportunities = useCallback(async () => {
-    // Fix: Use uid as consultantId
-    const consultantId = currentUser?.consultantId || currentUser?.uid;
-    
-    if (!consultantId) return [];
-
-    setLoading(true);
-    setError(null);
-
     try {
-      // First get all clients for this consultant
+      setLoading(true);
+      const allOpportunities = [];
+      
+      if (!currentUser?.uid) {
+        console.log('No user logged in');
+        return [];
+      }
+      
+      // First get only the consultant's clients
       const clientsQuery = query(
         collection(db, 'clients'),
-        where('consultantId', '==', consultantId)
+        where('consultantId', '==', currentUser.uid)
       );
       
+      console.log('Fetching clients for consultant:', currentUser.uid);
       const clientsSnapshot = await getDocs(clientsQuery);
-      const allOpportunities = [];
-
-      // For each client, get their opportunities
+      console.log(`Found ${clientsSnapshot.size} clients`);
+      
+      // Then get opportunities for each client
       for (const clientDoc of clientsSnapshot.docs) {
         const clientData = clientDoc.data();
-        const oppsQuery = query(
-          collection(db, 'clients', clientDoc.id, 'opportunities')
-        );
+        console.log(`Checking opportunities for client: ${clientDoc.id} (${clientData.name})`);
         
-        const oppsSnapshot = await getDocs(oppsQuery);
+        const opportunitiesRef = collection(db, 'clients', clientDoc.id, 'opportunities');
+        const opportunitiesSnapshot = await getDocs(opportunitiesRef);
         
-        oppsSnapshot.docs.forEach(oppDoc => {
+        console.log(`Found ${opportunitiesSnapshot.size} opportunities for client ${clientDoc.id}`);
+        
+        opportunitiesSnapshot.docs.forEach(doc => {
           allOpportunities.push({
-            id: oppDoc.id,
-            ...oppDoc.data(),
+            id: doc.id,
+            clientId: clientDoc.id,
             clientName: clientData.name,
             clientPhone: clientData.phone,
-            clientEmail: clientData.email
+            clientEmail: clientData.email,
+            ...doc.data()
           });
         });
       }
-
-      // Sort by creation date
-      allOpportunities.sort((a, b) => {
-        const dateA = a.createdAt?.toDate() || new Date(0);
-        const dateB = b.createdAt?.toDate() || new Date(0);
-        return dateB - dateA;
-      });
-
+      
+      console.log(`Total opportunities found: ${allOpportunities.length}`);
       setOpportunities(allOpportunities);
       return allOpportunities;
-    } catch (err) {
-      console.error('Error fetching all opportunities:', err);
-      setError(err.message);
+    } catch (error) {
+      console.error('Error fetching all opportunities:', error);
+      setError(error.message);
       return [];
     } finally {
       setLoading(false);
@@ -356,6 +448,7 @@ export const OpportunityProvider = ({ children }) => {
     
     // Actions
     createBuyerOpportunity,
+    createOpportunity,
     getClientOpportunities,
     getOpportunity,
     updateOpportunity,

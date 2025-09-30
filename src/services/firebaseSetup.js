@@ -17,7 +17,8 @@ import {
   limit,
   serverTimestamp,
   writeBatch,
-  increment
+  increment,
+  arrayUnion // added
 } from 'firebase/firestore';
 import { db } from '../firebase/config';
 

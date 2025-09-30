@@ -42,7 +42,7 @@ export const useDeal = () => {
 };
 
 export const DealProvider = ({ children }) => {
-  const { user } = useAuth();
+  const { currentUser } = useAuth(); // CHANGED from 'user' to 'currentUser'
   const [agents, setAgents] = useState([]);
   const [deals, setDeals] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -63,10 +63,9 @@ export const DealProvider = ({ children }) => {
       
       const agentList = await getAgents({
         ...filters,
-        consultantId: user?.uid
+        consultantId: currentUser?.uid // CHANGED from user?.uid
       });
       
-      // Enhance agents with calculated fields
       const enhancedAgents = agentList.map(agent => ({
         ...agent,
         successRate: calculateSuccessRate(agent),
@@ -92,23 +91,18 @@ export const DealProvider = ({ children }) => {
       setLoading(true);
       setError(null);
       
-      // Validate agent data
       const errors = validateAgent(agentData);
       if (errors.length > 0) {
         throw new Error(errors.join(', '));
       }
       
-      // Add consultant ID
       const dataToSave = {
         ...agentData,
-        consultantId: user?.uid
+        consultantId: currentUser?.uid // CHANGED from user?.uid
       };
       
       const agentId = await saveAgent(dataToSave);
-      
-      // Reload agents list
       await loadAgents();
-      
       return agentId;
     } catch (err) {
       console.error('Error saving agent:', err);
@@ -126,10 +120,9 @@ export const DealProvider = ({ children }) => {
     try {
       await logAgentInteraction(agentId, {
         ...interaction,
-        consultantId: user?.uid
+        consultantId: currentUser?.uid // CHANGED from user?.uid
       });
       
-      // Update local state
       setAgents(prev => prev.map(agent => 
         agent.id === agentId 
           ? {
@@ -323,9 +316,9 @@ export const DealProvider = ({ children }) => {
    */
   const loadDashboardStats = async () => {
     try {
-      if (!user?.uid) return;
+      if (!currentUser?.uid) return; // CHANGED from user?.uid
       
-      const dashboardStats = await getDashboardStats(user.uid);
+      const dashboardStats = await getDashboardStats(currentUser.uid); // CHANGED
       setStats(dashboardStats);
       return dashboardStats;
     } catch (err) {
@@ -374,10 +367,10 @@ export const DealProvider = ({ children }) => {
 
   // Load initial data when user changes
   useEffect(() => {
-    if (user?.uid) {
+    if (currentUser?.uid) { // CHANGED from user?.uid
       loadDashboardStats();
     }
-  }, [user?.uid]);
+  }, [currentUser?.uid]); // CHANGED from user?.uid
 
   const value = {
     // State
