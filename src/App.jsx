@@ -15,6 +15,7 @@ import OpportunityList from './pages/OpportunityList';
 import OpportunityView from './pages/OpportunityView';
 import './index.css';
 import { DealProvider } from './contexts/DealContext';
+import DealBoard from './pages/DealBoard'; // NEW
 
 // Component to protect authenticated routes
 function ProtectedRoute({ children }) {
@@ -93,6 +94,13 @@ function AppRoutes() {
         <Route path="/clients/:clientId/opportunities/:opportunityId" element={
           <ProtectedRoute>
             <OpportunityView />
+          </ProtectedRoute>
+        } />
+
+        {/* ===== PROTECTED ROUTES - DEAL SYSTEM (NEW) ===== */}
+        <Route path="/clients/:clientId/opportunities/:opportunityId/deals" element={
+          <ProtectedRoute>
+            <DealBoard />
           </ProtectedRoute>
         } />
 

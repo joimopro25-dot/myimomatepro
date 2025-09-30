@@ -8,6 +8,13 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useOpportunities } from '../contexts/OpportunityContext';
 import { useClients } from '../contexts/ClientContext';
+import { useDeal } from '../contexts/DealContext'; // NEW
+import DealFormModal from '../components/DealFormModal'; // NEW
+import { 
+  formatDealSummary, 
+  isDealActionNeeded,
+  BUYER_DEAL_STAGES 
+} from '../models/buyerDealModel'; // NEW
 import Layout from '../components/Layout';
 import {
   ArrowLeftIcon,
@@ -26,7 +33,11 @@ import {
   EnvelopeIcon,
   CalendarDaysIcon,
   BuildingOfficeIcon,
-  ChartBarIcon
+  ChartBarIcon,
+  HomeModernIcon,
+  ArrowRightIcon,
+  PlusIcon,
+  StarIcon // NEW
 } from '@heroicons/react/24/outline';
 import {
   formatPrice,
@@ -47,11 +58,22 @@ const OpportunityView = () => {
   const navigate = useNavigate();
   const { getOpportunity, updateOpportunityStatus, deleteOpportunity, loading, error } = useOpportunities();
   const { getClient } = useClients();
+  const { 
+    loadDeals, 
+    createPropertyDeal, 
+    moveDealStage, 
+    deals,
+    agents,
+    loadAgents 
+  } = useDeal(); // NEW
   
   const [opportunity, setOpportunity] = useState(null);
   const [client, setClient] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showStatusMenu, setShowStatusMenu] = useState(false);
+  const [isDealModalOpen, setIsDealModalOpen] = useState(false); // NEW
+  const [selectedDeal, setSelectedDeal] = useState(null); // NEW
+  const [opportunityDeals, setOpportunityDeals] = useState([]); // NEW
 
   // Load data
   useEffect(() => {
@@ -65,12 +87,21 @@ const OpportunityView = () => {
       if (oppData) {
         setOpportunity(oppData);
       }
-      
+
       // Load client
       const clientData = await getClient(clientId);
       if (clientData) {
         setClient(clientData);
       }
+
+      // Load deals for this opportunity
+      if (oppData) {
+        const dealsData = await loadDeals(clientId, opportunityId);
+        setOpportunityDeals(dealsData || []);
+      }
+
+      // Load agents for the deal form
+      await loadAgents();
     } catch (err) {
       console.error('Error loading data:', err);
       navigate(`/clients/${clientId}`);
@@ -95,6 +126,65 @@ const OpportunityView = () => {
       navigate(`/clients/${clientId}`);
     } catch (err) {
       console.error('Error deleting opportunity:', err);
+    }
+  };
+
+  // Handle creating new deal
+  const handleCreateDeal = async (dealData) => {
+    try {
+      const property = {
+        id: `prop_${Date.now()}`,
+        address: dealData.property.address,
+        type: dealData.property.type,
+        bedrooms: dealData.property.bedrooms,
+        bathrooms: dealData.property.bathrooms,
+        area: dealData.property.area,
+        price: dealData.pricing.askingPrice,
+        listingUrl: dealData.property.listingUrl,
+        reference: dealData.property.reference
+      };
+
+      let agent = null;
+      if (dealData.propertyAgent.agentId) {
+        agent = agents.find(a => a.id === dealData.propertyAgent.agentId);
+      } else if (dealData.propertyAgent.name) {
+        agent = {
+          id: dealData.propertyAgent.agentId || `agent_${Date.now()}`,
+          name: dealData.propertyAgent.name,
+          agency: dealData.propertyAgent.agency,
+          contactInfo: {
+            phonePrimary: dealData.propertyAgent.phone,
+            email: dealData.propertyAgent.email,
+            whatsapp: dealData.propertyAgent.whatsapp
+          },
+          type: dealData.propertyAgent.agentId === 'self' ? 'self' : 'external'
+        };
+      }
+
+      await createPropertyDeal(opportunity, property, agent);
+      const updatedDeals = await loadDeals(clientId, opportunityId);
+      setOpportunityDeals(updatedDeals || []);
+      setIsDealModalOpen(false);
+      setSelectedDeal(null);
+    } catch (error) {
+      console.error('Error creating deal:', error);
+      alert('Erro ao criar negócio: ' + error.message);
+    }
+  };
+
+  // Edit deal (open modal pre-filled)
+  const handleEditDeal = (deal) => {
+    setSelectedDeal(deal);
+    setIsDealModalOpen(true);
+  };
+
+  // Move deal stage
+  const handleMoveDealStage = async (dealId, newStage) => {
+    try {
+      await moveDealStage(clientId, opportunityId, dealId, newStage);
+      await loadData();
+    } catch (error) {
+      console.error('Error moving deal stage:', error);
     }
   };
 
@@ -529,20 +619,128 @@ const OpportunityView = () => {
               </div>
             </div>
 
-            {/* Deals Section (placeholder for future) */}
+            {/* Deals Section - interactive list */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                <BuildingOfficeIcon className="w-5 h-5 mr-2 text-indigo-600" />
-                Negócios
-              </h2>
-              
-              <div className="text-center py-8 text-gray-500">
-                <BuildingOfficeIcon className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                <p>Ainda não há negócios associados</p>
-                <button className="mt-3 text-blue-600 hover:text-blue-700 font-medium">
-                  + Adicionar Negócio
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-gray-900 flex items-center">
+                  <BuildingOfficeIcon className="w-5 h-5 mr-2 text-indigo-600" />
+                  Negócios ({opportunityDeals.length})
+                </h2>
+                <button 
+                  onClick={() => setIsDealModalOpen(true)}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center"
+                >
+                  <PlusIcon className="w-4 h-4 mr-2" />
+                  Adicionar Negócio
                 </button>
               </div>
+
+              {opportunityDeals.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <BuildingOfficeIcon className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                  <p>Ainda não há negócios associados</p>
+                  <p className="text-sm mt-2">
+                    Adicione imóveis que o cliente está considerando
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {opportunityDeals.map(deal => {
+                    const summary = formatDealSummary(deal);
+                    const stage = BUYER_DEAL_STAGES.find(s => s.value === deal.stage);
+                    const needsAction = isDealActionNeeded(deal);
+
+                    return (
+                      <div 
+                        key={deal.id} 
+                        className="border rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer"
+                        onClick={() => handleEditDeal(deal)}
+                      >
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <div className="flex items-center space-x-2">
+                              <h3 className="font-semibold text-gray-900">
+                                {deal.property?.address || 'Imóvel sem endereço'}
+                              </h3>
+                              {needsAction && (
+                                <span className="px-2 py-1 text-xs bg-orange-100 text-orange-700 rounded-full">
+                                  Ação necessária
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="flex items-center space-x-4 text-sm text-gray-600 mt-1">
+                              <span>{deal.property?.type}</span>
+                              <span>{deal.property?.bedrooms}Q</span>
+                              <span>{deal.property?.bathrooms}WC</span>
+                              <span>{deal.property?.area}m²</span>
+                              <span className="font-semibold">
+                                €{(deal.pricing?.askingPrice || 0).toLocaleString('pt-PT')}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center space-x-3 mt-2">
+                              <span 
+                                className={`px-2 py-1 text-xs rounded-full bg-${stage?.color || 'gray'}-100 text-${stage?.color || 'gray'}-700`}
+                              >
+                                {stage?.label}
+                              </span>
+
+                              {deal.scoring?.buyerInterestLevel > 0 && (
+                                <div className="flex items-center">
+                                  {[...Array(Math.min(5, Math.ceil((deal.scoring?.buyerInterestLevel || 0) / 2)))].map((_, i) => (
+                                    <StarIcon key={i} className="w-4 h-4 text-yellow-500" />
+                                  ))}
+                                </div>
+                              )}
+
+                              {deal.competition?.otherOffers > 0 && (
+                                <span className="text-xs text-red-600">
+                                  {deal.competition.otherOffers} outras propostas
+                                </span>
+                              )}
+
+                              {deal.propertyAgent?.name && (
+                                <span className="text-xs text-gray-500">
+                                  Agente: {deal.propertyAgent.name}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="ml-4">
+                            <select
+                              onClick={(e) => e.stopPropagation()}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                handleMoveDealStage(deal.id, e.target.value);
+                              }}
+                              value={deal.stage}
+                              className="text-sm border rounded px-2 py-1"
+                            >
+                              {BUYER_DEAL_STAGES.map(s => (
+                                <option key={s.value} value={s.value}>
+                                  {s.label}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+
+                        {/* Progress bar */}
+                        <div className="mt-3">
+                          <div className="w-full bg-gray-200 rounded-full h-2">
+                            <div 
+                              className={`bg-${stage?.color || 'gray'}-500 h-2 rounded-full`}
+                              style={{ width: `${summary.progress}%` }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
 
@@ -700,6 +898,22 @@ const OpportunityView = () => {
             </div>
           </div>
         </div>
+
+        {/* Deal Modal */}
+        {isDealModalOpen && (
+          <DealFormModal
+            isOpen={isDealModalOpen}
+            onClose={() => {
+              setIsDealModalOpen(false);
+              setSelectedDeal(null);
+            }}
+            onSave={handleCreateDeal}
+            opportunity={opportunity}
+            client={client}
+            agents={agents}
+            existingDeal={selectedDeal}
+          />
+        )}
       </div>
     </Layout>
   );
