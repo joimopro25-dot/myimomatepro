@@ -1,15 +1,13 @@
-/**
- * DEAL BOARD - MyImoMatePro
- * Kanban board for managing property deals through stages
- * Drag & drop interface for buyer opportunity deals
- */
-
+// pages/DealBoard.jsx
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useDeal } from '../contexts/DealContext';
 import { useOpportunities } from '../contexts/OpportunityContext';
 import { useClients } from '../contexts/ClientContext';
 import Layout from '../components/Layout';
+import DealFormModal from '../components/DealFormModal';
+import ViewingFormModal from '../components/ViewingFormModal';
+import ViewingHistory from '../components/ViewingHistory';
 import {
   HomeModernIcon,
   MapPinIcon,
@@ -18,15 +16,15 @@ import {
   PhoneIcon,
   UserIcon,
   PlusIcon,
-  ChevronRightIcon,
   ExclamationTriangleIcon,
   ClockIcon,
   StarIcon,
   ArrowPathIcon,
   XMarkIcon,
-  CheckCircleIcon,
-  XCircleIcon,
-  ChartBarIcon
+  EyeIcon,
+  DocumentTextIcon,
+  ChevronRightIcon,
+  PencilIcon // ADD THIS
 } from '@heroicons/react/24/outline';
 import { BUYER_DEAL_STAGES, INTEREST_LEVELS, formatDealSummary } from '../models/buyerDealModel';
 
@@ -41,7 +39,9 @@ const DealBoard = () => {
     moveDealStage, 
     loading, 
     error,
-    createPropertyDeal 
+    createPropertyDeal,
+    updatePropertyDeal, // ADD THIS
+    addDealViewing 
   } = useDeal();
 
   const [client, setClient] = useState(null);
@@ -50,8 +50,11 @@ const DealBoard = () => {
   const [draggedDeal, setDraggedDeal] = useState(null);
   const [showNewDealModal, setShowNewDealModal] = useState(false);
   const [selectedDeal, setSelectedDeal] = useState(null);
+  const [showViewingModal, setShowViewingModal] = useState(false);
+  const [viewingDeal, setViewingDeal] = useState(null);
+  const [selectedDealForEdit, setSelectedDealForEdit] = useState(null); // ADD THIS
+  const [isDealModalOpen, setIsDealModalOpen] = useState(false); // if not present
 
-  // Load data
   useEffect(() => {
     if (clientId && opportunityId) {
       loadData();
@@ -60,22 +63,18 @@ const DealBoard = () => {
 
   const loadData = async () => {
     try {
-      // Load client
       const clientData = await getClient(clientId);
       setClient(clientData);
 
-      // Load opportunity
       const oppData = await getOpportunity(clientId, opportunityId);
       setOpportunity(oppData);
 
-      // Load deals
       await loadDeals(clientId, opportunityId);
     } catch (err) {
       console.error('Error loading data:', err);
     }
   };
 
-  // Organize deals by stage
   useEffect(() => {
     const organized = {};
     BUYER_DEAL_STAGES.forEach(stage => {
@@ -91,7 +90,6 @@ const DealBoard = () => {
     setDealsByStage(organized);
   }, [deals]);
 
-  // Drag and drop handlers
   const handleDragStart = (e, deal) => {
     setDraggedDeal(deal);
     e.dataTransfer.effectAllowed = 'move';
@@ -113,7 +111,7 @@ const DealBoard = () => {
     if (draggedDeal && draggedDeal.stage !== newStage) {
       try {
         await moveDealStage(clientId, opportunityId, draggedDeal.id, newStage);
-        await loadDeals(clientId, opportunityId); // Reload deals
+        await loadDeals(clientId, opportunityId);
       } catch (err) {
         console.error('Error moving deal:', err);
       }
@@ -123,10 +121,9 @@ const DealBoard = () => {
     return false;
   };
 
-  // Create new deal
   const handleCreateDeal = async (propertyData) => {
     try {
-      const newDeal = await createPropertyDeal(opportunity, propertyData);
+      await createPropertyDeal(opportunity, propertyData);
       setShowNewDealModal(false);
       await loadDeals(clientId, opportunityId);
     } catch (err) {
@@ -134,7 +131,29 @@ const DealBoard = () => {
     }
   };
 
-  // Get stage statistics
+  const handleAddViewing = (deal) => {
+    setViewingDeal(deal);
+    setShowViewingModal(true);
+  };
+
+  const handleSaveViewing = async (viewingData) => {
+    try {
+      await addDealViewing(clientId, opportunityId, viewingDeal.id, viewingData);
+      setShowViewingModal(false);
+      setViewingDeal(null);
+      await loadDeals(clientId, opportunityId);
+      
+      // If deal details modal is open, reload it
+      if (selectedDeal && selectedDeal.id === viewingDeal.id) {
+        const updatedDeal = deals.find(d => d.id === viewingDeal.id);
+        setSelectedDeal(updatedDeal);
+      }
+    } catch (err) {
+      console.error('Error adding viewing:', err);
+      alert('Erro ao guardar visita: ' + err.message);
+    }
+  };
+
   const getStageStats = (stage) => {
     const stageDeals = dealsByStage[stage] || [];
     const totalValue = stageDeals.reduce((sum, deal) => sum + (deal.pricing?.askingPrice || 0), 0);
@@ -144,12 +163,33 @@ const DealBoard = () => {
     };
   };
 
-  // Get deal urgency color
   const getUrgencyColor = (deal) => {
     if (deal.competition?.otherOffers > 0) return 'red';
     if (deal.scoring?.urgencyLevel === 'urgent') return 'orange';
     if (deal.scoring?.urgencyLevel === 'high') return 'yellow';
     return 'gray';
+  };
+
+  // Create/Update handler
+  const handleSaveDeal = async (formData, dealId) => {
+    try {
+      if (dealId) {
+        await updatePropertyDeal(opportunity, dealId, formData);
+      } else {
+        await createPropertyDeal(opportunity, formData.property, formData.agent || null);
+      }
+      await loadDeals(opportunity.clientId, opportunity.id);
+      setIsDealModalOpen(false);
+      setSelectedDealForEdit(null);
+    } catch (e) {
+      console.error('Error saving deal:', e);
+    }
+  };
+
+  // Open edit from Deal Details
+  const handleEditDeal = (deal) => {
+    setSelectedDealForEdit(deal);
+    setIsDealModalOpen(true);
   };
 
   if (loading) {
@@ -222,11 +262,11 @@ const DealBoard = () => {
                       deal={deal}
                       onDragStart={handleDragStart}
                       onClick={() => setSelectedDeal(deal)}
+                      onAddViewing={() => handleAddViewing(deal)}
                       urgencyColor={getUrgencyColor(deal)}
                     />
                   ))}
                   
-                  {/* Empty state */}
                   {(!dealsByStage[stage.value] || dealsByStage[stage.value].length === 0) && (
                     <div className="text-center py-8 text-gray-400">
                       <HomeModernIcon className="w-8 h-8 mx-auto mb-2" />
@@ -239,21 +279,67 @@ const DealBoard = () => {
           })}
         </div>
 
-        {/* New Deal Modal */}
+        {/* Modals */}
         {showNewDealModal && (
-          <NewDealModal
+          <DealFormModal
+            isOpen={showNewDealModal}
             onClose={() => setShowNewDealModal(false)}
-            onCreate={handleCreateDeal}
+            onSave={handleCreateDeal}
             opportunity={opportunity}
+            client={client}
           />
         )}
 
-        {/* Deal Details Modal */}
         {selectedDeal && (
           <DealDetailsModal
             deal={selectedDeal}
+            client={client}
             onClose={() => setSelectedDeal(null)}
+            onAddViewing={() => {
+              setViewingDeal(selectedDeal);
+              setShowViewingModal(true);
+            }}
             onUpdate={loadData}
+            footer={
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  className="inline-flex items-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-500"
+                  onClick={() => handleEditDeal(selectedDeal)}
+                >
+                  <PencilIcon className="h-4 w-4 mr-1" />
+                  Editar
+                </button>
+              </div>
+            }
+          />
+        )}
+
+        {showViewingModal && viewingDeal && (
+          <ViewingFormModal
+            isOpen={showViewingModal}
+            onClose={() => {
+              setShowViewingModal(false);
+              setViewingDeal(null);
+            }}
+            onSave={handleSaveViewing}
+            deal={viewingDeal}
+            client={client}
+          />
+        )}
+
+        {isDealModalOpen && (
+          <DealFormModal
+            isOpen={isDealModalOpen}
+            onClose={() => {
+              setIsDealModalOpen(false);
+              setSelectedDealForEdit(null);
+            }}
+            onSave={handleSaveDeal}
+            opportunity={opportunity}
+            client={client}
+            agents={agents}
+            existingDeal={selectedDealForEdit}
           />
         )}
       </div>
@@ -262,317 +348,257 @@ const DealBoard = () => {
 };
 
 // Deal Card Component
-const DealCard = ({ deal, onDragStart, onClick, urgencyColor }) => {
+const DealCard = ({ deal, onDragStart, onClick, onAddViewing, urgencyColor }) => {
   const interestLevel = INTEREST_LEVELS.find(l => l.value === deal.scoring?.buyerInterestLevel);
   
   return (
     <div
       draggable
       onDragStart={(e) => onDragStart(e, deal)}
-      onClick={onClick}
-      className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 mb-2 cursor-pointer hover:shadow-md transition-shadow"
+      className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 mb-2 cursor-move hover:shadow-md transition-shadow"
     >
-      {/* Property Address */}
-      <div className="flex items-start justify-between mb-2">
-        <h4 className="font-medium text-sm text-gray-900 line-clamp-1">
-          {deal.property?.address || 'Imóvel sem endereço'}
-        </h4>
-        <div className={`w-2 h-2 rounded-full bg-${urgencyColor}-500`} />
-      </div>
+      <div onClick={onClick} className="cursor-pointer">
+        {/* Property Address */}
+        <div className="flex items-start justify-between mb-2">
+          <h4 className="font-medium text-sm text-gray-900 flex-1">
+            {deal.property?.address}
+          </h4>
+          {deal.competition?.otherOffers > 0 && (
+            <span className="ml-2 px-2 py-1 bg-red-100 text-red-700 text-xs rounded-full flex-shrink-0">
+              {deal.competition.otherOffers} propostas
+            </span>
+          )}
+        </div>
 
-      {/* Property Details */}
-      <div className="flex items-center space-x-3 text-xs text-gray-600 mb-2">
-        <span>{deal.property?.type || 'N/A'}</span>
-        <span>{deal.property?.bedrooms || 0}Q</span>
-        <span>{deal.property?.area || 0}m²</span>
-      </div>
+        {/* Property Details */}
+        <div className="flex items-center text-xs text-gray-600 space-x-3 mb-2">
+          <span className="flex items-center">
+            <HomeModernIcon className="w-4 h-4 mr-1" />
+            {deal.property?.bedrooms}Q
+          </span>
+          {deal.property?.area && (
+            <span>{deal.property.area}m²</span>
+          )}
+        </div>
 
-      {/* Price */}
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center text-sm">
-          <CurrencyEuroIcon className="w-4 h-4 mr-1 text-gray-400" />
-          <span className="font-semibold">
+        {/* Price */}
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-sm font-semibold text-gray-900">
             €{(deal.pricing?.askingPrice || 0).toLocaleString('pt-PT')}
           </span>
-        </div>
-        {deal.pricing?.currentOffer && (
-          <span className="text-xs text-green-600">
-            Oferta: €{deal.pricing.currentOffer.toLocaleString('pt-PT')}
-          </span>
-        )}
-      </div>
-
-      {/* Match Score & Interest */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-2">
-          <div className="flex items-center">
-            <ChartBarIcon className="w-3 h-3 mr-1 text-gray-400" />
-            <span className="text-xs text-gray-600">
-              {deal.scoring?.propertyMatchScore || 0}%
-            </span>
-          </div>
           {interestLevel && (
-            <span className="text-lg" title={interestLevel.label}>
-              {interestLevel.emoji}
+            <span className={`px-2 py-1 bg-${interestLevel.color}-100 text-${interestLevel.color}-800 text-xs rounded-full`}>
+              {interestLevel.emoji} {deal.scoring?.buyerInterestLevel}/10
             </span>
           )}
         </div>
-        
-        {/* Competition indicator */}
-        {deal.competition?.otherOffers > 0 && (
-          <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded">
-            {deal.competition.otherOffers} ofertas
-          </span>
+
+        {/* Agent */}
+        {deal.propertyAgent?.name && (
+          <div className="text-xs text-gray-600 mb-2 flex items-center">
+            <UserIcon className="w-3 h-3 mr-1" />
+            {deal.propertyAgent.name}
+          </div>
+        )}
+
+        {/* Viewings Count */}
+        {deal.totalViewings > 0 && (
+          <div className="text-xs text-gray-600 flex items-center mb-2">
+            <EyeIcon className="w-3 h-3 mr-1" />
+            {deal.totalViewings} {deal.totalViewings === 1 ? 'visita' : 'visitas'}
+          </div>
         )}
       </div>
 
-      {/* Agent */}
-      {deal.propertyAgent?.name && (
-        <div className="mt-2 pt-2 border-t flex items-center justify-between">
-          <div className="flex items-center text-xs text-gray-500">
-            <UserIcon className="w-3 h-3 mr-1" />
-            <span className="line-clamp-1">{deal.propertyAgent.name}</span>
-          </div>
-          {deal.nextViewing && (
-            <div className="flex items-center text-xs text-blue-600">
-              <CalendarIcon className="w-3 h-3 mr-1" />
-              Visita
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-};
-
-// New Deal Modal
-const NewDealModal = ({ onClose, onCreate, opportunity }) => {
-  const [formData, setFormData] = useState({
-    address: '',
-    type: 'apartment',
-    bedrooms: 2,
-    bathrooms: 1,
-    area: 80,
-    askingPrice: 0,
-    listingUrl: '',
-    agentName: '',
-    agentPhone: '',
-    agentEmail: ''
-  });
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    
-    const propertyData = {
-      property: {
-        address: formData.address,
-        type: formData.type,
-        bedrooms: formData.bedrooms,
-        bathrooms: formData.bathrooms,
-        area: formData.area,
-        listingUrl: formData.listingUrl
-      },
-      pricing: {
-        askingPrice: formData.askingPrice
-      },
-      propertyAgent: formData.agentName ? {
-        name: formData.agentName,
-        phone: formData.agentPhone,
-        email: formData.agentEmail
-      } : null
-    };
-    
-    onCreate(propertyData);
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="p-6 border-b">
-          <h2 className="text-xl font-semibold">Adicionar Novo Imóvel ao Pipeline</h2>
-        </div>
-        
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {/* Property Info */}
-          <div>
-            <h3 className="font-medium mb-3">Informações do Imóvel</h3>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="col-span-2">
-                <label className="block text-sm font-medium mb-1">Endereço</label>
-                <input
-                  type="text"
-                  value={formData.address}
-                  onChange={(e) => setFormData({...formData, address: e.target.value})}
-                  className="w-full px-3 py-2 border rounded-lg"
-                  required
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium mb-1">Tipo</label>
-                <select
-                  value={formData.type}
-                  onChange={(e) => setFormData({...formData, type: e.target.value})}
-                  className="w-full px-3 py-2 border rounded-lg"
-                >
-                  <option value="apartment">Apartamento</option>
-                  <option value="house">Moradia</option>
-                  <option value="villa">Villa</option>
-                  <option value="land">Terreno</option>
-                </select>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium mb-1">Preço Pedido €</label>
-                <input
-                  type="number"
-                  value={formData.askingPrice}
-                  onChange={(e) => setFormData({...formData, askingPrice: Number(e.target.value)})}
-                  className="w-full px-3 py-2 border rounded-lg"
-                  required
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium mb-1">Quartos</label>
-                <input
-                  type="number"
-                  value={formData.bedrooms}
-                  onChange={(e) => setFormData({...formData, bedrooms: Number(e.target.value)})}
-                  className="w-full px-3 py-2 border rounded-lg"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium mb-1">Área (m²)</label>
-                <input
-                  type="number"
-                  value={formData.area}
-                  onChange={(e) => setFormData({...formData, area: Number(e.target.value)})}
-                  className="w-full px-3 py-2 border rounded-lg"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Agent Info */}
-          <div>
-            <h3 className="font-medium mb-3">Agente do Imóvel</h3>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium mb-1">Nome do Agente</label>
-                <input
-                  type="text"
-                  value={formData.agentName}
-                  onChange={(e) => setFormData({...formData, agentName: e.target.value})}
-                  className="w-full px-3 py-2 border rounded-lg"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium mb-1">Telefone</label>
-                <input
-                  type="tel"
-                  value={formData.agentPhone}
-                  onChange={(e) => setFormData({...formData, agentPhone: e.target.value})}
-                  className="w-full px-3 py-2 border rounded-lg"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Actions */}
-          <div className="flex justify-end space-x-3 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-            >
-              Adicionar ao Pipeline
-            </button>
-          </div>
-        </form>
+      {/* Quick Actions */}
+      <div className="pt-2 border-t flex items-center justify-between">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onAddViewing();
+          }}
+          className="text-xs text-indigo-600 hover:text-indigo-800 flex items-center"
+        >
+          <PlusIcon className="w-3 h-3 mr-1" />
+          Visita
+        </button>
+        <button
+          onClick={onClick}
+          className="text-xs text-gray-600 hover:text-gray-800 flex items-center"
+        >
+          Detalhes
+          <ChevronRightIcon className="w-3 h-3 ml-1" />
+        </button>
       </div>
     </div>
   );
 };
 
-// Deal Details Modal (simplified)
-const DealDetailsModal = ({ deal, onClose, onUpdate }) => {
+// Deal Details Modal
+const DealDetailsModal = ({ deal, client, onClose, onAddViewing, onUpdate, footer }) => {
+  const [activeTab, setActiveTab] = useState('overview');
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="p-6 border-b flex justify-between items-center">
-          <h2 className="text-xl font-semibold">{deal.property?.address}</h2>
+      <div className="bg-white rounded-xl max-w-5xl w-full max-h-[90vh] flex flex-col">
+        {/* Header */}
+        <div className="p-6 border-b flex justify-between items-center flex-shrink-0">
+          <div>
+            <h2 className="text-xl font-semibold">{deal.property?.address}</h2>
+            <p className="text-sm text-gray-600 mt-1">{client?.name}</p>
+          </div>
           <button onClick={onClose}>
             <XMarkIcon className="w-6 h-6 text-gray-400 hover:text-gray-600" />
           </button>
         </div>
-        
-        <div className="p-6">
-          <div className="grid grid-cols-2 gap-6">
-            <div>
-              <h3 className="font-medium mb-3">Detalhes do Imóvel</h3>
-              <dl className="space-y-2">
-                <div>
-                  <dt className="text-sm text-gray-600">Tipo</dt>
-                  <dd className="font-medium">{deal.property?.type}</dd>
-                </div>
-                <div>
-                  <dt className="text-sm text-gray-600">Quartos</dt>
-                  <dd className="font-medium">{deal.property?.bedrooms}</dd>
-                </div>
-                <div>
-                  <dt className="text-sm text-gray-600">Área</dt>
-                  <dd className="font-medium">{deal.property?.area}m²</dd>
-                </div>
-              </dl>
-            </div>
-            
-            <div>
-              <h3 className="font-medium mb-3">Valores</h3>
-              <dl className="space-y-2">
-                <div>
-                  <dt className="text-sm text-gray-600">Preço Pedido</dt>
-                  <dd className="font-medium">€{deal.pricing?.askingPrice?.toLocaleString('pt-PT')}</dd>
-                </div>
-                {deal.pricing?.currentOffer && (
-                  <div>
-                    <dt className="text-sm text-gray-600">Oferta Atual</dt>
-                    <dd className="font-medium text-green-600">
-                      €{deal.pricing.currentOffer.toLocaleString('pt-PT')}
-                    </dd>
-                  </div>
-                )}
-              </dl>
-            </div>
+
+        {/* Tabs */}
+        <div className="border-b flex-shrink-0">
+          <div className="flex space-x-6 px-6">
+            <button
+              onClick={() => setActiveTab('overview')}
+              className={`py-3 border-b-2 font-medium text-sm ${
+                activeTab === 'overview'
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Visão Geral
+            </button>
+            <button
+              onClick={() => setActiveTab('viewings')}
+              className={`py-3 border-b-2 font-medium text-sm flex items-center ${
+                activeTab === 'viewings'
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <EyeIcon className="w-4 h-4 mr-1" />
+              Visitas ({deal.viewings?.length || 0})
+            </button>
+            <button
+              onClick={() => setActiveTab('notes')}
+              className={`py-3 border-b-2 font-medium text-sm ${
+                activeTab === 'notes'
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <DocumentTextIcon className="w-4 h-4 mr-1 inline" />
+              Notas
+            </button>
           </div>
-          
-          {deal.propertyAgent && (
-            <div className="mt-6 pt-6 border-t">
-              <h3 className="font-medium mb-3">Agente Responsável</h3>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium">{deal.propertyAgent.name}</p>
-                  <p className="text-sm text-gray-600">{deal.propertyAgent.agency}</p>
-                </div>
-                <div className="flex space-x-2">
-                  {deal.propertyAgent.phone && (
-                    <a
-                      href={`tel:${deal.propertyAgent.phone}`}
-                      className="p-2 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200"
-                    >
-                      <PhoneIcon className="w-5 h-5" />
-                    </a>
-                  )}
-                </div>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-6">
+          {activeTab === 'overview' && (
+            <div className="grid grid-cols-2 gap-6">
+              <div>
+                <h3 className="font-medium mb-3">Detalhes do Imóvel</h3>
+                <dl className="space-y-2">
+                  <div>
+                    <dt className="text-sm text-gray-600">Tipo</dt>
+                    <dd className="font-medium">{deal.property?.type}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-sm text-gray-600">Quartos</dt>
+                    <dd className="font-medium">{deal.property?.bedrooms}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-sm text-gray-600">Casas de Banho</dt>
+                    <dd className="font-medium">{deal.property?.bathrooms}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-sm text-gray-600">Área</dt>
+                    <dd className="font-medium">{deal.property?.area}m²</dd>
+                  </div>
+                </dl>
               </div>
+
+              <div>
+                <h3 className="font-medium mb-3">Preços</h3>
+                <dl className="space-y-2">
+                  <div>
+                    <dt className="text-sm text-gray-600">Preço Pedido</dt>
+                    <dd className="font-medium">€{deal.pricing?.askingPrice?.toLocaleString('pt-PT')}</dd>
+                  </div>
+                  {deal.pricing?.marketValue && (
+                    <div>
+                      <dt className="text-sm text-gray-600">Valor de Mercado</dt>
+                      <dd className="font-medium">€{deal.pricing.marketValue.toLocaleString('pt-PT')}</dd>
+                    </div>
+                  )}
+                  {deal.pricing?.currentOffer && (
+                    <div>
+                      <dt className="text-sm text-gray-600">Proposta Atual</dt>
+                      <dd className="font-medium text-green-600">€{deal.pricing.currentOffer.toLocaleString('pt-PT')}</dd>
+                    </div>
+                  )}
+                </dl>
+              </div>
+
+              {deal.propertyAgent?.name && (
+                <div className="col-span-2">
+                  <h3 className="font-medium mb-3">Agente do Imóvel</h3>
+                  <dl className="space-y-2">
+                    <div>
+                      <dt className="text-sm text-gray-600">Nome</dt>
+                      <dd className="font-medium">{deal.propertyAgent.name}</dd>
+                    </div>
+                    {deal.propertyAgent.agency && (
+                      <div>
+                        <dt className="text-sm text-gray-600">Agência</dt>
+                        <dd className="font-medium">{deal.propertyAgent.agency}</dd>
+                      </div>
+                    )}
+                    {deal.propertyAgent.phone && (
+                      <div>
+                        <dt className="text-sm text-gray-600">Telefone</dt>
+                        <dd className="font-medium">{deal.propertyAgent.phone}</dd>
+                      </div>
+                    )}
+                  </dl>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'viewings' && (
+            <div>
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold">Histórico de Visitas</h3>
+                <button
+                  onClick={onAddViewing}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 flex items-center"
+                >
+                  <PlusIcon className="w-4 h-4 mr-2" />
+                  Adicionar Visita
+                </button>
+              </div>
+              <ViewingHistory viewings={deal.viewings || []} />
+            </div>
+          )}
+
+          {activeTab === 'notes' && (
+            <div className="space-y-4">
+              {deal.notes && (
+                <div>
+                  <h3 className="font-medium mb-2">Notas Gerais</h3>
+                  <p className="text-gray-700 whitespace-pre-wrap">{deal.notes}</p>
+                </div>
+              )}
+              {deal.internalNotes && (
+                <div>
+                  <h3 className="font-medium mb-2">Notas Internas</h3>
+                  <p className="text-gray-700 whitespace-pre-wrap bg-yellow-50 p-3 rounded-lg">
+                    {deal.internalNotes}
+                  </p>
+                </div>
+              )}
+              {!deal.notes && !deal.internalNotes && (
+                <p className="text-gray-500 text-center py-8">Sem notas</p>
+              )}
             </div>
           )}
         </div>

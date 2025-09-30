@@ -1,7 +1,7 @@
 // components/DealFormModal.jsx
 import React, { useState, useEffect } from 'react';
 import { 
-  XMarkIcon,      // CHANGED from XIcon
+  XMarkIcon,
   HomeIcon, 
   CurrencyEuroIcon, 
   UserIcon,
@@ -23,11 +23,10 @@ const DealFormModal = ({
   onSave, 
   opportunity,
   client,
-  agents = [], // List of agents from context
+  agents = [],
   existingDeal = null 
 }) => {
   const [formData, setFormData] = useState({
-    // Property Basic Info
     property: {
       address: '',
       type: 'apartment',
@@ -37,15 +36,11 @@ const DealFormModal = ({
       listingUrl: '',
       reference: ''
     },
-    
-    // Pricing
     pricing: {
       askingPrice: '',
       marketValue: '',
-      expectedNegotiation: 5, // Default 5% negotiation expected
+      expectedNegotiation: 5,
     },
-    
-    // Agent (can select existing or add new)
     propertyAgent: {
       agentId: '',
       name: '',
@@ -58,31 +53,21 @@ const DealFormModal = ({
         value: 2.5
       }
     },
-    
-    // Representation
     representation: {
       type: REPRESENTATION_TYPES.BUYER_ONLY.value,
     },
-    
-    // Initial Scoring
     scoring: {
       propertyMatchScore: 0,
       buyerInterestLevel: 0,
       competitionLevel: 'low',
       urgencyLevel: 'normal',
     },
-    
-    // Competition
     competition: {
       otherInterested: 0,
       otherOffers: 0,
       notes: ''
     },
-    
-    // Stage
     stage: 'lead',
-    
-    // Notes
     notes: '',
     internalNotes: ''
   });
@@ -97,7 +82,6 @@ const DealFormModal = ({
     }
   }, [existingDeal]);
 
-  // Handle agent selection
   const handleAgentSelect = (e) => {
     const agentId = e.target.value;
     setSelectedAgentId(agentId);
@@ -168,7 +152,6 @@ const DealFormModal = ({
   };
 
   const handleSubmit = () => {
-    // Basic validation
     if (!formData.property.address) {
       alert('Por favor, insira o endereço do imóvel');
       return;
@@ -185,9 +168,9 @@ const DealFormModal = ({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden">
-        {/* Header */}
-        <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-6">
+      <div className="bg-white rounded-xl shadow-2xl max-w-3xl w-full max-h-[90vh] flex flex-col">
+        {/* Header - Fixed at top */}
+        <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-6 rounded-t-xl flex-shrink-0">
           <div className="flex justify-between items-center">
             <div>
               <h2 className="text-2xl font-bold">
@@ -201,13 +184,13 @@ const DealFormModal = ({
               onClick={onClose}
               className="p-2 hover:bg-white/20 rounded-lg transition"
             >
-              <XMarkIcon className="w-6 h-6" />  {/* CHANGED from XIcon */}
+              <XMarkIcon className="w-6 h-6" />
             </button>
           </div>
         </div>
 
-        {/* Form Content */}
-        <div className="p-6 overflow-y-auto" style={{ maxHeight: 'calc(90vh - 120px)' }}>
+        {/* Scrollable Content Area */}
+        <div className="flex-1 overflow-y-auto p-6">
           {/* Property Section */}
           <div className="mb-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
@@ -248,19 +231,6 @@ const DealFormModal = ({
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Referência
-                </label>
-                <input
-                  type="text"
-                  value={formData.property.reference}
-                  onChange={(e) => handleInputChange('property', 'reference', e.target.value)}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                  placeholder="REF123456"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
                   Quartos
                 </label>
                 <input
@@ -274,7 +244,7 @@ const DealFormModal = ({
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  WCs
+                  Casas de Banho
                 </label>
                 <input
                   type="number"
@@ -298,16 +268,32 @@ const DealFormModal = ({
                 />
               </div>
 
+              <div className="col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  URL do Anúncio
+                </label>
+                <div className="flex items-center space-x-2">
+                  <LinkIcon className="w-5 h-5 text-gray-400" />
+                  <input
+                    type="url"
+                    value={formData.property.listingUrl}
+                    onChange={(e) => handleInputChange('property', 'listingUrl', e.target.value)}
+                    className="flex-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                    placeholder="https://..."
+                  />
+                </div>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Link do Anúncio
+                  Referência
                 </label>
                 <input
-                  type="url"
-                  value={formData.property.listingUrl}
-                  onChange={(e) => handleInputChange('property', 'listingUrl', e.target.value)}
+                  type="text"
+                  value={formData.property.reference}
+                  onChange={(e) => handleInputChange('property', 'reference', e.target.value)}
                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                  placeholder="https://www.idealista.pt/..."
+                  placeholder="REF-12345"
                 />
               </div>
             </div>
@@ -317,18 +303,18 @@ const DealFormModal = ({
           <div className="mb-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
               <CurrencyEuroIcon className="w-5 h-5 mr-2 text-green-600" />
-              Informação de Preço
+              Preços
             </h3>
             
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Preço Pedido (€) *
+                  Preço Pedido *
                 </label>
                 <input
                   type="number"
                   value={formData.pricing.askingPrice}
-                  onChange={(e) => handleInputChange('pricing', 'askingPrice', parseInt(e.target.value) || '')}
+                  onChange={(e) => handleInputChange('pricing', 'askingPrice', parseFloat(e.target.value) || '')}
                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
                   placeholder="350000"
                 />
@@ -336,46 +322,32 @@ const DealFormModal = ({
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Valor de Mercado (€)
+                  Valor de Mercado (sua avaliação)
                 </label>
                 <input
                   type="number"
                   value={formData.pricing.marketValue}
-                  onChange={(e) => handleInputChange('pricing', 'marketValue', parseInt(e.target.value) || '')}
+                  onChange={(e) => handleInputChange('pricing', 'marketValue', parseFloat(e.target.value) || '')}
                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
                   placeholder="340000"
                 />
               </div>
 
-              <div className="col-span-2">
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Negociação Esperada: {formData.pricing.expectedNegotiation}%
+                  Negociação Esperada (%)
                 </label>
                 <input
-                  type="range"
+                  type="number"
                   value={formData.pricing.expectedNegotiation}
-                  onChange={(e) => handleInputChange('pricing', 'expectedNegotiation', parseInt(e.target.value))}
-                  className="w-full"
+                  onChange={(e) => handleInputChange('pricing', 'expectedNegotiation', parseFloat(e.target.value) || 0)}
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  placeholder="5"
                   min="0"
-                  max="20"
-                  step="1"
+                  max="100"
                 />
-                <div className="flex justify-between text-xs text-gray-500">
-                  <span>0%</span>
-                  <span>10%</span>
-                  <span>20%</span>
-                </div>
               </div>
             </div>
-
-            {/* Budget Info from Opportunity */}
-            {opportunity?.qualification?.budget && (
-              <div className="mt-4 p-3 bg-blue-50 rounded-lg">
-                <p className="text-sm text-blue-800">
-                  💡 Orçamento do cliente: €{opportunity.qualification.budget.minPrice?.toLocaleString('pt-PT')} - €{opportunity.qualification.budget.maxPrice?.toLocaleString('pt-PT')}
-                </p>
-              </div>
-            )}
           </div>
 
           {/* Agent Section */}
@@ -384,209 +356,149 @@ const DealFormModal = ({
               <UserIcon className="w-5 h-5 mr-2 text-purple-600" />
               Agente do Imóvel
             </h3>
-
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Selecionar Agente
-              </label>
-              <select
-                value={selectedAgentId}
-                onChange={handleAgentSelect}
-                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">Selecionar...</option>
-                <option value="self">🏠 Propriedade Interna (Nossa Agência)</option>
-                <optgroup label="Agentes Cadastrados">
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Selecionar Agente
+                </label>
+                <select
+                  value={selectedAgentId}
+                  onChange={handleAgentSelect}
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Selecione...</option>
+                  <option value="self">Propriedade Interna (Nossa Agência)</option>
+                  <option value="new">+ Novo Agente</option>
                   {agents.map(agent => (
                     <option key={agent.id} value={agent.id}>
                       {agent.name} - {agent.agency}
                     </option>
                   ))}
-                </optgroup>
-                <option value="new">➕ Adicionar Novo Agente</option>
-              </select>
-            </div>
-
-            {(isNewAgent || selectedAgentId === 'new') && (
-              <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Nome do Agente
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.propertyAgent.name}
-                    onChange={(e) => handleInputChange('propertyAgent', 'name', e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                    placeholder="João Silva"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Agência
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.propertyAgent.agency}
-                    onChange={(e) => handleInputChange('propertyAgent', 'agency', e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                    placeholder="RE/MAX Lisboa"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Telefone
-                  </label>
-                  <input
-                    type="tel"
-                    value={formData.propertyAgent.phone}
-                    onChange={(e) => handleInputChange('propertyAgent', 'phone', e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                    placeholder="912 345 678"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Email
-                  </label>
-                  <input
-                    type="email"
-                    value={formData.propertyAgent.email}
-                    onChange={(e) => handleInputChange('propertyAgent', 'email', e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                    placeholder="agente@remax.pt"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    WhatsApp
-                  </label>
-                  <input
-                    type="tel"
-                    value={formData.propertyAgent.whatsapp}
-                    onChange={(e) => handleInputChange('propertyAgent', 'whatsapp', e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                    placeholder="912 345 678"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Comissão (%)
-                  </label>
-                  <input
-                    type="number"
-                    value={formData.propertyAgent.commission.value}
-                    onChange={(e) => handleInputChange('propertyAgent', 'commission', {
-                      ...formData.propertyAgent.commission,
-                      value: parseFloat(e.target.value) || 0
-                    })}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                    placeholder="2.5"
-                    step="0.1"
-                  />
-                </div>
+                </select>
               </div>
-            )}
+
+              {(isNewAgent || selectedAgentId === 'new') && (
+                <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
+                  <div className="col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Nome do Agente
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.propertyAgent.name}
+                      onChange={(e) => handleInputChange('propertyAgent', 'name', e.target.value)}
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                      placeholder="João Silva"
+                    />
+                  </div>
+
+                  <div className="col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Agência
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.propertyAgent.agency}
+                      onChange={(e) => handleInputChange('propertyAgent', 'agency', e.target.value)}
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                      placeholder="ERA Portugal"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Telefone
+                    </label>
+                    <input
+                      type="tel"
+                      value={formData.propertyAgent.phone}
+                      onChange={(e) => handleInputChange('propertyAgent', 'phone', e.target.value)}
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                      placeholder="+351 912 345 678"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Email
+                    </label>
+                    <input
+                      type="email"
+                      value={formData.propertyAgent.email}
+                      onChange={(e) => handleInputChange('propertyAgent', 'email', e.target.value)}
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                      placeholder="joao@era.pt"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* Initial Assessment */}
+          {/* Scoring Section */}
           <div className="mb-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
               <SparklesIcon className="w-5 h-5 mr-2 text-yellow-600" />
-              Avaliação Inicial
+              Avaliação & Competição
             </h3>
-
-            <div className="space-y-4">
+            
+            <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Nível de Interesse Inicial
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Nível de Competição
                 </label>
-                <div className="flex space-x-2">
-                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(level => (
-                    <button
-                      key={level}
-                      type="button"
-                      onClick={() => handleInputChange('scoring', 'buyerInterestLevel', level)}
-                      className={`p-2 rounded ${
-                        formData.scoring.buyerInterestLevel >= level
-                          ? 'text-yellow-500'
-                          : 'text-gray-300'
-                      }`}
-                    >
-                      <StarIcon className="w-5 h-5" />
-                    </button>
-                  ))}
-                </div>
-                <p className="text-sm text-gray-500 mt-1">
-                  {INTEREST_LEVELS.find(i => 
-                    formData.scoring.buyerInterestLevel >= i.value && 
-                    formData.scoring.buyerInterestLevel < (INTEREST_LEVELS[INTEREST_LEVELS.indexOf(i) - 1]?.value || 11)
-                  )?.label || 'Selecione o nível de interesse'}
-                </p>
+                <select
+                  value={formData.scoring.competitionLevel}
+                  onChange={(e) => handleInputChange('scoring', 'competitionLevel', e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="low">Baixo</option>
+                  <option value="medium">Médio</option>
+                  <option value="high">Alto</option>
+                </select>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Nível de Competição
-                  </label>
-                  <select
-                    value={formData.scoring.competitionLevel}
-                    onChange={(e) => handleInputChange('scoring', 'competitionLevel', e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="low">Baixa</option>
-                    <option value="medium">Média</option>
-                    <option value="high">Alta</option>
-                  </select>
-                </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Urgência
+                </label>
+                <select
+                  value={formData.scoring.urgencyLevel}
+                  onChange={(e) => handleInputChange('scoring', 'urgencyLevel', e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="low">Baixa</option>
+                  <option value="normal">Normal</option>
+                  <option value="high">Alta</option>
+                  <option value="urgent">Urgente</option>
+                </select>
+              </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Urgência
-                  </label>
-                  <select
-                    value={formData.scoring.urgencyLevel}
-                    onChange={(e) => handleInputChange('scoring', 'urgencyLevel', e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="low">Baixa</option>
-                    <option value="normal">Normal</option>
-                    <option value="high">Alta</option>
-                    <option value="urgent">Urgente</option>
-                  </select>
-                </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Outros Interessados
+                </label>
+                <input
+                  type="number"
+                  value={formData.competition.otherInterested}
+                  onChange={(e) => handleInputChange('competition', 'otherInterested', parseInt(e.target.value) || 0)}
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  placeholder="0"
+                />
+              </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Outros Interessados
-                  </label>
-                  <input
-                    type="number"
-                    value={formData.competition.otherInterested}
-                    onChange={(e) => handleInputChange('competition', 'otherInterested', parseInt(e.target.value) || 0)}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                    placeholder="0"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Outras Propostas
-                  </label>
-                  <input
-                    type="number"
-                    value={formData.competition.otherOffers}
-                    onChange={(e) => handleInputChange('competition', 'otherOffers', parseInt(e.target.value) || 0)}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                    placeholder="0"
-                  />
-                </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Outras Propostas
+                </label>
+                <input
+                  type="number"
+                  value={formData.competition.otherOffers}
+                  onChange={(e) => handleInputChange('competition', 'otherOffers', parseInt(e.target.value) || 0)}
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  placeholder="0"
+                />
               </div>
             </div>
           </div>
@@ -646,17 +558,17 @@ const DealFormModal = ({
           </div>
         </div>
 
-        {/* Footer Actions */}
-        <div className="bg-gray-50 px-6 py-4 flex justify-end space-x-3 border-t">
+        {/* Footer Actions - Fixed at bottom */}
+        <div className="bg-gray-50 px-6 py-4 flex justify-end space-x-3 border-t rounded-b-xl flex-shrink-0">
           <button
             onClick={onClose}
-            className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+            className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
           >
             Cancelar
           </button>
           <button
             onClick={handleSubmit}
-            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           >
             {existingDeal ? 'Atualizar Negócio' : 'Criar Negócio'}
           </button>

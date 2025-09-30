@@ -8,13 +8,13 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useOpportunities } from '../contexts/OpportunityContext';
 import { useClients } from '../contexts/ClientContext';
-import { useDeal } from '../contexts/DealContext'; // NEW
-import DealFormModal from '../components/DealFormModal'; // NEW
-import { 
-  formatDealSummary, 
+import { useDeal } from '../contexts/DealContext';
+import DealFormModal from '../components/DealFormModal';
+import {
+  formatDealSummary,
   isDealActionNeeded,
-  BUYER_DEAL_STAGES 
-} from '../models/buyerDealModel'; // NEW
+  BUYER_DEAL_STAGES
+} from '../models/buyerDealModel';
 import Layout from '../components/Layout';
 import {
   ArrowLeftIcon,
@@ -37,7 +37,7 @@ import {
   HomeModernIcon,
   ArrowRightIcon,
   PlusIcon,
-  StarIcon // NEW
+  StarIcon
 } from '@heroicons/react/24/outline';
 import {
   formatPrice,
@@ -58,22 +58,23 @@ const OpportunityView = () => {
   const navigate = useNavigate();
   const { getOpportunity, updateOpportunityStatus, deleteOpportunity, loading, error } = useOpportunities();
   const { getClient } = useClients();
-  const { 
-    loadDeals, 
-    createPropertyDeal, 
-    moveDealStage, 
+  const {
+    loadDeals,
+    createPropertyDeal,
+    updatePropertyDeal, // ADD THIS
+    moveDealStage,
     deals,
     agents,
-    loadAgents 
-  } = useDeal(); // NEW
+    loadAgents
+  } = useDeal();
   
   const [opportunity, setOpportunity] = useState(null);
   const [client, setClient] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showStatusMenu, setShowStatusMenu] = useState(false);
-  const [isDealModalOpen, setIsDealModalOpen] = useState(false); // NEW
-  const [selectedDeal, setSelectedDeal] = useState(null); // NEW
-  const [opportunityDeals, setOpportunityDeals] = useState([]); // NEW
+  const [isDealModalOpen, setIsDealModalOpen] = useState(false);
+  const [selectedDeal, setSelectedDeal] = useState(null);
+  const [opportunityDeals, setOpportunityDeals] = useState([]);
 
   // Load data
   useEffect(() => {
@@ -185,6 +186,22 @@ const OpportunityView = () => {
       await loadData();
     } catch (error) {
       console.error('Error moving deal stage:', error);
+    }
+  };
+
+  // Replace old create handler with a unified save handler
+  const handleSaveDeal = async (formData, dealId) => {
+    try {
+      if (dealId) {
+        await updatePropertyDeal(opportunity, dealId, formData);
+      } else {
+        await createPropertyDeal(opportunity, formData.property, formData.agent || null);
+      }
+      await loadDeals(opportunity.clientId, opportunity.id);
+      setIsDealModalOpen(false);
+      setSelectedDeal(null);
+    } catch (e) {
+      console.error('Error saving deal:', e);
     }
   };
 
@@ -907,7 +924,7 @@ const OpportunityView = () => {
               setIsDealModalOpen(false);
               setSelectedDeal(null);
             }}
-            onSave={handleCreateDeal}
+            onSave={handleSaveDeal} // Updated handler
             opportunity={opportunity}
             client={client}
             agents={agents}

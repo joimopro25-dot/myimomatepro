@@ -50,6 +50,10 @@ export const OpportunityProvider = ({ children }) => {
     if (!consultantId) {
       throw new Error('Utilizador não autenticado');
     }
+    
+    if (!clientId) {
+      throw new Error('Client ID is required');
+    }
 
     setLoading(true);
     setError(null);
@@ -66,17 +70,33 @@ export const OpportunityProvider = ({ children }) => {
 
       // Create opportunity in NESTED path
       const opportunityRef = doc(collection(db, 'consultants', consultantId, 'clients', clientId, 'opportunities'));
+      
       const newOpportunity = createBuyerOpportunitySchema({
         ...opportunityData,
-        clientId,
+        clientId,  // CRITICAL: Ensure clientId is included
         consultantId: consultantId,
         buyerScore
       });
 
+      // DIAGNOSTIC LOG
+      console.log('=== CREATE OPPORTUNITY ===');
+      console.log('Path:', `consultants/${consultantId}/clients/${clientId}/opportunities/${opportunityRef.id}`);
+      console.log('Opportunity data:', {
+        id: opportunityRef.id,
+        clientId: clientId,
+        consultantId: consultantId,
+        ...newOpportunity
+      });
+
       await setDoc(opportunityRef, {
         ...newOpportunity,
-        id: opportunityRef.id
+        id: opportunityRef.id,
+        clientId: clientId,       // EXPLICITLY set clientId again
+        consultantId: consultantId // EXPLICITLY set consultantId again
       });
+
+      console.log('Opportunity created successfully');
+      console.log('=== END CREATE OPPORTUNITY ===');
 
       // Log activity on client
       await addClientActivity(clientId, {
@@ -90,7 +110,9 @@ export const OpportunityProvider = ({ children }) => {
 
       setCurrentOpportunity({
         ...newOpportunity,
-        id: opportunityRef.id
+        id: opportunityRef.id,
+        clientId: clientId,
+        consultantId: consultantId
       });
 
       return opportunityRef.id;
@@ -121,7 +143,7 @@ export const OpportunityProvider = ({ children }) => {
       const newOpportunity = {
         ...opportunityData,
         consultantId: currentUser.uid,
-        clientId,
+        clientId: clientId,  // EXPLICIT clientId
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         createdBy: currentUser.uid,
@@ -197,9 +219,18 @@ export const OpportunityProvider = ({ children }) => {
     }
   }, [currentUser]);
 
-  // ===== GET SINGLE OPPORTUNITY =====
+  /**
+   * GET SINGLE OPPORTUNITY (with diagnostics)
+   */
   const getOpportunity = useCallback(async (clientId, opportunityId) => {
-    if (!currentUser?.uid || !clientId || !opportunityId) return null;
+    if (!currentUser?.uid || !clientId || !opportunityId) {
+      console.error('Missing IDs in getOpportunity:', { 
+        consultantId: currentUser?.uid, 
+        clientId, 
+        opportunityId 
+      });
+      return null;
+    }
 
     setLoading(true);
     setError(null);
@@ -207,16 +238,34 @@ export const OpportunityProvider = ({ children }) => {
     try {
       // Use NESTED path
       const oppRef = doc(db, 'consultants', currentUser.uid, 'clients', clientId, 'opportunities', opportunityId);
+      
+      console.log('=== LOADING OPPORTUNITY ===');
+      console.log('Path:', `consultants/${currentUser.uid}/clients/${clientId}/opportunities/${opportunityId}`);
+      
       const oppDoc = await getDoc(oppRef);
 
       if (!oppDoc.exists()) {
         throw new Error('Oportunidade não encontrada');
       }
 
+      const docData = oppDoc.data();
+      console.log('Document data from Firestore:', docData);
+
       const opportunity = {
         id: oppDoc.id,
-        ...oppDoc.data()
+        ...docData,
+        // ENSURE clientId is present even if missing from doc
+        clientId: docData.clientId || clientId,
+        consultantId: docData.consultantId || currentUser.uid
       };
+
+      console.log('Opportunity object created:', {
+        id: opportunity.id,
+        clientId: opportunity.clientId,
+        consultantId: opportunity.consultantId,
+        type: opportunity.type
+      });
+      console.log('=== END LOADING OPPORTUNITY ===');
 
       setCurrentOpportunity(opportunity);
       return opportunity;

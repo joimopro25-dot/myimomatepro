@@ -182,12 +182,12 @@ export const logAgentInteraction = async (agentId, interaction) => {
 // ============================================
 
 /**
- * Create a new deal for a buyer opportunity
+ * Create a new deal for a buyer opportunity (UPDATED)
  */
-export const createDeal = async (opportunityId, clientId, dealData) => {
+export const createDeal = async (consultantId, opportunityId, clientId, dealData) => {
   try {
     const dealRef = doc(
-      collection(db, 'clients', clientId, 'opportunities', opportunityId, 'deals')
+      collection(db, 'consultants', consultantId, 'clients', clientId, 'opportunities', opportunityId, 'deals')
     );
     
     const dataToSave = {
@@ -195,28 +195,25 @@ export const createDeal = async (opportunityId, clientId, dealData) => {
       id: dealRef.id,
       opportunityId,
       clientId,
+      consultantId,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
-      
-      // Initialize counters
       'scoring.propertyMatchScore': dealData.scoring?.propertyMatchScore || 0,
       'scoring.buyerInterestLevel': dealData.scoring?.buyerInterestLevel || 0,
       'scoring.dealProbability': dealData.scoring?.dealProbability || 0,
-      
-      // Set initial timeline
       'timeline.firstContactDate': serverTimestamp()
     };
     
     await setDoc(dealRef, dataToSave);
     
-    // Update opportunity stats
-    await updateOpportunityStats(clientId, opportunityId, {
+    // Update opportunity stats (with correct path)
+    await updateOpportunityStats(consultantId, clientId, opportunityId, {
       totalDeals: increment(1),
       activeDeals: increment(1)
     });
     
     // Log activity
-    await logDealActivity(clientId, opportunityId, dealRef.id, {
+    await logDealActivity(consultantId, clientId, opportunityId, dealRef.id, {
       type: 'deal_created',
       description: 'Nova negociação iniciada',
       stage: dealData.stage
@@ -230,26 +227,27 @@ export const createDeal = async (opportunityId, clientId, dealData) => {
 };
 
 /**
- * Update deal stage
+ * Update deal stage (UPDATED PATHS)
  */
-export const updateDealStage = async (clientId, opportunityId, dealId, newStage, notes = '') => {
+export const updateDealStage = async (consultantId, clientId, opportunityId, dealId, newStage, notes = '') => {
   try {
-    const dealRef = doc(db, 'clients', clientId, 'opportunities', opportunityId, 'deals', dealId);
+    const dealRef = doc(db, 'consultants', consultantId, 'clients', clientId, 'opportunities', opportunityId, 'deals', dealId);
     
-    // Get current deal data
     const dealDoc = await getDoc(dealRef);
+    if (!dealDoc.exists()) {
+      throw new Error('Deal not found');
+    }
+    
     const currentData = dealDoc.data();
     const oldStage = currentData.stage;
     
-    // Update deal
     await updateDoc(dealRef, {
       stage: newStage,
       updatedAt: serverTimestamp(),
       'timeline.lastStageChange': serverTimestamp()
     });
     
-    // Log activity
-    await logDealActivity(clientId, opportunityId, dealId, {
+    await logDealActivity(consultantId, clientId, opportunityId, dealId, {
       type: 'stage_change',
       description: `Fase alterada de ${oldStage} para ${newStage}`,
       oldValue: oldStage,
@@ -257,14 +255,13 @@ export const updateDealStage = async (clientId, opportunityId, dealId, newStage,
       notes
     });
     
-    // Update opportunity stats if deal is won or lost
     if (newStage === 'completed') {
-      await updateOpportunityStats(clientId, opportunityId, {
+      await updateOpportunityStats(consultantId, clientId, opportunityId, {
         activeDeals: increment(-1),
         wonDeals: increment(1)
       });
     } else if (newStage === 'lost') {
-      await updateOpportunityStats(clientId, opportunityId, {
+      await updateOpportunityStats(consultantId, clientId, opportunityId, {
         activeDeals: increment(-1),
         lostDeals: increment(1)
       });
@@ -276,22 +273,23 @@ export const updateDealStage = async (clientId, opportunityId, dealId, newStage,
 };
 
 /**
- * Add viewing to deal
+ * Add viewing to deal (UPDATED PATHS)
  */
-export const addViewing = async (clientId, opportunityId, dealId, viewingData) => {
+export const addViewing = async (consultantId, clientId, opportunityId, dealId, viewingData) => {
   try {
     const viewingRef = doc(
-      collection(db, 'clients', clientId, 'opportunities', opportunityId, 'deals', dealId, 'viewings')
+      collection(db, 'consultants', consultantId, 'clients', clientId, 'opportunities', opportunityId, 'deals', dealId, 'viewings')
     );
     
-    await setDoc(viewingRef, {
+    const viewingToSave = {
       ...viewingData,
       id: viewingRef.id,
       createdAt: serverTimestamp()
-    });
+    };
     
-    // Update deal
-    const dealRef = doc(db, 'clients', clientId, 'opportunities', opportunityId, 'deals', dealId);
+    await setDoc(viewingRef, viewingToSave);
+    
+    const dealRef = doc(db, 'consultants', consultantId, 'clients', clientId, 'opportunities', opportunityId, 'deals', dealId);
     await updateDoc(dealRef, {
       totalViewings: increment(1),
       lastViewingDate: viewingData.date,
@@ -299,15 +297,13 @@ export const addViewing = async (clientId, opportunityId, dealId, viewingData) =
       updatedAt: serverTimestamp()
     });
     
-    // Log activity
-    await logDealActivity(clientId, opportunityId, dealId, {
+    await logDealActivity(consultantId, clientId, opportunityId, dealId, {
       type: 'viewing',
-      description: `Visita realizada - Interest: ${viewingData.feedback?.interestLevel}/10`,
+      description: `Visita realizada - Interesse: ${viewingData.feedback?.interestLevel}/10`,
       viewingId: viewingRef.id
     });
     
-    // Update opportunity stats
-    await updateOpportunityStats(clientId, opportunityId, {
+    await updateOpportunityStats(consultantId, clientId, opportunityId, {
       propertiesViewed: increment(1)
     });
     
@@ -319,17 +315,16 @@ export const addViewing = async (clientId, opportunityId, dealId, viewingData) =
 };
 
 /**
- * Submit offer for a deal
+ * Submit offer for a deal (UPDATED PATHS)
  */
-export const submitOffer = async (clientId, opportunityId, dealId, offerData) => {
+export const submitOffer = async (consultantId, clientId, opportunityId, dealId, offerData) => {
   try {
     const offerRef = doc(
-      collection(db, 'clients', clientId, 'opportunities', opportunityId, 'deals', dealId, 'offers')
+      collection(db, 'consultants', consultantId, 'clients', clientId, 'opportunities', opportunityId, 'deals', dealId, 'offers')
     );
     
-    // Get current offers count
     const offersSnapshot = await getDocs(
-      collection(db, 'clients', clientId, 'opportunities', opportunityId, 'deals', dealId, 'offers')
+      collection(db, 'consultants', consultantId, 'clients', clientId, 'opportunities', opportunityId, 'deals', dealId, 'offers')
     );
     const offerNumber = offersSnapshot.size + 1;
     
@@ -341,26 +336,23 @@ export const submitOffer = async (clientId, opportunityId, dealId, offerData) =>
       createdAt: serverTimestamp()
     });
     
-    // Update deal
-    const dealRef = doc(db, 'clients', clientId, 'opportunities', opportunityId, 'deals', dealId);
+    const dealRef = doc(db, 'consultants', consultantId, 'clients', clientId, 'opportunities', opportunityId, 'deals', dealId);
     await updateDoc(dealRef, {
       stage: 'offer_submitted',
       'pricing.currentOffer': offerData.amount,
-      'pricing.highestOffer': increment(0), // Will use field transforms to get max
+      'pricing.highestOffer': increment(0),
       'timeline.offerDate': serverTimestamp(),
       updatedAt: serverTimestamp()
     });
     
-    // Log activity
-    await logDealActivity(clientId, opportunityId, dealId, {
+    await logDealActivity(consultantId, clientId, opportunityId, dealId, {
       type: 'offer_submitted',
       description: `Proposta #${offerNumber} enviada: €${offerData.amount.toLocaleString('pt-PT')}`,
       offerId: offerRef.id,
       amount: offerData.amount
     });
     
-    // Update opportunity stats
-    await updateOpportunityStats(clientId, opportunityId, {
+    await updateOpportunityStats(consultantId, clientId, opportunityId, {
       offersMade: increment(1)
     });
     
@@ -372,23 +364,15 @@ export const submitOffer = async (clientId, opportunityId, dealId, offerData) =>
 };
 
 /**
- * Get all deals for an opportunity
+ * Get all deals for an opportunity (UPDATED PATHS)
  */
-export const getDeals = async (clientId, opportunityId, filters = {}) => {
+export const getDeals = async (consultantId, clientId, opportunityId, filters = {}) => {
   try {
-    let q = collection(db, 'clients', clientId, 'opportunities', opportunityId, 'deals');
+    let q = collection(db, 'consultants', consultantId, 'clients', clientId, 'opportunities', opportunityId, 'deals');
     
     const constraints = [];
-    
-    if (filters.status) {
-      constraints.push(where('status', '==', filters.status));
-    }
-    
-    if (filters.stage) {
-      constraints.push(where('stage', '==', filters.stage));
-    }
-    
-    // Default ordering
+    if (filters.status) constraints.push(where('status', '==', filters.status));
+    if (filters.stage) constraints.push(where('stage', '==', filters.stage));
     constraints.push(orderBy('createdAt', 'desc'));
     
     if (constraints.length > 0) {
@@ -403,6 +387,108 @@ export const getDeals = async (clientId, opportunityId, filters = {}) => {
   }
 };
 
+/**
+ * Get all viewings for a deal (UPDATED PATHS)
+ */
+export const getDealViewings = async (consultantId, clientId, opportunityId, dealId) => {
+  try {
+    const viewingsRef = collection(
+      db,
+      'consultants',
+      consultantId,
+      'clients',
+      clientId,
+      'opportunities',
+      opportunityId,
+      'deals',
+      dealId,
+      'viewings'
+    );
+    
+    const q = query(viewingsRef, orderBy('date', 'desc'));
+    const snapshot = await getDocs(q);
+    
+    return snapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        ...data,
+        date: data.date?.toDate ? data.date.toDate().toISOString().split('T')[0] : data.date,
+        createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : data.createdAt
+      };
+    });
+  } catch (error) {
+    console.error('Error getting viewings:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get deals with their viewings loaded (UPDATED PATHS)
+ */
+export const getDealsWithViewings = async (consultantId, clientId, opportunityId, filters = {}) => {
+  try {
+    const deals = await getDeals(consultantId, clientId, opportunityId, filters);
+    const dealsWithViewings = await Promise.all(
+      deals.map(async (deal) => {
+        const viewings = await getDealViewings(consultantId, clientId, opportunityId, deal.id);
+        return {
+          ...deal,
+          viewings,
+          totalViewings: viewings.length
+        };
+      })
+    );
+    return dealsWithViewings;
+  } catch (error) {
+    console.error('Error getting deals with viewings:', error);
+    throw error;
+  }
+};
+
+/**
+ * Update an existing deal (CORRECT NESTED PATH)
+ */
+export const updateDeal = async (consultantId, clientId, opportunityId, dealId, updates) => {
+  try {
+    if (!consultantId || !clientId || !opportunityId || !dealId) {
+      throw new Error('Missing required IDs to update deal');
+    }
+
+    const dealRef = doc(
+      db,
+      'consultants',
+      consultantId,
+      'clients',
+      clientId,
+      'opportunities',
+      opportunityId,
+      'deals',
+      dealId
+    );
+
+    // Guard against changing core identifiers
+    const { id: _id, consultantId: _c, clientId: _cl, opportunityId: _o, ...safeUpdates } = updates || {};
+
+    await updateDoc(dealRef, {
+      ...safeUpdates,
+      updatedAt: serverTimestamp()
+    });
+
+    // Optional: log activity (non-blocking)
+    await logDealActivity(consultantId, clientId, opportunityId, dealId, {
+      type: 'deal_updated',
+      description: 'Negócio atualizado',
+      updatedFields: Object.keys(updates || {})
+    });
+
+    return true;
+  } catch (error) {
+    console.error('Error updating deal:', error);
+    throw error;
+  }
+};
+
 // ============================================
 // HELPER FUNCTIONS
 // ============================================
@@ -410,11 +496,16 @@ export const getDeals = async (clientId, opportunityId, filters = {}) => {
 /**
  * Update opportunity statistics
  */
-const updateOpportunityStats = async (clientId, opportunityId, stats) => {
+const updateOpportunityStats = async (consultantId, clientId, opportunityId, stats) => {
   try {
-    const oppRef = doc(db, 'clients', clientId, 'opportunities', opportunityId);
+    const oppRef = doc(db, 'consultants', consultantId, 'clients', clientId, 'opportunities', opportunityId);
+    const oppDoc = await getDoc(oppRef);
+    if (!oppDoc.exists()) {
+      console.warn('Opportunity document does not exist, skipping stats update');
+      return;
+    }
     await updateDoc(oppRef, {
-      stats,
+      ...stats,
       updatedAt: serverTimestamp()
     });
   } catch (error) {
@@ -426,10 +517,10 @@ const updateOpportunityStats = async (clientId, opportunityId, stats) => {
 /**
  * Log deal activity
  */
-const logDealActivity = async (clientId, opportunityId, dealId, activity) => {
+const logDealActivity = async (consultantId, clientId, opportunityId, dealId, activity) => {
   try {
     const activityRef = doc(
-      collection(db, 'clients', clientId, 'opportunities', opportunityId, 'deals', dealId, 'activities')
+      collection(db, 'consultants', consultantId, 'clients', clientId, 'opportunities', opportunityId, 'deals', dealId, 'activities')
     );
     
     await setDoc(activityRef, {
