@@ -1,36 +1,54 @@
 /**
  * DEAL CONTEXT - MyImoMatePro
- * React Context for managing deals and agents
+ * State management for deals and agents
  */
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState } from 'react';
 import { useAuth } from './AuthContext';
+
+// Deal operations
+import {
+  createDeal,
+  getDeal,
+  getDeals,
+  updateDeal,
+  deleteDeal,
+  updateDealStage,
+  addViewing,
+  getDealViewings,
+  submitOffer,
+  getDealOffers,
+  getDealActivities,
+  getDealsWithDetails
+} from '../services/firebaseDeals';
+
+// Agent operations
 import {
   saveAgent,
   getAgents,
+  getAgent,
+  updateAgent,
+  deleteAgent,
   logAgentInteraction,
-  createDeal,
-  updateDeal, // ADD THIS
-  deleteDeal, // ADD THIS
-  updateDealStage,
-  addViewing,
-  submitOffer,
-  getDealsWithViewings,
-  getDashboardStats
+  getAgentInteractions
 } from '../services/firebaseSetup';
-import { 
-  createNewAgent, 
-  validateAgent, 
-  calculateSuccessRate,
-  getAgentRating 
-} from '../models/agentModel';
+
+// Models
 import {
   createNewDeal,
   validateDeal,
-  calculateMatchScore,
   calculateDealProbability,
-  formatDealSummary
+  formatDealSummary,
+  getDealFlags,
+  dealNeedsAttention
 } from '../models/buyerDealModel';
+
+import {
+  createNewAgent,
+  validateAgent,
+  calculateSuccessRate,
+  getAgentRating
+} from '../models/agentModel';
 
 const DealContext = createContext();
 
@@ -43,12 +61,11 @@ export const useDeal = () => {
 };
 
 export const DealProvider = ({ children }) => {
-  const { currentUser } = useAuth(); // CHANGED from 'user' to 'currentUser'
-  const [agents, setAgents] = useState([]);
+  const { currentUser } = useAuth();
   const [deals, setDeals] = useState([]);
+  const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [stats, setStats] = useState(null);
 
   // ========================================
   // AGENT OPERATIONS
@@ -61,23 +78,27 @@ export const DealProvider = ({ children }) => {
     try {
       setLoading(true);
       setError(null);
-      
+
+      const consultantId = currentUser?.uid;
+      if (!consultantId) throw new Error('User not authenticated');
+
       const agentList = await getAgents({
         ...filters,
-        consultantId: currentUser?.uid // CHANGED from user?.uid
+        consultantId
       });
-      
+
+      // Enhance agents with calculated fields
       const enhancedAgents = agentList.map(agent => ({
         ...agent,
         successRate: calculateSuccessRate(agent),
         rating: getAgentRating(agent)
       }));
-      
+
       setAgents(enhancedAgents);
       return enhancedAgents;
     } catch (err) {
       console.error('Error loading agents:', err);
-      setError('Erro ao carregar agentes');
+      setError(err.message);
       throw err;
     } finally {
       setLoading(false);
@@ -85,29 +106,88 @@ export const DealProvider = ({ children }) => {
   };
 
   /**
-   * Create or update an agent
+   * Save agent (create or update)
    */
   const saveAgentData = async (agentData) => {
     try {
       setLoading(true);
       setError(null);
-      
-      const errors = validateAgent(agentData);
-      if (errors.length > 0) {
-        throw new Error(errors.join(', '));
+
+      const consultantId = currentUser?.uid;
+      if (!consultantId) throw new Error('User not authenticated');
+
+      // Validate
+      const validationErrors = validateAgent(agentData);
+      if (validationErrors.length > 0) {
+        throw new Error(validationErrors.join(', '));
       }
-      
+
       const dataToSave = {
         ...agentData,
-        consultantId: currentUser?.uid // CHANGED from user?.uid
+        consultantId
       };
-      
+
       const agentId = await saveAgent(dataToSave);
+
+      // Reload agents
       await loadAgents();
+
       return agentId;
     } catch (err) {
       console.error('Error saving agent:', err);
-      setError(err.message || 'Erro ao guardar agente');
+      setError(err.message);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /**
+   * Update existing agent
+   */
+  const updateAgentData = async (agentId, updates) => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      await updateAgent(agentId, updates);
+
+      // Update local state
+      setAgents(prev =>
+        prev.map(a =>
+          a.id === agentId
+            ? { ...a, ...updates, updatedAt: new Date() }
+            : a
+        )
+      );
+
+      return true;
+    } catch (err) {
+      console.error('Error updating agent:', err);
+      setError(err.message);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /**
+   * Delete agent
+   */
+  const deleteAgentData = async (agentId) => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      await deleteAgent(agentId);
+
+      // Remove from local state
+      setAgents(prev => prev.filter(a => a.id !== agentId));
+
+      return true;
+    } catch (err) {
+      console.error('Error deleting agent:', err);
+      setError(err.message);
       throw err;
     } finally {
       setLoading(false);
@@ -119,25 +199,33 @@ export const DealProvider = ({ children }) => {
    */
   const logInteraction = async (agentId, interaction) => {
     try {
+      const consultantId = currentUser?.uid;
+      if (!consultantId) throw new Error('User not authenticated');
+
       await logAgentInteraction(agentId, {
         ...interaction,
-        consultantId: currentUser?.uid // CHANGED from user?.uid
+        consultantId
       });
-      
-      setAgents(prev => prev.map(agent => 
-        agent.id === agentId 
-          ? {
-              ...agent,
-              relationship: {
-                ...agent.relationship,
-                lastContactDate: new Date()
+
+      // Update local state
+      setAgents(prev =>
+        prev.map(agent =>
+          agent.id === agentId
+            ? {
+                ...agent,
+                relationship: {
+                  ...agent.relationship,
+                  lastContactDate: new Date()
+                }
               }
-            }
-          : agent
-      ));
+            : agent
+        )
+      );
+
+      return true;
     } catch (err) {
       console.error('Error logging interaction:', err);
-      setError('Erro ao registar interação');
+      setError(err.message);
       throw err;
     }
   };
@@ -147,33 +235,38 @@ export const DealProvider = ({ children }) => {
   // ========================================
 
   /**
-   * Load deals for an opportunity (WITH consultantId)
+   * Load all deals for an opportunity
    */
-  const loadDeals = async (clientId, opportunityId, filters = {}) => {
+  const loadDeals = async (clientId, opportunityId, includeDetails = true) => {
     try {
       setLoading(true);
       setError(null);
 
-      // Get consultantId from currentUser
       const consultantId = currentUser?.uid;
       if (!consultantId) {
-        throw new Error('No authenticated user');
+        throw new Error('User not authenticated');
       }
 
-      const dealList = await getDealsWithViewings(consultantId, clientId, opportunityId, filters);
+      let dealsList;
+      if (includeDetails) {
+        dealsList = await getDealsWithDetails(consultantId, clientId, opportunityId);
+      } else {
+        dealsList = await getDeals(consultantId, clientId, opportunityId);
+      }
 
       // Enhance deals with calculated fields
-      const enhancedDeals = dealList.map(deal => ({
+      const enhancedDeals = dealsList.map(deal => ({
         ...deal,
         probability: calculateDealProbability(deal),
-        summary: formatDealSummary(deal)
+        summary: formatDealSummary(deal),
+        needsAttention: dealNeedsAttention(deal)
       }));
-      
+
       setDeals(enhancedDeals);
       return enhancedDeals;
     } catch (err) {
       console.error('Error loading deals:', err);
-      setError('Erro ao carregar negócios');
+      setError(err.message);
       throw err;
     } finally {
       setLoading(false);
@@ -181,56 +274,81 @@ export const DealProvider = ({ children }) => {
   };
 
   /**
-   * Create a new deal from form data
+   * Create new deal
    */
   const createPropertyDeal = async (opportunity, formData) => {
     try {
       setLoading(true);
       setError(null);
 
-      const consultantId = currentUser?.uid;
-      if (!consultantId) throw new Error('No authenticated user');
-      if (!opportunity?.id || !opportunity?.clientId) throw new Error('Invalid opportunity');
+      // DEBUG LOGS
+      console.log('=== CREATE PROPERTY DEAL START ===');
+      console.log('1. formData received:', formData);
+      console.log('2. formData.property:', formData?.property);
+      console.log('3. formData.pricing:', formData?.pricing);
+      console.log('4. opportunity:', opportunity);
 
-      // Build the complete deal data from form
-      const dealData = createNewDeal({
+      const consultantId = currentUser?.uid;
+      if (!consultantId) throw new Error('User not authenticated');
+      if (!opportunity?.id || !opportunity?.clientId) {
+        throw new Error('Invalid opportunity data');
+      }
+
+      console.log('5. About to call createNewDeal with:', {
+        consultantId,
         clientId: opportunity.clientId,
         opportunityId: opportunity.id,
-        property: formData.property,
-        pricing: formData.pricing,
-        propertyAgent: formData.propertyAgent,
-        representation: formData.representation,
-        scoring: formData.scoring,
-        competition: formData.competition,
-        stage: formData.stage || 'lead',
-        notes: formData.notes || '',
-        internalNotes: formData.internalNotes || ''
+        ...formData
       });
+
+      // Build complete deal data
+      const dealData = createNewDeal({
+        consultantId,
+        clientId: opportunity.clientId,
+        opportunityId: opportunity.id,
+        ...formData
+      });
+
+      console.log('6. dealData returned from createNewDeal:', dealData);
+      console.log('7. dealData.property.address:', dealData?.property?.address);
+      console.log('8. dealData.pricing.askingPrice:', dealData?.pricing?.askingPrice);
+
+      // Validate
+      const validationErrors = validateDeal(dealData);
+      console.log('9. Validation errors:', validationErrors);
+
+      if (validationErrors.length > 0) {
+        throw new Error(validationErrors.join(', '));
+      }
 
       // Create in Firebase
       const dealId = await createDeal(
         consultantId,
-        opportunity.id,
         opportunity.clientId,
+        opportunity.id,
         dealData
       );
 
-      // Add to local state immediately
+      // Add to local state
       const newDeal = {
         ...dealData,
         id: dealId,
         probability: calculateDealProbability(dealData),
         summary: formatDealSummary(dealData),
+        needsAttention: dealNeedsAttention(dealData),
         viewings: [],
-        totalViewings: 0
+        offers: [],
+        activities: [],
+        totalViewings: 0,
+        totalOffers: 0
       };
-      
+
       setDeals(prev => [...prev, newDeal]);
 
       return dealId;
     } catch (err) {
       console.error('Error creating deal:', err);
-      setError('Erro ao criar negócio');
+      setError(err.message);
       throw err;
     } finally {
       setLoading(false);
@@ -238,114 +356,7 @@ export const DealProvider = ({ children }) => {
   };
 
   /**
-   * Move deal to next stage (WITH consultantId)
-   */
-  const moveDealStage = async (clientId, opportunityId, dealId, newStage, notes = '') => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      // Get consultantId from currentUser
-      const consultantId = currentUser?.uid;
-      if (!consultantId) {
-        throw new Error('No authenticated user');
-      }
-
-      await updateDealStage(consultantId, clientId, opportunityId, dealId, newStage, notes);
-
-      // Update local state
-      setDeals(prev => prev.map(deal =>
-        deal.id === dealId
-          ? { ...deal, stage: newStage, updatedAt: new Date() }
-          : deal
-      ));
-
-      return true;
-    } catch (err) {
-      console.error('Error updating deal stage:', err);
-      setError('Erro ao atualizar fase do negócio');
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  /**
-   * Add viewing to deal (WITH consultantId)
-   */
-  const addDealViewing = async (clientId, opportunityId, dealId, viewingData) => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      // Get consultantId from currentUser
-      const consultantId = currentUser?.uid;
-      if (!consultantId) {
-        throw new Error('No authenticated user');
-      }
-
-      const viewingId = await addViewing(consultantId, clientId, opportunityId, dealId, viewingData);
-
-      // Update local state
-      setDeals(prev => prev.map(deal =>
-        deal.id === dealId
-          ? {
-              ...deal,
-              totalViewings: (deal.totalViewings || 0) + 1,
-              'scoring.buyerInterestLevel': viewingData.feedback?.interestLevel || deal.scoring?.buyerInterestLevel
-            }
-          : deal
-      ));
-
-      return viewingId;
-    } catch (err) {
-      console.error('Error adding viewing:', err);
-      setError('Erro ao adicionar visita');
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  /**
-   * Submit offer for deal (WITH consultantId)
-   */
-  const submitDealOffer = async (clientId, opportunityId, dealId, offerData) => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      // Get consultantId from currentUser
-      const consultantId = currentUser?.uid;
-      if (!consultantId) {
-        throw new Error('No authenticated user');
-      }
-
-      const offerId = await submitOffer(consultantId, clientId, opportunityId, dealId, offerData);
-
-      // Update local state
-      setDeals(prev => prev.map(deal =>
-        deal.id === dealId
-          ? {
-              ...deal,
-              stage: 'offer_submitted',
-              'pricing.currentOffer': offerData.amount
-            }
-          : deal
-      ));
-
-      return offerId;
-    } catch (err) {
-      console.error('Error submitting offer:', err);
-      setError('Erro ao enviar proposta');
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  /**
-   * Update an existing property deal (WITH consultantId)
+   * Update existing deal
    */
   const updatePropertyDeal = async (opportunity, dealId, updates) => {
     try {
@@ -353,13 +364,22 @@ export const DealProvider = ({ children }) => {
       setError(null);
 
       const consultantId = currentUser?.uid;
-      if (!consultantId) throw new Error('No authenticated user');
-      if (!opportunity?.id || !opportunity?.clientId) throw new Error('Invalid opportunity');
+      if (!consultantId) throw new Error('User not authenticated');
+      if (!opportunity?.id || !opportunity?.clientId) {
+        throw new Error('Invalid opportunity data');
+      }
       if (!dealId) throw new Error('Deal ID is required');
 
-      await updateDeal(consultantId, opportunity.clientId, opportunity.id, dealId, updates);
+      // Update in Firebase
+      await updateDeal(
+        consultantId,
+        opportunity.clientId,
+        opportunity.id,
+        dealId,
+        updates
+      );
 
-      // Update local state with recalculated fields
+      // Update local state
       setDeals(prev =>
         prev.map(d =>
           d.id === dealId
@@ -368,6 +388,7 @@ export const DealProvider = ({ children }) => {
                 ...updates,
                 probability: calculateDealProbability({ ...d, ...updates }),
                 summary: formatDealSummary({ ...d, ...updates }),
+                needsAttention: dealNeedsAttention({ ...d, ...updates }),
                 updatedAt: new Date()
               }
             : d
@@ -377,7 +398,7 @@ export const DealProvider = ({ children }) => {
       return true;
     } catch (err) {
       console.error('Error updating deal:', err);
-      setError('Erro ao atualizar negócio');
+      setError(err.message);
       throw err;
     } finally {
       setLoading(false);
@@ -385,7 +406,7 @@ export const DealProvider = ({ children }) => {
   };
 
   /**
-   * Delete a deal
+   * Delete deal
    */
   const deletePropertyDeal = async (clientId, opportunityId, dealId) => {
     try {
@@ -393,17 +414,55 @@ export const DealProvider = ({ children }) => {
       setError(null);
 
       const consultantId = currentUser?.uid;
-      if (!consultantId) throw new Error('No authenticated user');
+      if (!consultantId) throw new Error('User not authenticated');
 
       await deleteDeal(consultantId, clientId, opportunityId, dealId);
 
-      // Update local state
+      // Remove from local state
       setDeals(prev => prev.filter(d => d.id !== dealId));
 
       return true;
     } catch (err) {
       console.error('Error deleting deal:', err);
-      setError('Erro ao eliminar negócio');
+      setError(err.message);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /**
+   * Move deal to different stage
+   */
+  const moveDealStage = async (clientId, opportunityId, dealId, newStage, notes = '') => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const consultantId = currentUser?.uid;
+      if (!consultantId) throw new Error('User not authenticated');
+
+      await updateDealStage(consultantId, clientId, opportunityId, dealId, newStage, notes);
+
+      // Update local state
+      setDeals(prev =>
+        prev.map(deal =>
+          deal.id === dealId
+            ? {
+                ...deal,
+                stage: newStage,
+                probability: calculateDealProbability({ ...deal, stage: newStage }),
+                summary: formatDealSummary({ ...deal, stage: newStage }),
+                updatedAt: new Date()
+              }
+            : deal
+        )
+      );
+
+      return true;
+    } catch (err) {
+      console.error('Error moving deal stage:', err);
+      setError(err.message);
       throw err;
     } finally {
       setLoading(false);
@@ -411,22 +470,122 @@ export const DealProvider = ({ children }) => {
   };
 
   // ========================================
-  // DASHBOARD & STATS
+  // VIEWING OPERATIONS
   // ========================================
 
   /**
-   * Load dashboard statistics
+   * Add viewing to deal
    */
-  const loadDashboardStats = async () => {
+  const addDealViewing = async (clientId, opportunityId, dealId, viewingData) => {
     try {
-      if (!currentUser?.uid) return; // CHANGED from user?.uid
-      
-      const dashboardStats = await getDashboardStats(currentUser.uid); // CHANGED
-      setStats(dashboardStats);
-      return dashboardStats;
+      setLoading(true);
+      setError(null);
+
+      const consultantId = currentUser?.uid;
+      if (!consultantId) throw new Error('User not authenticated');
+
+      const viewingId = await addViewing(
+        consultantId,
+        clientId,
+        opportunityId,
+        dealId,
+        viewingData
+      );
+
+      // Reload deals to get updated data
+      await loadDeals(clientId, opportunityId);
+
+      return viewingId;
     } catch (err) {
-      console.error('Error loading stats:', err);
-      setError('Erro ao carregar estatísticas');
+      console.error('Error adding viewing:', err);
+      setError(err.message);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /**
+   * Get viewings for a deal
+   */
+  const loadDealViewings = async (clientId, opportunityId, dealId) => {
+    try {
+      const consultantId = currentUser?.uid;
+      if (!consultantId) throw new Error('User not authenticated');
+
+      return await getDealViewings(consultantId, clientId, opportunityId, dealId);
+    } catch (err) {
+      console.error('Error loading viewings:', err);
+      throw err;
+    }
+  };
+
+  // ========================================
+  // OFFER OPERATIONS
+  // ========================================
+
+  /**
+   * Submit offer for deal
+   */
+  const submitDealOffer = async (clientId, opportunityId, dealId, offerData) => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const consultantId = currentUser?.uid;
+      if (!consultantId) throw new Error('User not authenticated');
+
+      const offerId = await submitOffer(
+        consultantId,
+        clientId,
+        opportunityId,
+        dealId,
+        offerData
+      );
+
+      // Reload deals to get updated data
+      await loadDeals(clientId, opportunityId);
+
+      return offerId;
+    } catch (err) {
+      console.error('Error submitting offer:', err);
+      setError(err.message);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /**
+   * Get offers for a deal
+   */
+  const loadDealOffers = async (clientId, opportunityId, dealId) => {
+    try {
+      const consultantId = currentUser?.uid;
+      if (!consultantId) throw new Error('User not authenticated');
+
+      return await getDealOffers(consultantId, clientId, opportunityId, dealId);
+    } catch (err) {
+      console.error('Error loading offers:', err);
+      throw err;
+    }
+  };
+
+  // ========================================
+  // ACTIVITY OPERATIONS
+  // ========================================
+
+  /**
+   * Get activities for a deal
+   */
+  const loadDealActivities = async (clientId, opportunityId, dealId) => {
+    try {
+      const consultantId = currentUser?.uid;
+      if (!consultantId) throw new Error('User not authenticated');
+
+      return await getDealActivities(consultantId, clientId, opportunityId, dealId);
+    } catch (err) {
+      console.error('Error loading activities:', err);
       throw err;
     }
   };
@@ -436,27 +595,24 @@ export const DealProvider = ({ children }) => {
   // ========================================
 
   /**
-   * Get active deals across all opportunities
+   * Get deals that need attention
    */
-  const getActiveDeals = () => {
-    return deals.filter(deal => deal.status === 'active');
+  const getDealsNeedingAttention = () => {
+    return deals.filter(deal => deal.needsAttention?.status);
   };
 
   /**
-   * Get deals needing attention
+   * Get deals by stage
    */
-  const getDealsNeedingAttention = () => {
-    return deals.filter(deal => {
-      // Overdue follow-up
-      if (deal.nextFollowUp && new Date(deal.nextFollowUp) < new Date()) return true;
-      
-      // No activity in 7 days
-      const lastActivity = deal.updatedAt || deal.createdAt;
-      const daysSince = Math.floor((new Date() - new Date(lastActivity)) / (1000 * 60 * 60 * 24));
-      if (daysSince > 7) return true;
-      
-      return false;
-    });
+  const getDealsByStage = (stage) => {
+    return deals.filter(deal => deal.stage === stage);
+  };
+
+  /**
+   * Get active deals
+   */
+  const getActiveDeals = () => {
+    return deals.filter(deal => deal.status === 'active');
   };
 
   /**
@@ -464,49 +620,51 @@ export const DealProvider = ({ children }) => {
    */
   const getTopAgents = (limit = 5) => {
     return [...agents]
-      .sort((a, b) => b.successRate - a.successRate)
+      .sort((a, b) => (b.successRate || 0) - (a.successRate || 0))
       .slice(0, limit);
   };
 
-  // Load initial data when user changes
-  useEffect(() => {
-    if (currentUser?.uid) { // CHANGED from user?.uid
-      loadDashboardStats();
-    }
-  }, [currentUser?.uid]); // CHANGED from user?.uid
-
+  // Context value
   const value = {
     // State
-    agents,
     deals,
+    agents,
     loading,
     error,
-    stats,
 
     // Agent operations
     loadAgents,
     saveAgentData,
+    updateAgentData,
+    deleteAgentData,
     logInteraction,
 
     // Deal operations
     loadDeals,
     createPropertyDeal,
-    updatePropertyDeal, // ADD THIS
-    deletePropertyDeal, // ADD THIS
+    updatePropertyDeal,
+    deletePropertyDeal,
     moveDealStage,
+
+    // Viewing operations
     addDealViewing,
+    loadDealViewings,
+
+    // Offer operations
     submitDealOffer,
-    loadDashboardStats,
-    getActiveDeals,
+    loadDealOffers,
+
+    // Activity operations
+    loadDealActivities,
+
+    // Utility functions
     getDealsNeedingAttention,
+    getDealsByStage,
+    getActiveDeals,
     getTopAgents
   };
 
-  return (
-    <DealContext.Provider value={value}>
-      {children}
-    </DealContext.Provider>
-  );
+  return <DealContext.Provider value={value}>{children}</DealContext.Provider>;
 };
 
 export default DealContext;

@@ -1,194 +1,153 @@
-// components/DealFormModal.jsx
+/**
+ * DEAL FORM MODAL - MyImoMatePro
+ * Clean form for creating/editing deals
+ */
+
 import React, { useState, useEffect } from 'react';
-import { 
+import {
   XMarkIcon,
-  HomeIcon, 
-  CurrencyEuroIcon, 
+  HomeIcon,
+  CurrencyEuroIcon,
   UserIcon,
-  LinkIcon,
+  StarIcon as StarOutline,
   DocumentTextIcon,
-  SparklesIcon
+  CalendarIcon
 } from '@heroicons/react/24/outline';
-import { StarIcon } from '@heroicons/react/24/solid';
-import { 
-  BUYER_DEAL_STAGES, 
-  INTEREST_LEVELS,
-  REPRESENTATION_TYPES
+import { StarIcon as StarSolid } from '@heroicons/react/24/solid';
+import {
+  BUYER_DEAL_STAGES,
+  REPRESENTATION_TYPES,
+  URGENCY_LEVELS,
+  COMPETITION_LEVELS
 } from '../models/buyerDealModel';
 import { PROPERTY_TYPES } from '../models/opportunityModel';
 
-const DealFormModal = ({ 
-  isOpen, 
-  onClose, 
-  onSave, 
+const DealFormModal = ({
+  isOpen,
+  onClose,
+  onSave,
   opportunity,
-  client,
-  agents = [],
-  existingDeal = null 
+  existingDeal = null
 }) => {
   const [formData, setFormData] = useState({
+    // Property
     property: {
       address: '',
       type: 'apartment',
-      bedrooms: '',
-      bathrooms: '',
-      area: '',
+      bedrooms: 2,
+      bathrooms: 1,
+      area: 0,
       listingUrl: '',
       reference: ''
     },
+    // Pricing
     pricing: {
-      askingPrice: '',
-      marketValue: '',
-      expectedNegotiation: 5,
+      askingPrice: 0,
+      marketValue: 0,
+      expectedNegotiation: 5
     },
+    // Agent
     propertyAgent: {
-      agentId: '',
       name: '',
       agency: '',
       phone: '',
       email: '',
-      whatsapp: '',
+      whatsapp: ''
+    },
+    // Representation
+    representation: {
+      type: 'buyer_only',
       commission: {
         type: 'percentage',
         value: 2.5
       }
     },
-    representation: {
-      type: REPRESENTATION_TYPES.BUYER_ONLY.value,
-    },
+    // Scoring
     scoring: {
-      propertyMatchScore: 0,
-      buyerInterestLevel: 0,
-      competitionLevel: 'low',
+      propertyMatchScore: 5,
+      buyerInterestLevel: 5,
       urgencyLevel: 'normal',
+      competitionLevel: 'low'
     },
+    // Competition
     competition: {
       otherInterested: 0,
       otherOffers: 0,
       notes: ''
     },
+    // Stage
     stage: 'lead',
+    // Follow-up
+    nextFollowUpDate: null,
+    followUpNote: '',
+    // Notes
     notes: '',
     internalNotes: ''
   });
 
-  const [selectedAgentId, setSelectedAgentId] = useState('');
-  const [isNewAgent, setIsNewAgent] = useState(false);
-
+  // Load existing deal data if editing
   useEffect(() => {
     if (existingDeal) {
-      // Load all data from existing deal
       setFormData({
-        property: {
-          address: existingDeal.property?.address || '',
-          type: existingDeal.property?.type || 'apartment',
-          bedrooms: existingDeal.property?.bedrooms || '',
-          bathrooms: existingDeal.property?.bathrooms || '',
-          area: existingDeal.property?.area || '',
-          listingUrl: existingDeal.property?.listingUrl || '',
-          reference: existingDeal.property?.reference || ''
-        },
-        pricing: {
-          askingPrice: existingDeal.pricing?.askingPrice || '',
-          marketValue: existingDeal.pricing?.marketValue || '',
-          expectedNegotiation: existingDeal.pricing?.expectedNegotiation || 5,
-        },
-        propertyAgent: {
-          agentId: existingDeal.propertyAgent?.agentId || '',
-          name: existingDeal.propertyAgent?.name || '',
-          agency: existingDeal.propertyAgent?.agency || '',
-          phone: existingDeal.propertyAgent?.phone || '',
-          email: existingDeal.propertyAgent?.email || '',
-          whatsapp: existingDeal.propertyAgent?.whatsapp || '',
-          commission: existingDeal.propertyAgent?.commission || {
-            type: 'percentage',
-            value: 2.5
-          }
-        },
-        representation: {
-          type: existingDeal.representation?.type || REPRESENTATION_TYPES.BUYER_ONLY.value,
-        },
-        scoring: {
-          propertyMatchScore: existingDeal.scoring?.propertyMatchScore || 0,
-          buyerInterestLevel: existingDeal.scoring?.buyerInterestLevel || 0,
-          competitionLevel: existingDeal.scoring?.competitionLevel || 'low',
-          urgencyLevel: existingDeal.scoring?.urgencyLevel || 'normal',
-        },
-        competition: {
-          otherInterested: existingDeal.competition?.otherInterested || 0,
-          otherOffers: existingDeal.competition?.otherOffers || 0,
-          notes: existingDeal.competition?.notes || ''
-        },
+        property: existingDeal.property || formData.property,
+        pricing: existingDeal.pricing || formData.pricing,
+        propertyAgent: existingDeal.propertyAgent || formData.propertyAgent,
+        representation: existingDeal.representation || formData.representation,
+        scoring: existingDeal.scoring || formData.scoring,
+        competition: existingDeal.competition || formData.competition,
         stage: existingDeal.stage || 'lead',
+        nextFollowUpDate: existingDeal.nextFollowUpDate || null,
+        followUpNote: existingDeal.followUpNote || '',
         notes: existingDeal.notes || '',
         internalNotes: existingDeal.internalNotes || ''
       });
-      
-      setSelectedAgentId(existingDeal.propertyAgent?.agentId || '');
-      setIsNewAgent(!existingDeal.propertyAgent?.agentId);
     }
   }, [existingDeal]);
 
-  const handleAgentSelect = (e) => {
-    const agentId = e.target.value;
-    setSelectedAgentId(agentId);
-    
-    if (agentId === 'new') {
-      setIsNewAgent(true);
+  // Handle input changes
+  const handleChange = (section, field, value) => {
+    if (section) {
       setFormData(prev => ({
         ...prev,
-        propertyAgent: {
-          ...prev.propertyAgent,
-          agentId: '',
-          name: '',
-          agency: '',
-          phone: '',
-          email: '',
-          whatsapp: ''
+        [section]: {
+          ...prev[section],
+          [field]: value
         }
       }));
-    } else if (agentId === 'self') {
-      setIsNewAgent(false);
+    } else {
       setFormData(prev => ({
         ...prev,
-        propertyAgent: {
-          ...prev.propertyAgent,
-          agentId: 'self',
-          name: 'Propriedade Interna',
-          agency: 'Nossa Agência',
-          phone: '',
-          email: '',
-          whatsapp: ''
-        }
+        [field]: value
       }));
-    } else if (agentId) {
-      const agent = agents.find(a => a.id === agentId);
-      if (agent) {
-        setIsNewAgent(false);
-        setFormData(prev => ({
-          ...prev,
-          propertyAgent: {
-            ...prev.propertyAgent,
-            agentId: agent.id,
-            name: agent.name,
-            agency: agent.agency,
-            phone: agent.contactInfo?.phonePrimary || '',
-            email: agent.contactInfo?.email || '',
-            whatsapp: agent.contactInfo?.whatsapp || ''
-          }
-        }));
-      }
     }
   };
 
+  // Handle nested changes (like commission)
+  const handleNestedChange = (section, subsection, field, value) => {
+    setFormData(prev => ({
+      ...prev,
+      [section]: {
+        ...prev[section],
+        [subsection]: {
+          ...prev[section][subsection],
+          [field]: value
+        }
+      }
+    }));
+  };
+
+  // Prefer one place to coerce numeric fields
   const handleInputChange = (section, field, value) => {
-    // Convert numeric fields to numbers
-    const numericFields = ['bedrooms', 'bathrooms', 'area', 'askingPrice', 'marketValue', 'expectedNegotiation', 
-                           'propertyMatchScore', 'buyerInterestLevel', 'otherInterested', 'otherOffers'];
-    
+    const numericFields = [
+      'bedrooms','bathrooms','area',
+      'askingPrice','marketValue','expectedNegotiation','comparablePrice',
+      'propertyMatchScore','buyerInterestLevel',
+      'otherInterested','otherOffers'
+    ];
+
     let processedValue = value;
-    if (numericFields.includes(field) && value !== '') {
-      processedValue = Number(value);
+    if (numericFields.includes(field)) {
+      processedValue = value === '' ? '' : Number(value);
     }
 
     if (section) {
@@ -207,30 +166,59 @@ const DealFormModal = ({
     }
   };
 
+  // Handle submit
   const handleSubmit = () => {
-    if (!formData.property.address) {
+    console.log('Form data before validation:', formData); // DEBUG
+
+    const address = formData?.property?.address?.trim();
+    const askingPrice = Number(formData?.pricing?.askingPrice);
+
+    if (!address) {
       alert('Por favor, insira o endereço do imóvel');
       return;
     }
-    if (!formData.pricing.askingPrice) {
-      alert('Por favor, insira o preço pedido');
+    if (!askingPrice || askingPrice <= 0) {
+      alert('Por favor, insira o preço pedido (valor maior que zero)');
       return;
     }
 
-    // Pass the dealId if editing
-    if (existingDeal?.id) {
-      onSave(formData, existingDeal.id);
-    } else {
-      onSave(formData, null);
-    }
+    console.log('Validation passed, submitting:', formData); // DEBUG
+    onSave(formData, existingDeal?.id);
+  };
+
+  // Rating component
+  const RatingInput = ({ value, onChange, label }) => {
+    return (
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          {label}: {value}/10
+        </label>
+        <div className="flex gap-1">
+          {[...Array(10)].map((_, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => onChange(i + 1)}
+              className="focus:outline-none"
+            >
+              {i < value ? (
+                <StarSolid className="w-6 h-6 text-yellow-400" />
+              ) : (
+                <StarOutline className="w-6 h-6 text-gray-300" />
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
   };
 
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-2xl max-w-3xl w-full max-h-[90vh] flex flex-col">
-        {/* Header - Fixed at top */}
+      <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] flex flex-col">
+        {/* Header */}
         <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-6 rounded-t-xl flex-shrink-0">
           <div className="flex justify-between items-center">
             <div>
@@ -238,27 +226,28 @@ const DealFormModal = ({
                 {existingDeal ? 'Editar Negócio' : 'Novo Negócio'}
               </h2>
               <p className="text-blue-100 mt-1">
-                Cliente: {client?.name} | Oportunidade: Comprador
+                {opportunity?.qualification?.requirements?.propertyTypes?.join(', ') || 'Tipo de propriedade'}
               </p>
             </div>
             <button
               onClick={onClose}
-              className="p-2 hover:bg-white/20 rounded-lg transition"
+              className="text-white hover:bg-blue-800 p-2 rounded-lg transition-colors"
             >
               <XMarkIcon className="w-6 h-6" />
             </button>
           </div>
         </div>
 
-        {/* Scrollable Content Area */}
-        <div className="flex-1 overflow-y-auto p-6">
-          {/* Property Section */}
-          <div className="mb-6">
+        {/* Scrollable Content */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          
+          {/* PROPERTY SECTION */}
+          <div className="bg-gray-50 rounded-lg p-4">
             <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
               <HomeIcon className="w-5 h-5 mr-2 text-blue-600" />
-              Informação do Imóvel
+              Imóvel
             </h3>
-            
+
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -267,19 +256,20 @@ const DealFormModal = ({
                 <input
                   type="text"
                   value={formData.property.address}
-                  onChange={(e) => handleInputChange('property', 'address', e.target.value)}
+                  onChange={(e) => handleChange('property', 'address', e.target.value)}
                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                  placeholder="Rua Augusta, 123, Lisboa"
+                  placeholder="Rua Principal, 123, Lisboa"
+                  required
                 />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Tipo de Imóvel
+                  Tipo
                 </label>
                 <select
                   value={formData.property.type}
-                  onChange={(e) => handleInputChange('property', 'type', e.target.value)}
+                  onChange={(e) => handleChange('property', 'type', e.target.value)}
                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
                 >
                   {PROPERTY_TYPES.map(type => (
@@ -292,14 +282,27 @@ const DealFormModal = ({
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Referência
+                </label>
+                <input
+                  type="text"
+                  value={formData.property.reference}
+                  onChange={(e) => handleChange('property', 'reference', e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  placeholder="REF-12345"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
                   Quartos
                 </label>
                 <input
                   type="number"
                   value={formData.property.bedrooms}
-                  onChange={(e) => handleInputChange('property', 'bedrooms', parseInt(e.target.value) || '')}
+                  onChange={(e) => handleChange('property', 'bedrooms', parseInt(e.target.value) || 0)}
                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                  placeholder="3"
+                  min="0"
                 />
               </div>
 
@@ -310,9 +313,9 @@ const DealFormModal = ({
                 <input
                   type="number"
                   value={formData.property.bathrooms}
-                  onChange={(e) => handleInputChange('property', 'bathrooms', parseInt(e.target.value) || '')}
+                  onChange={(e) => handleChange('property', 'bathrooms', parseInt(e.target.value) || 0)}
                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                  placeholder="2"
+                  min="0"
                 />
               </div>
 
@@ -323,72 +326,57 @@ const DealFormModal = ({
                 <input
                   type="number"
                   value={formData.property.area}
-                  onChange={(e) => handleInputChange('property', 'area', parseInt(e.target.value) || '')}
+                  onChange={(e) => handleChange('property', 'area', parseInt(e.target.value) || 0)}
                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                  placeholder="120"
+                  min="0"
                 />
               </div>
 
               <div className="col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  URL do Anúncio
-                </label>
-                <div className="flex items-center space-x-2">
-                  <LinkIcon className="w-5 h-5 text-gray-400" />
-                  <input
-                    type="url"
-                    value={formData.property.listingUrl}
-                    onChange={(e) => handleInputChange('property', 'listingUrl', e.target.value)}
-                    className="flex-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                    placeholder="https://..."
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Referência
+                  Link do Anúncio
                 </label>
                 <input
-                  type="text"
-                  value={formData.property.reference}
-                  onChange={(e) => handleInputChange('property', 'reference', e.target.value)}
+                  type="url"
+                  value={formData.property.listingUrl}
+                  onChange={(e) => handleChange('property', 'listingUrl', e.target.value)}
                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                  placeholder="REF-12345"
+                  placeholder="https://..."
                 />
               </div>
             </div>
           </div>
 
-          {/* Pricing Section */}
-          <div className="mb-6">
+          {/* PRICING SECTION */}
+          <div className="bg-gray-50 rounded-lg p-4">
             <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
               <CurrencyEuroIcon className="w-5 h-5 mr-2 text-green-600" />
               Preços
             </h3>
-            
-            <div className="grid grid-cols-2 gap-4">
+
+            <div className="grid grid-cols-3 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Preço Pedido *
+                  Preço Pedido * (€)
                 </label>
                 <input
                   type="number"
                   value={formData.pricing.askingPrice}
-                  onChange={(e) => handleInputChange('pricing', 'askingPrice', parseFloat(e.target.value) || '')}
+                  onChange={(e) => handleChange('pricing', 'askingPrice', parseFloat(e.target.value) || 0)}
                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
                   placeholder="350000"
+                  required
                 />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Valor de Mercado (sua avaliação)
+                  Valor de Mercado (€)
                 </label>
                 <input
                   type="number"
                   value={formData.pricing.marketValue}
-                  onChange={(e) => handleInputChange('pricing', 'marketValue', parseFloat(e.target.value) || '')}
+                  onChange={(e) => handleChange('pricing', 'marketValue', parseFloat(e.target.value) || 0)}
                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
                   placeholder="340000"
                 />
@@ -401,9 +389,8 @@ const DealFormModal = ({
                 <input
                   type="number"
                   value={formData.pricing.expectedNegotiation}
-                  onChange={(e) => handleInputChange('pricing', 'expectedNegotiation', parseFloat(e.target.value) || 0)}
+                  onChange={(e) => handleChange('pricing', 'expectedNegotiation', parseFloat(e.target.value) || 0)}
                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                  placeholder="5"
                   min="0"
                   max="100"
                 />
@@ -411,131 +398,133 @@ const DealFormModal = ({
             </div>
           </div>
 
-          {/* Agent Section */}
-          <div className="mb-6">
+          {/* AGENT SECTION */}
+          <div className="bg-gray-50 rounded-lg p-4">
             <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
               <UserIcon className="w-5 h-5 mr-2 text-purple-600" />
               Agente do Imóvel
             </h3>
-            
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Selecionar Agente
-                </label>
-                <select
-                  value={selectedAgentId}
-                  onChange={handleAgentSelect}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Selecione...</option>
-                  <option value="self">Propriedade Interna (Nossa Agência)</option>
-                  <option value="new">+ Novo Agente</option>
-                  {agents.map(agent => (
-                    <option key={agent.id} value={agent.id}>
-                      {agent.name} - {agent.agency}
-                    </option>
-                  ))}
-                </select>
-              </div>
 
-              {(isNewAgent || selectedAgentId === 'new') && (
-                <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
-                  <div className="col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Nome do Agente
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.propertyAgent.name}
-                      onChange={(e) => handleInputChange('propertyAgent', 'name', e.target.value)}
-                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                      placeholder="João Silva"
-                    />
-                  </div>
-
-                  <div className="col-span-2">
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Agência
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.propertyAgent.agency}
-                      onChange={(e) => handleInputChange('propertyAgent', 'agency', e.target.value)}
-                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                      placeholder="ERA Portugal"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Telefone
-                    </label>
-                    <input
-                      type="tel"
-                      value={formData.propertyAgent.phone}
-                      onChange={(e) => handleInputChange('propertyAgent', 'phone', e.target.value)}
-                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                      placeholder="+351 912 345 678"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Email
-                    </label>
-                    <input
-                      type="email"
-                      value={formData.propertyAgent.email}
-                      onChange={(e) => handleInputChange('propertyAgent', 'email', e.target.value)}
-                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                      placeholder="joao@era.pt"
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Scoring Section */}
-          <div className="mb-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-              <SparklesIcon className="w-5 h-5 mr-2 text-yellow-600" />
-              Avaliação & Competição
-            </h3>
-            
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Nível de Competição
+                  Nome
                 </label>
-                <select
-                  value={formData.scoring.competitionLevel}
-                  onChange={(e) => handleInputChange('scoring', 'competitionLevel', e.target.value)}
+                <input
+                  type="text"
+                  value={formData.propertyAgent.name}
+                  onChange={(e) => handleChange('propertyAgent', 'name', e.target.value)}
                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="low">Baixo</option>
-                  <option value="medium">Médio</option>
-                  <option value="high">Alto</option>
-                </select>
+                  placeholder="João Silva"
+                />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Urgência
+                  Agência
                 </label>
-                <select
-                  value={formData.scoring.urgencyLevel}
-                  onChange={(e) => handleInputChange('scoring', 'urgencyLevel', e.target.value)}
+                <input
+                  type="text"
+                  value={formData.propertyAgent.agency}
+                  onChange={(e) => handleChange('propertyAgent', 'agency', e.target.value)}
                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="low">Baixa</option>
-                  <option value="normal">Normal</option>
-                  <option value="high">Alta</option>
-                  <option value="urgent">Urgente</option>
-                </select>
+                  placeholder="ERA, RE/MAX, etc."
+                />
               </div>
 
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Telefone
+                </label>
+                <input
+                  type="tel"
+                  value={formData.propertyAgent.phone}
+                  onChange={(e) => handleChange('propertyAgent', 'phone', e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  placeholder="+351 ..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  value={formData.propertyAgent.email}
+                  onChange={(e) => handleChange('propertyAgent', 'email', e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  placeholder="agente@agencia.pt"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* SCORING SECTION */}
+          <div className="bg-gray-50 rounded-lg p-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+              <StarOutline className="w-5 h-5 mr-2 text-yellow-600" />
+              Avaliação
+            </h3>
+
+            <div className="space-y-4">
+              <RatingInput
+                value={formData.scoring.propertyMatchScore}
+                onChange={(val) => handleChange('scoring', 'propertyMatchScore', val)}
+                label="Compatibilidade do Imóvel"
+              />
+
+              <RatingInput
+                value={formData.scoring.buyerInterestLevel}
+                onChange={(val) => handleChange('scoring', 'buyerInterestLevel', val)}
+                label="Nível de Interesse do Comprador"
+              />
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Urgência
+                  </label>
+                  <select
+                    value={formData.scoring.urgencyLevel}
+                    onChange={(e) => handleChange('scoring', 'urgencyLevel', e.target.value)}
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                    {Object.values(URGENCY_LEVELS).map(level => (
+                      <option key={level.value} value={level.value}>
+                        {level.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Competição
+                  </label>
+                  <select
+                    value={formData.scoring.competitionLevel}
+                    onChange={(e) => handleChange('scoring', 'competitionLevel', e.target.value)}
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                    {Object.values(COMPETITION_LEVELS).map(level => (
+                      <option key={level.value} value={level.value}>
+                        {level.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* COMPETITION SECTION */}
+          <div className="bg-gray-50 rounded-lg p-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              Competição
+            </h3>
+
+            <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Outros Interessados
@@ -543,9 +532,9 @@ const DealFormModal = ({
                 <input
                   type="number"
                   value={formData.competition.otherInterested}
-                  onChange={(e) => handleInputChange('competition', 'otherInterested', parseInt(e.target.value) || 0)}
+                  onChange={(e) => handleChange('competition', 'otherInterested', parseInt(e.target.value) || 0)}
                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                  placeholder="0"
+                  min="0"
                 />
               </div>
 
@@ -556,39 +545,66 @@ const DealFormModal = ({
                 <input
                   type="number"
                   value={formData.competition.otherOffers}
-                  onChange={(e) => handleInputChange('competition', 'otherOffers', parseInt(e.target.value) || 0)}
+                  onChange={(e) => handleChange('competition', 'otherOffers', parseInt(e.target.value) || 0)}
                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                  placeholder="0"
+                  min="0"
+                />
+              </div>
+
+              <div className="col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Notas sobre Competição
+                </label>
+                <textarea
+                  value={formData.competition.notes}
+                  onChange={(e) => handleChange('competition', 'notes', e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  rows="2"
+                  placeholder="Detalhes sobre outros interessados..."
                 />
               </div>
             </div>
           </div>
 
-          {/* Stage Selection */}
-          <div className="mb-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">
-              Fase do Negócio
-            </h3>
-            <select
-              value={formData.stage}
-              onChange={(e) => handleInputChange(null, 'stage', e.target.value)}
-              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-            >
-              {BUYER_DEAL_STAGES.map(stage => (
-                <option key={stage.value} value={stage.value}>
-                  {stage.label}
-                </option>
-              ))}
-            </select>
+          {/* STAGE & FOLLOW-UP */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Etapa
+              </label>
+              <select
+                value={formData.stage}
+                onChange={(e) => handleChange(null, 'stage', e.target.value)}
+                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+              >
+                {BUYER_DEAL_STAGES.map(stage => (
+                  <option key={stage.value} value={stage.value}>
+                    {stage.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Próximo Seguimento
+              </label>
+              <input
+                type="date"
+                value={formData.nextFollowUpDate || ''}
+                onChange={(e) => handleChange(null, 'nextFollowUpDate', e.target.value)}
+                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
           </div>
 
-          {/* Notes */}
-          <div className="mb-6">
+          {/* NOTES SECTION */}
+          <div className="bg-gray-50 rounded-lg p-4">
             <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
               <DocumentTextIcon className="w-5 h-5 mr-2 text-gray-600" />
               Notas
             </h3>
-            
+
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -596,7 +612,7 @@ const DealFormModal = ({
                 </label>
                 <textarea
                   value={formData.notes}
-                  onChange={(e) => handleInputChange(null, 'notes', e.target.value)}
+                  onChange={(e) => handleChange(null, 'notes', e.target.value)}
                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
                   rows="3"
                   placeholder="Observações sobre o imóvel, localização, etc..."
@@ -605,11 +621,11 @@ const DealFormModal = ({
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Notas Internas (não visíveis ao cliente)
+                  Notas Internas (privadas)
                 </label>
                 <textarea
                   value={formData.internalNotes}
-                  onChange={(e) => handleInputChange(null, 'internalNotes', e.target.value)}
+                  onChange={(e) => handleChange(null, 'internalNotes', e.target.value)}
                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
                   rows="2"
                   placeholder="Estratégias, observações internas..."
@@ -617,19 +633,20 @@ const DealFormModal = ({
               </div>
             </div>
           </div>
+
         </div>
 
-        {/* Footer Actions - Fixed at bottom */}
+        {/* Footer Actions */}
         <div className="bg-gray-50 px-6 py-4 flex justify-end space-x-3 border-t rounded-b-xl flex-shrink-0">
           <button
             onClick={onClose}
-            className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+            className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors"
           >
             Cancelar
           </button>
           <button
             onClick={handleSubmit}
-            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
           >
             {existingDeal ? 'Atualizar Negócio' : 'Criar Negócio'}
           </button>

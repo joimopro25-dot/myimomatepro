@@ -1,6 +1,15 @@
 /**
  * FIREBASE SETUP - MyImoMatePro
- * Database structure and helper functions for Deals and Agents
+ * Agent management functions
+ * 
+ * Structure:
+ * /agents (global collection of all agents)
+ *   /{agentId}
+ * 
+ * /consultants
+ *   /{consultantId}
+ *     /agent_relationships (consultant's view of agents)
+ *       /{agentId}
  */
 
 import { 
@@ -10,45 +19,16 @@ import {
   getDoc, 
   getDocs, 
   updateDoc, 
-  deleteDoc, 
+  deleteDoc,
   query, 
   where, 
-  orderBy, 
-  limit,
+  orderBy,
   serverTimestamp,
   writeBatch,
   increment,
-  arrayUnion // added
+  arrayUnion
 } from 'firebase/firestore';
 import { db } from '../firebase/config';
-
-/**
- * FIRESTORE COLLECTIONS STRUCTURE
- * 
- * /agents (global collection of all agents)
- *   /{agentId}
- * 
- * /clients
- *   /{clientId}
- *     /opportunities
- *       /{opportunityId}
- *         /deals (subcollection for buyer opportunities)
- *           /{dealId}
- *             /activities (deal activity log)
- *               /{activityId}
- *             /viewings (viewing records)
- *               /{viewingId}
- *             /offers (offer history)
- *               /{offerId}
- * 
- * /properties (your property inventory)
- *   /{propertyId}
- * 
- * /consultants
- *   /{consultantId}
- *     /agent_relationships (consultant's view of agents)
- *       /{agentId}
- */
 
 // ============================================
 // AGENT MANAGEMENT
@@ -151,6 +131,86 @@ export const getAgent = async (agentId) => {
 };
 
 /**
+ * Update an existing agent
+ */
+export const updateAgent = async (agentId, updates) => {
+  try {
+    const agentRef = doc(db, 'agents', agentId);
+    
+    const agentDoc = await getDoc(agentRef);
+    if (!agentDoc.exists()) {
+      throw new Error('Agent not found');
+    }
+    
+    await updateDoc(agentRef, {
+      ...updates,
+      updatedAt: serverTimestamp()
+    });
+    
+    // Update consultant's relationship view if needed
+    const agentData = agentDoc.data();
+    if (agentData.consultantId && updates.relationship) {
+      const relationshipRef = doc(
+        db,
+        'consultants',
+        agentData.consultantId,
+        'agent_relationships',
+        agentId
+      );
+      
+      await updateDoc(relationshipRef, {
+        relationshipQuality: updates.relationship?.quality,
+        lastInteraction: updates.relationship?.lastContactDate,
+        notes: updates.relationship?.notes,
+        updatedAt: serverTimestamp()
+      });
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('Error updating agent:', error);
+    throw error;
+  }
+};
+
+/**
+ * Delete an agent
+ */
+export const deleteAgent = async (agentId) => {
+  try {
+    const agentRef = doc(db, 'agents', agentId);
+    
+    const agentDoc = await getDoc(agentRef);
+    if (!agentDoc.exists()) {
+      throw new Error('Agent not found');
+    }
+    
+    const agentData = agentDoc.data();
+    
+    // Delete agent document
+    await deleteDoc(agentRef);
+    
+    // Delete consultant's relationship view if exists
+    if (agentData.consultantId) {
+      const relationshipRef = doc(
+        db,
+        'consultants',
+        agentData.consultantId,
+        'agent_relationships',
+        agentId
+      );
+      
+      await deleteDoc(relationshipRef);
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('Error deleting agent:', error);
+    throw error;
+  }
+};
+
+/**
  * Log interaction with an agent
  */
 export const logAgentInteraction = async (agentId, interaction) => {
@@ -171,449 +231,116 @@ export const logAgentInteraction = async (agentId, interaction) => {
     });
     
     await batch.commit();
+    
+    return true;
   } catch (error) {
     console.error('Error logging agent interaction:', error);
     throw error;
   }
 };
 
-// ============================================
-// DEAL MANAGEMENT
-// ============================================
-
 /**
- * Create a new deal for a buyer opportunity (UPDATED)
+ * Get agent's interaction history
  */
-export const createDeal = async (consultantId, opportunityId, clientId, dealData) => {
+export const getAgentInteractions = async (agentId) => {
   try {
-    const dealRef = doc(
-      collection(db, 'consultants', consultantId, 'clients', clientId, 'opportunities', opportunityId, 'deals')
-    );
+    const agentDoc = await getDoc(doc(db, 'agents', agentId));
     
-    const dataToSave = {
-      ...dealData,
-      id: dealRef.id,
-      opportunityId,
-      clientId,
-      consultantId,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-      'scoring.propertyMatchScore': dealData.scoring?.propertyMatchScore || 0,
-      'scoring.buyerInterestLevel': dealData.scoring?.buyerInterestLevel || 0,
-      'scoring.dealProbability': dealData.scoring?.dealProbability || 0,
-      'timeline.firstContactDate': serverTimestamp()
-    };
-    
-    await setDoc(dealRef, dataToSave);
-    
-    // Update opportunity stats (with correct path)
-    await updateOpportunityStats(consultantId, clientId, opportunityId, {
-      totalDeals: increment(1),
-      activeDeals: increment(1)
-    });
-    
-    // Log activity
-    await logDealActivity(consultantId, clientId, opportunityId, dealRef.id, {
-      type: 'deal_created',
-      description: 'Nova negociação iniciada',
-      stage: dealData.stage
-    });
-    
-    return dealRef.id;
-  } catch (error) {
-    console.error('Error creating deal:', error);
-    throw error;
-  }
-};
-
-/**
- * Update deal stage (UPDATED PATHS)
- */
-export const updateDealStage = async (consultantId, clientId, opportunityId, dealId, newStage, notes = '') => {
-  try {
-    const dealRef = doc(db, 'consultants', consultantId, 'clients', clientId, 'opportunities', opportunityId, 'deals', dealId);
-    
-    const dealDoc = await getDoc(dealRef);
-    if (!dealDoc.exists()) {
-      throw new Error('Deal not found');
+    if (!agentDoc.exists()) {
+      throw new Error('Agent not found');
     }
     
-    const currentData = dealDoc.data();
-    const oldStage = currentData.stage;
-    
-    await updateDoc(dealRef, {
-      stage: newStage,
-      updatedAt: serverTimestamp(),
-      'timeline.lastStageChange': serverTimestamp()
-    });
-    
-    await logDealActivity(consultantId, clientId, opportunityId, dealId, {
-      type: 'stage_change',
-      description: `Fase alterada de ${oldStage} para ${newStage}`,
-      oldValue: oldStage,
-      newValue: newStage,
-      notes
-    });
-    
-    if (newStage === 'completed') {
-      await updateOpportunityStats(consultantId, clientId, opportunityId, {
-        activeDeals: increment(-1),
-        wonDeals: increment(1)
-      });
-    } else if (newStage === 'lost') {
-      await updateOpportunityStats(consultantId, clientId, opportunityId, {
-        activeDeals: increment(-1),
-        lostDeals: increment(1)
-      });
-    }
+    const agentData = agentDoc.data();
+    return agentData.interactions || [];
   } catch (error) {
-    console.error('Error updating deal stage:', error);
+    console.error('Error getting agent interactions:', error);
     throw error;
   }
 };
 
 /**
- * Add viewing to deal (UPDATED PATHS)
+ * Get agents by consultant with relationship data
  */
-export const addViewing = async (consultantId, clientId, opportunityId, dealId, viewingData) => {
+export const getConsultantAgents = async (consultantId) => {
   try {
-    const viewingRef = doc(
-      collection(db, 'consultants', consultantId, 'clients', clientId, 'opportunities', opportunityId, 'deals', dealId, 'viewings')
+    // Get all agents for this consultant
+    const agentsQuery = query(
+      collection(db, 'agents'),
+      where('consultantId', '==', consultantId),
+      orderBy('name')
     );
     
-    const viewingToSave = {
-      ...viewingData,
-      id: viewingRef.id,
-      createdAt: serverTimestamp()
-    };
+    const snapshot = await getDocs(agentsQuery);
+    const agents = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
     
-    await setDoc(viewingRef, viewingToSave);
-    
-    const dealRef = doc(db, 'consultants', consultantId, 'clients', clientId, 'opportunities', opportunityId, 'deals', dealId);
-    await updateDoc(dealRef, {
-      totalViewings: increment(1),
-      lastViewingDate: viewingData.date,
-      'scoring.buyerInterestLevel': viewingData.feedback?.interestLevel || 0,
-      updatedAt: serverTimestamp()
-    });
-    
-    await logDealActivity(consultantId, clientId, opportunityId, dealId, {
-      type: 'viewing',
-      description: `Visita realizada - Interesse: ${viewingData.feedback?.interestLevel}/10`,
-      viewingId: viewingRef.id
-    });
-    
-    await updateOpportunityStats(consultantId, clientId, opportunityId, {
-      propertiesViewed: increment(1)
-    });
-    
-    return viewingRef.id;
+    return agents;
   } catch (error) {
-    console.error('Error adding viewing:', error);
+    console.error('Error getting consultant agents:', error);
     throw error;
   }
 };
 
 /**
- * Submit offer for a deal (UPDATED PATHS)
+ * Search agents by name or agency
  */
-export const submitOffer = async (consultantId, clientId, opportunityId, dealId, offerData) => {
+export const searchAgents = async (consultantId, searchTerm) => {
   try {
-    const offerRef = doc(
-      collection(db, 'consultants', consultantId, 'clients', clientId, 'opportunities', opportunityId, 'deals', dealId, 'offers')
+    const agentsQuery = query(
+      collection(db, 'agents'),
+      where('consultantId', '==', consultantId),
+      orderBy('name')
     );
     
-    const offersSnapshot = await getDocs(
-      collection(db, 'consultants', consultantId, 'clients', clientId, 'opportunities', opportunityId, 'deals', dealId, 'offers')
-    );
-    const offerNumber = offersSnapshot.size + 1;
+    const snapshot = await getDocs(agentsQuery);
     
-    await setDoc(offerRef, {
-      ...offerData,
-      id: offerRef.id,
-      offerNumber,
-      status: 'pending',
-      createdAt: serverTimestamp()
-    });
-    
-    const dealRef = doc(db, 'consultants', consultantId, 'clients', clientId, 'opportunities', opportunityId, 'deals', dealId);
-    await updateDoc(dealRef, {
-      stage: 'offer_submitted',
-      'pricing.currentOffer': offerData.amount,
-      'pricing.highestOffer': increment(0),
-      'timeline.offerDate': serverTimestamp(),
-      updatedAt: serverTimestamp()
-    });
-    
-    await logDealActivity(consultantId, clientId, opportunityId, dealId, {
-      type: 'offer_submitted',
-      description: `Proposta #${offerNumber} enviada: €${offerData.amount.toLocaleString('pt-PT')}`,
-      offerId: offerRef.id,
-      amount: offerData.amount
-    });
-    
-    await updateOpportunityStats(consultantId, clientId, opportunityId, {
-      offersMade: increment(1)
-    });
-    
-    return offerRef.id;
-  } catch (error) {
-    console.error('Error submitting offer:', error);
-    throw error;
-  }
-};
-
-/**
- * Get all deals for an opportunity (UPDATED PATHS)
- */
-export const getDeals = async (consultantId, clientId, opportunityId, filters = {}) => {
-  try {
-    let q = collection(db, 'consultants', consultantId, 'clients', clientId, 'opportunities', opportunityId, 'deals');
-    
-    const constraints = [];
-    if (filters.status) constraints.push(where('status', '==', filters.status));
-    if (filters.stage) constraints.push(where('stage', '==', filters.stage));
-    constraints.push(orderBy('createdAt', 'desc'));
-    
-    if (constraints.length > 0) {
-      q = query(q, ...constraints);
-    }
-    
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-  } catch (error) {
-    console.error('Error getting deals:', error);
-    throw error;
-  }
-};
-
-/**
- * Get all viewings for a deal (UPDATED PATHS)
- */
-export const getDealViewings = async (consultantId, clientId, opportunityId, dealId) => {
-  try {
-    const viewingsRef = collection(
-      db,
-      'consultants',
-      consultantId,
-      'clients',
-      clientId,
-      'opportunities',
-      opportunityId,
-      'deals',
-      dealId,
-      'viewings'
-    );
-    
-    const q = query(viewingsRef, orderBy('date', 'desc'));
-    const snapshot = await getDocs(q);
-    
-    return snapshot.docs.map(doc => {
-      const data = doc.data();
-      return {
+    // Filter results by search term (client-side filtering)
+    const searchLower = searchTerm.toLowerCase();
+    const filteredAgents = snapshot.docs
+      .map(doc => ({
         id: doc.id,
-        ...data,
-        date: data.date?.toDate ? data.date.toDate().toISOString().split('T')[0] : data.date,
-        createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : data.createdAt
-      };
-    });
-  } catch (error) {
-    console.error('Error getting viewings:', error);
-    throw error;
-  }
-};
-
-/**
- * Get deals with their viewings loaded (UPDATED PATHS)
- */
-export const getDealsWithViewings = async (consultantId, clientId, opportunityId, filters = {}) => {
-  try {
-    const deals = await getDeals(consultantId, clientId, opportunityId, filters);
-    const dealsWithViewings = await Promise.all(
-      deals.map(async (deal) => {
-        const viewings = await getDealViewings(consultantId, clientId, opportunityId, deal.id);
-        return {
-          ...deal,
-          viewings,
-          totalViewings: viewings.length
-        };
-      })
-    );
-    return dealsWithViewings;
-  } catch (error) {
-    console.error('Error getting deals with viewings:', error);
-    throw error;
-  }
-};
-
-/**
- * Update an existing deal (CORRECT NESTED PATH)
- */
-export const updateDeal = async (consultantId, clientId, opportunityId, dealId, updates) => {
-  try {
-    if (!consultantId || !clientId || !opportunityId || !dealId) {
-      throw new Error('Missing required IDs to update deal');
-    }
-
-    const dealRef = doc(
-      db,
-      'consultants',
-      consultantId,
-      'clients',
-      clientId,
-      'opportunities',
-      opportunityId,
-      'deals',
-      dealId
-    );
-
-    // Guard against changing core identifiers
-    const { id: _id, consultantId: _c, clientId: _cl, opportunityId: _o, ...safeUpdates } = updates || {};
-
-    await updateDoc(dealRef, {
-      ...safeUpdates,
-      updatedAt: serverTimestamp()
-    });
-
-    // Optional: log activity (non-blocking)
-    await logDealActivity(consultantId, clientId, opportunityId, dealId, {
-      type: 'deal_updated',
-      description: 'Negócio atualizado',
-      updatedFields: Object.keys(updates || {})
-    });
-
-    return true;
-  } catch (error) {
-    console.error('Error updating deal:', error);
-    throw error;
-  }
-};
-/**
- * Delete a deal (CORRECT NESTED PATH)
- */
-export const deleteDeal = async (consultantId, clientId, opportunityId, dealId) => {
-  try {
-    if (!consultantId || !clientId || !opportunityId || !dealId) {
-      throw new Error('Missing required IDs to delete deal');
-    }
-
-    const dealRef = doc(
-      db,
-      'consultants',
-      consultantId,
-      'clients',
-      clientId,
-      'opportunities',
-      opportunityId,
-      'deals',
-      dealId
-    );
-
-    await deleteDoc(dealRef);
-
-    // Update opportunity stats
-    await updateOpportunityStats(consultantId, clientId, opportunityId, {
-      totalDeals: increment(-1),
-      activeDeals: increment(-1)
-    });
-
-    // Log activity
-    await logDealActivity(consultantId, clientId, opportunityId, dealId, {
-      type: 'deal_deleted',
-      description: 'Negócio eliminado'
-    });
-
-    return true;
-  } catch (error) {
-    console.error('Error deleting deal:', error);
-    throw error;
-  }
-};
-// ============================================
-// HELPER FUNCTIONS
-// ============================================
-
-/**
- * Update opportunity statistics
- */
-const updateOpportunityStats = async (consultantId, clientId, opportunityId, stats) => {
-  try {
-    const oppRef = doc(db, 'consultants', consultantId, 'clients', clientId, 'opportunities', opportunityId);
-    const oppDoc = await getDoc(oppRef);
-    if (!oppDoc.exists()) {
-      console.warn('Opportunity document does not exist, skipping stats update');
-      return;
-    }
-    await updateDoc(oppRef, {
-      ...stats,
-      updatedAt: serverTimestamp()
-    });
-  } catch (error) {
-    console.error('Error updating opportunity stats:', error);
-    // Don't throw - stats update is not critical
-  }
-};
-
-/**
- * Log deal activity
- */
-const logDealActivity = async (consultantId, clientId, opportunityId, dealId, activity) => {
-  try {
-    const activityRef = doc(
-      collection(db, 'consultants', consultantId, 'clients', clientId, 'opportunities', opportunityId, 'deals', dealId, 'activities')
-    );
-    
-    await setDoc(activityRef, {
-      ...activity,
-      id: activityRef.id,
-      timestamp: serverTimestamp(),
-      createdBy: activity.createdBy || 'system'
-    });
-  } catch (error) {
-    console.error('Error logging deal activity:', error);
-    // Don't throw - logging is not critical
-  }
-};
-
-/**
- * Get dashboard statistics
- */
-export const getDashboardStats = async (consultantId) => {
-  try {
-    const stats = {
-      totalDeals: 0,
-      activeDeals: 0,
-      dealsWon: 0,
-      dealsInNegotiation: 0,
-      viewingsThisWeek: 0,
-      offersSubmitted: 0
-    };
-    
-    // Get all clients for consultant
-    const clientsQuery = query(
-      collection(db, 'clients'),
-      where('consultantId', '==', consultantId)
-    );
-    const clientsSnapshot = await getDocs(clientsQuery);
-    
-    // Iterate through clients and their opportunities
-    for (const clientDoc of clientsSnapshot.docs) {
-      const oppsSnapshot = await getDocs(
-        collection(db, 'clients', clientDoc.id, 'opportunities')
+        ...doc.data()
+      }))
+      .filter(agent => 
+        agent.name?.toLowerCase().includes(searchLower) ||
+        agent.agency?.toLowerCase().includes(searchLower) ||
+        agent.contactInfo?.email?.toLowerCase().includes(searchLower)
       );
-      
-      for (const oppDoc of oppsSnapshot.docs) {
-        const oppData = oppDoc.data();
-        stats.totalDeals += oppData.stats?.totalDeals || 0;
-        stats.activeDeals += oppData.stats?.activeDeals || 0;
-        stats.dealsWon += oppData.stats?.wonDeals || 0;
-        stats.offersSubmitted += oppData.stats?.offersMade || 0;
-      }
+    
+    return filteredAgents;
+  } catch (error) {
+    console.error('Error searching agents:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get agent statistics
+ */
+export const getAgentStats = async (agentId) => {
+  try {
+    const agentDoc = await getDoc(doc(db, 'agents', agentId));
+    
+    if (!agentDoc.exists()) {
+      throw new Error('Agent not found');
     }
     
-    return stats;
+    const agentData = agentDoc.data();
+    
+    return {
+      totalInteractions: agentData.relationship?.totalInteractions || 0,
+      lastContactDate: agentData.relationship?.lastContactDate,
+      relationshipQuality: agentData.relationship?.quality || 'unknown',
+      totalDeals: agentData.stats?.totalDeals || 0,
+      successfulDeals: agentData.stats?.successfulDeals || 0,
+      successRate: agentData.stats?.totalDeals > 0 
+        ? Math.round((agentData.stats?.successfulDeals / agentData.stats?.totalDeals) * 100)
+        : 0
+    };
   } catch (error) {
-    console.error('Error getting dashboard stats:', error);
+    console.error('Error getting agent stats:', error);
     throw error;
   }
 };

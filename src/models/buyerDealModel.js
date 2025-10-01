@@ -1,273 +1,205 @@
 /**
  * BUYER DEAL MODEL - MyImoMatePro
- * Manages deals (property pursuits) for buyer opportunities
+ * Clean, simple schema for managing property deals
+ * Path: /consultants/{id}/clients/{id}/opportunities/{id}/deals/{id}
  */
 
-import { AGENT_TYPES } from './agentModel';
-
-// Deal Stages Pipeline
+// ===== DEAL STAGES =====
 export const BUYER_DEAL_STAGES = [
-  { value: 'lead', label: 'Imóvel Identificado', color: 'gray', order: 1 },
-  { value: 'contacted', label: 'Agente Contactado', color: 'blue', order: 2 },
-  { value: 'viewing_scheduled', label: 'Visita Agendada', color: 'indigo', order: 3 },
-  { value: 'viewed', label: 'Visitado', color: 'purple', order: 4 },
-  { value: 'evaluating', label: 'Em Avaliação', color: 'yellow', order: 5 },
-  { value: 'offer_preparation', label: 'Preparando Proposta', color: 'orange', order: 6 },
-  { value: 'offer_submitted', label: 'Proposta Enviada', color: 'pink', order: 7 },
-  { value: 'negotiating', label: 'Em Negociação', color: 'red', order: 8 },
-  { value: 'offer_accepted', label: 'Proposta Aceita', color: 'green', order: 9 },
-  { value: 'documentation', label: 'Documentação', color: 'teal', order: 10 },
-  { value: 'financing', label: 'Financiamento', color: 'cyan', order: 11 },
-  { value: 'closing', label: 'Escritura', color: 'emerald', order: 12 },
-  { value: 'completed', label: 'Concluído', color: 'green', order: 13 },
-  { value: 'lost', label: 'Perdido', color: 'red', order: 14 }
+  { value: 'lead', label: 'Lead', order: 1, color: 'gray' },
+  { value: 'viewing', label: 'A Visitar', order: 2, color: 'blue' },
+  { value: 'evaluating', label: 'Em Avaliação', order: 3, color: 'yellow' },
+  { value: 'offer_submitted', label: 'Proposta Enviada', order: 4, color: 'orange' },
+  { value: 'negotiating', label: 'Em Negociação', order: 5, color: 'purple' },
+  { value: 'accepted', label: 'Aceite', order: 6, color: 'green' },
+  { value: 'closed_won', label: 'Fechado (Ganho)', order: 7, color: 'green' },
+  { value: 'closed_lost', label: 'Fechado (Perdido)', order: 8, color: 'red' }
 ];
 
-// Deal Status
-export const DEAL_STATUS = {
-  ACTIVE: { value: 'active', label: 'Ativo', color: 'green' },
-  WON: { value: 'won', label: 'Ganho', color: 'emerald' },
-  LOST: { value: 'lost', label: 'Perdido', color: 'red' },
-  ON_HOLD: { value: 'on_hold', label: 'Em Espera', color: 'yellow' },
-  WITHDRAWN: { value: 'withdrawn', label: 'Retirado', color: 'gray' }
-};
-
-// Interest Levels
+// ===== INTEREST LEVELS =====
 export const INTEREST_LEVELS = [
-  { value: 10, label: 'Adorou - Quer fazer proposta', color: 'green', emoji: '😍' },
-  { value: 8, label: 'Muito Interessado', color: 'emerald', emoji: '😊' },
-  { value: 6, label: 'Interessado', color: 'blue', emoji: '🙂' },
-  { value: 4, label: 'Moderado', color: 'yellow', emoji: '😐' },
-  { value: 2, label: 'Pouco Interessado', color: 'orange', emoji: '😕' },
-  { value: 0, label: 'Sem Interesse', color: 'red', emoji: '😞' }
+  { value: 0, label: 'Sem Interesse', color: 'red' },
+  { value: 3, label: 'Baixo', color: 'orange' },
+  { value: 5, label: 'Médio', color: 'yellow' },
+  { value: 7, label: 'Alto', color: 'blue' },
+  { value: 9, label: 'Muito Alto', color: 'green' }
 ];
 
-// Lost Reasons
-export const LOST_REASONS = {
-  PRICE: { value: 'price', label: 'Preço muito alto' },
-  CONDITION: { value: 'condition', label: 'Estado do imóvel' },
-  LOCATION: { value: 'location', label: 'Localização inadequada' },
-  SIZE: { value: 'size', label: 'Tamanho inadequado' },
-  ANOTHER_PROPERTY: { value: 'another_property', label: 'Escolheu outro imóvel' },
-  FINANCING: { value: 'financing', label: 'Problemas de financiamento' },
-  PERSONAL: { value: 'personal', label: 'Motivos pessoais' },
-  SELLER_WITHDREW: { value: 'seller_withdrew', label: 'Vendedor retirou' },
-  OTHER: { value: 'other', label: 'Outro motivo' }
-};
-
-// Representation Types
+// ===== REPRESENTATION TYPES =====
 export const REPRESENTATION_TYPES = {
   BUYER_ONLY: { value: 'buyer_only', label: 'Representa Comprador' },
   DUAL_AGENCY: { value: 'dual_agency', label: 'Dupla Representação' },
   REFERRAL: { value: 'referral', label: 'Referência' }
 };
 
+// ===== URGENCY LEVELS =====
+export const URGENCY_LEVELS = {
+  LOW: { value: 'low', label: 'Baixa', color: 'gray' },
+  NORMAL: { value: 'normal', label: 'Normal', color: 'blue' },
+  HIGH: { value: 'high', label: 'Alta', color: 'orange' },
+  URGENT: { value: 'urgent', label: 'Urgente', color: 'red' }
+};
+
+// ===== COMPETITION LEVELS =====
+export const COMPETITION_LEVELS = {
+  LOW: { value: 'low', label: 'Baixa', color: 'green' },
+  MEDIUM: { value: 'medium', label: 'Média', color: 'yellow' },
+  HIGH: { value: 'high', label: 'Alta', color: 'red' }
+};
+
 /**
- * Buyer Deal Model Schema
+ * ===== MAIN DEAL SCHEMA =====
+ * Clean structure with only essential fields
  */
 export const BuyerDealSchema = {
-  // Core Relationships
+  // IDs & Relationships
   id: '',
-  opportunityId: '', // Parent buyer opportunity
-  clientId: '',      // Buyer client
-  propertyId: '',    // Property being considered
+  consultantId: '',
+  clientId: '',
+  opportunityId: '',
   
-  // Deal Tracking
-  stage: 'lead',
-  status: DEAL_STATUS.ACTIVE.value,
-  priority: 'normal', // low, normal, high, urgent
-  
-  // Property Details Cache (for quick display)
+  // Property Information
   property: {
     address: '',
-    type: '', // apartment, house, etc.
+    type: 'apartment', // apartment, house, villa, etc.
     bedrooms: 0,
     bathrooms: 0,
-    area: 0,
-    photos: [], // Main photos URLs
+    area: 0, // m²
     listingUrl: '',
-    reference: ''
+    reference: '', // Property reference number
+    photos: [] // Array of photo URLs
   },
   
-  // Pricing Information
+  // Pricing
   pricing: {
     askingPrice: 0,
     marketValue: 0, // Your assessment
-    comparablePrice: 0, // Based on comparables
-    
-    // Offer History
-    offers: [], // Array of offer records
-    currentOffer: null,
-    highestOffer: 0,
-    finalPrice: null, // Agreed price if deal won
-    
-    // Negotiation room
-    expectedNegotiation: 0, // % expected discount
-    maxBudget: 0, // From buyer qualification
+    expectedNegotiation: 5, // percentage
+    currentOffer: 0, // If offer submitted
+    finalPrice: 0 // Closing price
   },
   
-  // Agent Information
+  // Property Agent (who represents the seller)
   propertyAgent: {
-    agentId: '', // Reference to agent collection
-    agentType: AGENT_TYPES.EXTERNAL,
+    agentId: '', // If agent exists in system
     name: '',
     agency: '',
     phone: '',
     email: '',
     whatsapp: '',
-    responseQuality: '', // fast, normal, slow
+    lastContact: null, // Date of last communication
+    nextFollowUp: null // Date for next follow-up
+  },
+  
+  // Representation
+  representation: {
+    type: 'buyer_only', // buyer_only, dual_agency, referral
     commission: {
       type: 'percentage', // percentage or fixed
-      value: 2.5,
-      splitAgreement: '50/50',
-      notes: ''
+      value: 2.5
     }
   },
   
-  // Representation Details
-  representation: {
-    type: REPRESENTATION_TYPES.BUYER_ONLY.value,
-    buyerAgentId: '', // You as buyer's agent
-    sellerAgentId: '', // Property listing agent
-    dualAgencyDisclosure: false,
-    dualAgencyDisclosureDate: null,
-    cooperationAgreement: '',
-    commissionSplit: '50/50'
-  },
-  
-  // Viewing Management
-  viewings: [], // Array of viewing records
-  nextViewing: null,
-  totalViewings: 0,
-  
-  // Scoring & Assessment
+  // Deal Scoring & Assessment
   scoring: {
-    propertyMatchScore: 0, // 0-100 how well it matches requirements
-    buyerInterestLevel: 0, // 0-10 after viewing
-    dealProbability: 0, // 0-100 likelihood of closing
-    competitionLevel: 'low', // low, medium, high
+    propertyMatchScore: 0, // 0-10: How well property matches buyer needs
+    buyerInterestLevel: 0, // 0-10: Buyer's interest level
     urgencyLevel: 'normal', // low, normal, high, urgent
+    competitionLevel: 'low' // low, medium, high
   },
   
   // Competition Tracking
   competition: {
-    otherInterested: 0, // Number of other interested buyers
-    otherOffers: 0,
-    expectedDecisionDate: null,
-    notes: ''
+    otherInterested: 0, // Number of other buyers interested
+    otherOffers: 0, // Number of other offers submitted
+    notes: '' // Competition details
   },
   
-  // Property Access
-  access: {
-    keyLocation: '',
-    keyboxCode: '',
-    contactPerson: '',
-    viewingInstructions: '',
-    restrictions: '', // "No Sunday visits", etc.
-    tenantInfo: {
-      occupied: false,
-      tenantName: '',
-      tenantPhone: '',
-      noticeRequired: 24, // hours
-    }
-  },
+  // Deal Stage & Status
+  stage: 'lead', // Current stage in pipeline
+  status: 'active', // active, won, lost
   
-  // Agent Communication Log
-  agentInteractions: [], // Array of interaction records
-  lastAgentContact: null,
-  nextFollowUp: null,
+  // Follow-up Management
+  nextFollowUpDate: null,
+  followUpNote: '',
   
-  // Documents
+  // Documents (Links/References only - SIMPLE)
   documents: {
-    propertyDocs: [], // Energy cert, floor plans, etc.
-    offers: [], // Offer documents
-    contracts: [], // CPCV, etc.
-    inspections: [], // Inspection reports
-    financing: [], // Pre-approval letters, etc.
+    energyCert: '', // URL
+    floorPlan: '', // URL
+    propertyDocs: '', // URL
+    offerLetter: '', // URL
+    contract: '', // URL
+    other: [] // Array of {name, url}
   },
   
   // Important Dates
   timeline: {
     firstContactDate: null,
     firstViewingDate: null,
-    offerDate: null,
-    offerAcceptanceDate: null,
-    inspectionDate: null,
-    financingApprovalDate: null,
-    closingDate: null, // Expected or actual
-    possessionDate: null,
+    offerSubmittedDate: null,
+    offerAcceptedDate: null,
+    closingDate: null
   },
   
-  // Lost Deal Tracking
-  lostDetails: {
-    reason: null,
-    reasonDetails: '',
-    competitorWon: '', // Which agency/agent won
-    lessonsLearned: '',
-    wouldReconsider: false,
-  },
+  // Lost Deal Info (if status = lost)
+  lostReason: '', // price, location, condition, another_property, financing, etc.
+  lostDetails: '',
+  competitorWon: '', // Which agency won
   
-  // Activity Tracking
-  activities: [], // All activities related to this deal
-  notes: '',
-  internalNotes: '', // Not shared with client
+  // Notes
+  notes: '', // General notes (visible to client)
+  internalNotes: '', // Internal notes (not shared)
   
   // Metadata
   createdAt: null,
-  createdBy: '',
   updatedAt: null,
-  updatedBy: '',
-  consultantId: ''
+  createdBy: '',
+  updatedBy: ''
 };
 
 /**
- * Viewing Record Schema
+ * ===== VIEWING SCHEMA =====
+ * Subcollection: deals/{dealId}/viewings/{viewingId}
  */
 export const ViewingSchema = {
   id: '',
+  dealId: '',
   date: null,
   time: '',
   duration: 30, // minutes
-  type: 'first_visit', // first_visit, second_visit, technical_inspection, final_visit
+  type: 'first_visit', // first_visit, second_visit, inspection, final_visit
   
   attendees: {
-    buyers: [], // Who attended from buyer side
+    clientAttended: true,
+    spouseAttended: false,
     agentPresent: true,
-    sellerPresent: false,
-    others: [] // Inspector, family, etc.
+    others: '' // Other attendees
   },
   
   feedback: {
-    overallImpression: '', // loved, liked, neutral, disliked
     interestLevel: 0, // 0-10
-    
-    // Detailed feedback
-    positives: [], // What they liked
-    negatives: [], // Concerns
-    questions: [], // Questions raised
-    
-    // Specific areas
-    layout: '', // perfect, good, acceptable, poor
-    condition: '', // excellent, good, needs_work, poor
-    location: '', // perfect, good, acceptable, poor
-    price: '', // great_value, fair, expensive, overpriced
+    overallImpression: '', // loved, liked, neutral, disliked
+    positives: '', // What they liked
+    negatives: '', // Concerns/issues
+    questions: '' // Questions raised
   },
   
-  followUp: {
-    clientWants: '', // another_viewing, time_to_think, make_offer, not_interested
-    nextSteps: '',
-    scheduledFor: null
-  },
+  nextSteps: '', // What happens next
+  photos: [], // Photos from viewing
+  notes: '',
   
-  photos: [], // Photos taken during viewing
-  notes: ''
+  createdAt: null,
+  createdBy: ''
 };
 
 /**
- * Offer Record Schema
+ * ===== OFFER SCHEMA =====
+ * Subcollection: deals/{dealId}/offers/{offerId}
  */
 export const OfferSchema = {
   id: '',
+  dealId: '',
   offerNumber: 1, // 1st offer, 2nd offer, etc.
   date: null,
   amount: 0,
@@ -276,220 +208,260 @@ export const OfferSchema = {
     downPayment: 0,
     financingAmount: 0,
     closingDate: null,
-    contingencies: [], // financing, inspection, appraisal, sale_of_property
-    inclusions: [], // appliances, furniture, etc.
-    exclusions: [],
-    additionalTerms: ''
+    contingencies: '', // financing, inspection, etc.
+    conditions: '' // Special conditions
   },
   
+  status: 'pending', // pending, accepted, rejected, countered
   response: {
-    status: '', // pending, accepted, rejected, countered
-    responseDate: null,
+    date: null,
     counterAmount: 0,
-    counterTerms: '',
-    sellerComments: ''
+    sellerNotes: ''
   },
   
-  validity: {
-    expiresAt: null,
-    withdrawn: false,
-    withdrawnDate: null,
-    withdrawnReason: ''
+  documents: {
+    offerLetter: '', // URL
+    preApproval: '', // URL
+    other: []
   },
   
-  documents: [], // Offer letter, pre-approval, etc.
-  notes: ''
+  notes: '',
+  createdAt: null,
+  createdBy: ''
 };
 
 /**
- * Helper Functions
+ * ===== ACTIVITY SCHEMA =====
+ * Subcollection: deals/{dealId}/activities/{activityId}
+ */
+export const ActivitySchema = {
+  id: '',
+  dealId: '',
+  type: '', // viewing_scheduled, offer_submitted, stage_changed, note_added, etc.
+  description: '',
+  date: null,
+  createdBy: '',
+  metadata: {} // Additional data specific to activity type
+};
+
+/**
+ * ===== HELPER FUNCTIONS =====
  */
 
-// Calculate property match score
-export const calculateMatchScore = (deal, buyerRequirements) => {
-  let score = 100;
-  const property = deal.property;
-  const reqs = buyerRequirements;
+// Create new deal from form data
+export const createNewDeal = (data) => {
+  const now = new Date();
   
-  // Price match (30 points)
-  if (deal.pricing.askingPrice > reqs.budget.maxPrice) {
-    const overBudget = ((deal.pricing.askingPrice - reqs.budget.maxPrice) / reqs.budget.maxPrice) * 100;
-    score -= Math.min(30, overBudget * 2);
-  }
+  // DON'T spread BuyerDealSchema first - build object from data
+  const deal = {
+    // IDs
+    id: '',
+    consultantId: data.consultantId || '',
+    clientId: data.clientId || '',
+    opportunityId: data.opportunityId || '',
+    
+    // Property - directly use data values
+    property: {
+      address: data.property?.address || '',
+      type: data.property?.type || 'apartment',
+      bedrooms: Number(data.property?.bedrooms) || 0,
+      bathrooms: Number(data.property?.bathrooms) || 0,
+      area: Number(data.property?.area) || 0,
+      listingUrl: data.property?.listingUrl || '',
+      reference: data.property?.reference || '',
+      photos: data.property?.photos || []
+    },
+    
+    // Pricing - directly use data values
+    pricing: {
+      askingPrice: Number(data.pricing?.askingPrice) || 0,
+      marketValue: Number(data.pricing?.marketValue) || 0,
+      expectedNegotiation: Number(data.pricing?.expectedNegotiation) || 5,
+      currentOffer: 0,
+      finalPrice: 0
+    },
+    
+    // Property Agent
+    propertyAgent: {
+      agentId: data.propertyAgent?.agentId || '',
+      name: data.propertyAgent?.name || '',
+      agency: data.propertyAgent?.agency || '',
+      phone: data.propertyAgent?.phone || '',
+      email: data.propertyAgent?.email || '',
+      whatsapp: data.propertyAgent?.whatsapp || '',
+      lastContact: null,
+      nextFollowUp: null
+    },
+    
+    // Representation
+    representation: {
+      type: data.representation?.type || 'buyer_only',
+      commission: {
+        type: data.representation?.commission?.type || 'percentage',
+        value: Number(data.representation?.commission?.value) || 2.5
+      }
+    },
+    
+    // Scoring
+    scoring: {
+      propertyMatchScore: Number(data.scoring?.propertyMatchScore) || 0,
+      buyerInterestLevel: Number(data.scoring?.buyerInterestLevel) || 0,
+      urgencyLevel: data.scoring?.urgencyLevel || 'normal',
+      competitionLevel: data.scoring?.competitionLevel || 'low'
+    },
+    
+    // Competition
+    competition: {
+      otherInterested: Number(data.competition?.otherInterested) || 0,
+      otherOffers: Number(data.competition?.otherOffers) || 0,
+      notes: data.competition?.notes || ''
+    },
+    
+    // Stage & Status
+    stage: data.stage || 'lead',
+    status: 'active',
+    
+    // Follow-up
+    nextFollowUpDate: data.nextFollowUpDate || null,
+    followUpNote: data.followUpNote || '',
+    
+    // Documents
+    documents: {
+      energyCert: '',
+      floorPlan: '',
+      propertyDocs: '',
+      offerLetter: '',
+      contract: '',
+      other: []
+    },
+    
+    // Timeline
+    timeline: {
+      firstContactDate: now,
+      firstViewingDate: null,
+      offerSubmittedDate: null,
+      offerAcceptedDate: null,
+      closingDate: null
+    },
+    
+    // Lost Deal Info
+    lostReason: '',
+    lostDetails: '',
+    competitorWon: '',
+    
+    // Notes
+    notes: data.notes || '',
+    internalNotes: data.internalNotes || '',
+    
+    // Metadata
+    createdAt: now,
+    updatedAt: now,
+    createdBy: data.consultantId || '',
+    updatedBy: data.consultantId || ''
+  };
   
-  // Location match (25 points)
-  if (reqs.requirements.preferredLocations?.length > 0) {
-    if (!reqs.requirements.preferredLocations.includes(property.location)) {
-      score -= 25;
-    }
-  }
+  console.log('Created deal object:', deal); // DEBUG
+  console.log('Address:', deal.property.address); // DEBUG
+  console.log('Price:', deal.pricing.askingPrice); // DEBUG
   
-  // Bedrooms (15 points)
-  if (property.bedrooms < reqs.requirements.bedrooms?.min) {
-    score -= 15;
-  }
-  
-  // Property type (15 points)
-  if (reqs.requirements.propertyTypes?.length > 0) {
-    if (!reqs.requirements.propertyTypes.includes(property.type)) {
-      score -= 15;
-    }
-  }
-  
-  // Area (15 points)
-  if (reqs.requirements.area?.min && property.area < reqs.requirements.area.min) {
-    const underSize = ((reqs.requirements.area.min - property.area) / reqs.requirements.area.min) * 100;
-    score -= Math.min(15, underSize);
-  }
-  
-  return Math.max(0, Math.round(score));
+  return deal;
 };
 
-// Calculate deal probability
+// Calculate deal probability (0-100%)
 export const calculateDealProbability = (deal) => {
-  let probability = 50; // Start at 50%
+  let probability = 0;
   
-  // Interest level impact (±30%)
-  if (deal.scoring.buyerInterestLevel >= 8) probability += 30;
-  else if (deal.scoring.buyerInterestLevel >= 6) probability += 15;
-  else if (deal.scoring.buyerInterestLevel <= 4) probability -= 20;
+  // Base probability by stage
+  const stageProbabilities = {
+    lead: 10,
+    viewing: 25,
+    evaluating: 40,
+    offer_submitted: 60,
+    negotiating: 75,
+    accepted: 90,
+    closed_won: 100,
+    closed_lost: 0
+  };
   
-  // Stage impact (±20%)
-  if (['offer_submitted', 'negotiating', 'offer_accepted'].includes(deal.stage)) probability += 20;
-  else if (['lead', 'contacted'].includes(deal.stage)) probability -= 10;
+  probability = stageProbabilities[deal.stage] || 0;
   
-  // Competition impact (±15%)
-  if (deal.competition.otherOffers > 2) probability -= 15;
-  else if (deal.competition.otherOffers === 0) probability += 10;
+  // Adjust for interest level (+/- 10%)
+  if (deal.scoring?.buyerInterestLevel >= 8) probability += 10;
+  else if (deal.scoring?.buyerInterestLevel <= 3) probability -= 10;
   
-  // Match score impact (±15%)
-  if (deal.scoring.propertyMatchScore >= 80) probability += 15;
-  else if (deal.scoring.propertyMatchScore < 50) probability -= 15;
+  // Adjust for competition (-10% if high competition)
+  if (deal.competition?.otherOffers > 0) probability -= 10;
   
-  return Math.min(100, Math.max(0, Math.round(probability)));
+  // Keep in bounds
+  return Math.max(0, Math.min(100, probability));
 };
 
-// Get deal urgency
-export const getDealUrgency = (deal) => {
-  const daysSinceContact = deal.timeline.firstContactDate 
-    ? Math.floor((new Date() - new Date(deal.timeline.firstContactDate)) / (1000 * 60 * 60 * 24))
-    : 0;
+// Check if deal needs attention
+export const dealNeedsAttention = (deal) => {
+  // Overdue follow-up
+  if (deal.nextFollowUpDate && new Date(deal.nextFollowUpDate) < new Date()) {
+    return { status: true, reason: 'Seguimento atrasado' };
+  }
   
-  if (deal.scoring.urgencyLevel === 'urgent') return 'urgent';
-  if (deal.competition.otherOffers > 0) return 'high';
-  if (daysSinceContact > 30 && deal.stage === 'evaluating') return 'high';
-  if (deal.nextFollowUp && new Date(deal.nextFollowUp) < new Date()) return 'high';
+  // No activity in 7 days
+  const daysSinceUpdate = Math.floor((new Date() - new Date(deal.updatedAt)) / (1000 * 60 * 60 * 24));
+  if (deal.status === 'active' && daysSinceUpdate > 7) {
+    return { status: true, reason: 'Sem atividade há 7+ dias' };
+  }
   
-  return 'normal';
+  // High competition
+  if (deal.competition?.otherOffers > 0 && deal.stage === 'evaluating') {
+    return { status: true, reason: 'Competição alta' };
+  }
+  
+  return { status: false, reason: '' };
 };
 
-// Get stage progress percentage
-export const getStageProgress = (stage) => {
-  const stageObj = BUYER_DEAL_STAGES.find(s => s.value === stage);
-  if (!stageObj) return 0;
-  
-  return Math.round((stageObj.order / (BUYER_DEAL_STAGES.length - 1)) * 100);
+// Check if deal is over budget
+export const isOverBudget = (deal, opportunityMaxBudget) => {
+  if (!opportunityMaxBudget) return false;
+  return deal.pricing.askingPrice > opportunityMaxBudget;
 };
 
-// Get next logical stage
-export const getNextStage = (currentStage) => {
-  const currentIndex = BUYER_DEAL_STAGES.findIndex(s => s.value === currentStage);
-  if (currentIndex === -1 || currentIndex === BUYER_DEAL_STAGES.length - 1) return null;
+// Get visual status flags
+export const getDealFlags = (deal, opportunityMaxBudget = null) => {
+  const flags = [];
   
-  return BUYER_DEAL_STAGES[currentIndex + 1].value;
+  // 🔥 Hot deal
+  if (deal.scoring?.buyerInterestLevel >= 8 && deal.scoring?.urgencyLevel === 'urgent') {
+    flags.push({ icon: '🔥', label: 'Hot Deal', color: 'red' });
+  }
+  
+  // ⚠️ Needs attention
+  const attention = dealNeedsAttention(deal);
+  if (attention.status) {
+    flags.push({ icon: '⚠️', label: attention.reason, color: 'yellow' });
+  }
+  
+  // 💰 Over budget
+  if (isOverBudget(deal, opportunityMaxBudget)) {
+    flags.push({ icon: '💰', label: 'Acima do orçamento', color: 'orange' });
+  }
+  
+  // 🏆 Multiple offers
+  if (deal.competition?.otherOffers > 0) {
+    flags.push({ icon: '🏆', label: `${deal.competition.otherOffers} outras propostas`, color: 'purple' });
+  }
+  
+  return flags;
 };
 
-// Format deal summary
+// Format deal summary for display
 export const formatDealSummary = (deal) => {
   const stage = BUYER_DEAL_STAGES.find(s => s.value === deal.stage);
   
   return {
-    title: `${deal.property.address || 'Property'} - ${stage?.label}`,
-    subtitle: `${deal.property.type} - ${deal.property.bedrooms}Q - €${deal.pricing.askingPrice?.toLocaleString('pt-PT')}`,
-    status: deal.status,
-    stage: deal.stage,
-    progress: getStageProgress(deal.stage),
-    urgency: getDealUrgency(deal),
-    matchScore: deal.scoring.propertyMatchScore,
-    interestLevel: deal.scoring.buyerInterestLevel,
-    probability: calculateDealProbability(deal)
-  };
-};
-
-// Check if action is needed
-export const isDealActionNeeded = (deal) => {
-  // Overdue follow-up
-  if (deal.nextFollowUp && new Date(deal.nextFollowUp) < new Date()) return true;
-  
-  // No activity in 7 days for active deals
-  if (deal.status === DEAL_STATUS.ACTIVE.value) {
-    const lastActivity = deal.activities?.[0]?.date || deal.updatedAt;
-    if (lastActivity) {
-      const daysSinceActivity = Math.floor((new Date() - new Date(lastActivity)) / (1000 * 60 * 60 * 24));
-      if (daysSinceActivity > 7) return true;
-    }
-  }
-  
-  // Viewing scheduled for today or tomorrow
-  if (deal.nextViewing) {
-    const viewingDate = new Date(deal.nextViewing);
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    if (viewingDate <= tomorrow) return true;
-  }
-  
-  // High competition needs attention
-  if (deal.competition.otherOffers > 0 && deal.stage === 'evaluating') return true;
-  
-  return false;
-};
-
-// Create new deal
-export const createNewDeal = (opportunity, property, agent = null) => {
-  const now = new Date();
-  
-  return {
-    ...BuyerDealSchema,
-    id: `deal_${Date.now()}`,
-    opportunityId: opportunity.id,
-    clientId: opportunity.clientId,
-    propertyId: property.id || '',
-    
-    property: {
-      address: property.address || '',
-      type: property.type || '',
-      bedrooms: property.bedrooms || 0,
-      bathrooms: property.bathrooms || 0,
-      area: property.area || 0,
-      photos: property.photos || [],
-      listingUrl: property.listingUrl || '',
-      reference: property.reference || ''
-    },
-    
-    pricing: {
-      ...BuyerDealSchema.pricing,
-      askingPrice: property.price || 0,
-      maxBudget: opportunity.qualification?.budget?.maxPrice || 0
-    },
-    
-    propertyAgent: agent ? {
-      agentId: agent.id,
-      agentType: agent.type,
-      name: agent.name,
-      agency: agent.agency,
-      phone: agent.contactInfo?.phonePrimary || '',
-      email: agent.contactInfo?.email || '',
-      whatsapp: agent.contactInfo?.whatsapp || ''
-    } : BuyerDealSchema.propertyAgent,
-    
-    timeline: {
-      ...BuyerDealSchema.timeline,
-      firstContactDate: now
-    },
-    
-    createdAt: now,
-    updatedAt: now,
-    consultantId: opportunity.consultantId || ''
+    title: deal.property?.address || 'Sem endereço',
+    subtitle: `${deal.property?.type} • ${deal.property?.bedrooms}Q • €${deal.pricing?.askingPrice?.toLocaleString('pt-PT')}`,
+    stage: stage?.label || deal.stage,
+    stageColor: stage?.color || 'gray',
+    probability: calculateDealProbability(deal),
+    interestLevel: deal.scoring?.buyerInterestLevel || 0
   };
 };
 
@@ -497,16 +469,15 @@ export const createNewDeal = (opportunity, property, agent = null) => {
 export const validateDeal = (deal) => {
   const errors = [];
   
-  if (!deal.opportunityId) errors.push('Oportunidade é obrigatória');
-  if (!deal.clientId) errors.push('Cliente é obrigatório');
-  
-  if (deal.stage === 'offer_submitted' && !deal.pricing.currentOffer) {
-    errors.push('Valor da proposta é obrigatório');
-  }
-  
-  if (deal.status === DEAL_STATUS.LOST.value && !deal.lostDetails.reason) {
-    errors.push('Motivo da perda é obrigatório');
-  }
+  if (!deal.property?.address) errors.push('Endereço é obrigatório');
+  if (!deal.pricing?.askingPrice || deal.pricing.askingPrice <= 0) errors.push('Preço pedido é obrigatório');
+  if (!deal.consultantId) errors.push('Consultant ID é obrigatório');
+  if (!deal.clientId) errors.push('Client ID é obrigatório');
+  if (!deal.opportunityId) errors.push('Opportunity ID é obrigatório');
   
   return errors;
 };
+
+// ===== BACKWARD COMPATIBILITY =====
+// Alias for old function name
+export const isDealActionNeeded = dealNeedsAttention;

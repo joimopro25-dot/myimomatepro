@@ -195,13 +195,18 @@ const OpportunityView = () => {
       if (dealId) {
         await updatePropertyDeal(opportunity, dealId, formData);
       } else {
-        await createPropertyDeal(opportunity, formData.property, formData.agent || null);
+        await createPropertyDeal(opportunity, formData); // FIXED
       }
-      await loadDeals(opportunity.clientId, opportunity.id);
+
+      // Reload and update local state
+      const updatedDeals = await loadDeals(opportunity.clientId, opportunity.id);
+      setOpportunityDeals(updatedDeals || []); // ADD THIS LINE
+
       setIsDealModalOpen(false);
       setSelectedDeal(null);
     } catch (e) {
       console.error('Error saving deal:', e);
+      alert('Erro ao guardar negócio: ' + e.message);
     }
   };
 
