@@ -488,7 +488,47 @@ export const updateDeal = async (consultantId, clientId, opportunityId, dealId, 
     throw error;
   }
 };
+/**
+ * Delete a deal (CORRECT NESTED PATH)
+ */
+export const deleteDeal = async (consultantId, clientId, opportunityId, dealId) => {
+  try {
+    if (!consultantId || !clientId || !opportunityId || !dealId) {
+      throw new Error('Missing required IDs to delete deal');
+    }
 
+    const dealRef = doc(
+      db,
+      'consultants',
+      consultantId,
+      'clients',
+      clientId,
+      'opportunities',
+      opportunityId,
+      'deals',
+      dealId
+    );
+
+    await deleteDoc(dealRef);
+
+    // Update opportunity stats
+    await updateOpportunityStats(consultantId, clientId, opportunityId, {
+      totalDeals: increment(-1),
+      activeDeals: increment(-1)
+    });
+
+    // Log activity
+    await logDealActivity(consultantId, clientId, opportunityId, dealId, {
+      type: 'deal_deleted',
+      description: 'Negócio eliminado'
+    });
+
+    return true;
+  } catch (error) {
+    console.error('Error deleting deal:', error);
+    throw error;
+  }
+};
 // ============================================
 // HELPER FUNCTIONS
 // ============================================

@@ -24,7 +24,8 @@ import {
   EyeIcon,
   DocumentTextIcon,
   ChevronRightIcon,
-  PencilIcon // ADD THIS
+  PencilIcon,
+  TrashIcon // ADD THIS
 } from '@heroicons/react/24/outline';
 import { BUYER_DEAL_STAGES, INTEREST_LEVELS, formatDealSummary } from '../models/buyerDealModel';
 
@@ -41,6 +42,7 @@ const DealBoard = () => {
     error,
     createPropertyDeal,
     updatePropertyDeal, // ADD THIS
+    deletePropertyDeal, // ADD THIS
     addDealViewing 
   } = useDeal();
 
@@ -171,25 +173,47 @@ const DealBoard = () => {
   };
 
   // Create/Update handler
-  const handleSaveDeal = async (formData, dealId) => {
+  const handleSaveDeal = async (formData, dealId = null) => {
     try {
       if (dealId) {
+        // UPDATE existing deal
         await updatePropertyDeal(opportunity, dealId, formData);
       } else {
-        await createPropertyDeal(opportunity, formData.property, formData.agent || null);
+        // CREATE new deal - pass the complete formData
+        await createPropertyDeal(opportunity, formData);
       }
-      await loadDeals(opportunity.clientId, opportunity.id);
+      
+      // Reload deals to get fresh data
+      await loadDeals(clientId, opportunityId);
+      
+      // Close modals and clear state
       setIsDealModalOpen(false);
       setSelectedDealForEdit(null);
+      setShowNewDealModal(false);
     } catch (e) {
       console.error('Error saving deal:', e);
+      alert('Erro ao guardar negócio: ' + e.message);
     }
   };
 
-  // Open edit from Deal Details
-  const handleEditDeal = (deal) => {
-    setSelectedDealForEdit(deal);
-    setIsDealModalOpen(true);
+  // Delete handler
+  const handleDeleteDeal = async (deal) => {
+    if (!window.confirm(`Tem a certeza que deseja eliminar o negócio "${deal.property?.address}"?`)) {
+      return;
+    }
+    
+    try {
+      await deletePropertyDeal(clientId, opportunityId, deal.id);
+      await loadDeals(clientId, opportunityId);
+      setSelectedDeal(null);
+    } catch (e) {
+      console.error('Error deleting deal:', e);
+      alert('Erro ao eliminar negócio: ' + e.message);
+    }
+  };
+
+  const getDealKey = (deal) => {
+    return `${deal.property?.address}-${deal.stage}`;
   };
 
   if (loading) {
@@ -301,7 +325,15 @@ const DealBoard = () => {
             }}
             onUpdate={loadData}
             footer={
-              <div className="flex justify-end gap-2">
+              <div className="flex justify-between items-center w-full">
+                <button
+                  type="button"
+                  className="inline-flex items-center rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white hover:bg-red-500"
+                  onClick={() => handleDeleteDeal(selectedDeal)}
+                >
+                  <TrashIcon className="h-4 w-4 mr-1" />
+                  Eliminar
+                </button>
                 <button
                   type="button"
                   className="inline-flex items-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-500"

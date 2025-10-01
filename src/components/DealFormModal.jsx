@@ -77,8 +77,55 @@ const DealFormModal = ({
 
   useEffect(() => {
     if (existingDeal) {
-      setFormData(existingDeal);
+      // Load all data from existing deal
+      setFormData({
+        property: {
+          address: existingDeal.property?.address || '',
+          type: existingDeal.property?.type || 'apartment',
+          bedrooms: existingDeal.property?.bedrooms || '',
+          bathrooms: existingDeal.property?.bathrooms || '',
+          area: existingDeal.property?.area || '',
+          listingUrl: existingDeal.property?.listingUrl || '',
+          reference: existingDeal.property?.reference || ''
+        },
+        pricing: {
+          askingPrice: existingDeal.pricing?.askingPrice || '',
+          marketValue: existingDeal.pricing?.marketValue || '',
+          expectedNegotiation: existingDeal.pricing?.expectedNegotiation || 5,
+        },
+        propertyAgent: {
+          agentId: existingDeal.propertyAgent?.agentId || '',
+          name: existingDeal.propertyAgent?.name || '',
+          agency: existingDeal.propertyAgent?.agency || '',
+          phone: existingDeal.propertyAgent?.phone || '',
+          email: existingDeal.propertyAgent?.email || '',
+          whatsapp: existingDeal.propertyAgent?.whatsapp || '',
+          commission: existingDeal.propertyAgent?.commission || {
+            type: 'percentage',
+            value: 2.5
+          }
+        },
+        representation: {
+          type: existingDeal.representation?.type || REPRESENTATION_TYPES.BUYER_ONLY.value,
+        },
+        scoring: {
+          propertyMatchScore: existingDeal.scoring?.propertyMatchScore || 0,
+          buyerInterestLevel: existingDeal.scoring?.buyerInterestLevel || 0,
+          competitionLevel: existingDeal.scoring?.competitionLevel || 'low',
+          urgencyLevel: existingDeal.scoring?.urgencyLevel || 'normal',
+        },
+        competition: {
+          otherInterested: existingDeal.competition?.otherInterested || 0,
+          otherOffers: existingDeal.competition?.otherOffers || 0,
+          notes: existingDeal.competition?.notes || ''
+        },
+        stage: existingDeal.stage || 'lead',
+        notes: existingDeal.notes || '',
+        internalNotes: existingDeal.internalNotes || ''
+      });
+      
       setSelectedAgentId(existingDeal.propertyAgent?.agentId || '');
+      setIsNewAgent(!existingDeal.propertyAgent?.agentId);
     }
   }, [existingDeal]);
 
@@ -135,18 +182,27 @@ const DealFormModal = ({
   };
 
   const handleInputChange = (section, field, value) => {
+    // Convert numeric fields to numbers
+    const numericFields = ['bedrooms', 'bathrooms', 'area', 'askingPrice', 'marketValue', 'expectedNegotiation', 
+                           'propertyMatchScore', 'buyerInterestLevel', 'otherInterested', 'otherOffers'];
+    
+    let processedValue = value;
+    if (numericFields.includes(field) && value !== '') {
+      processedValue = Number(value);
+    }
+
     if (section) {
       setFormData(prev => ({
         ...prev,
         [section]: {
           ...prev[section],
-          [field]: value
+          [field]: processedValue
         }
       }));
     } else {
       setFormData(prev => ({
         ...prev,
-        [field]: value
+        [field]: processedValue
       }));
     }
   };
@@ -161,7 +217,12 @@ const DealFormModal = ({
       return;
     }
 
-    onSave(formData);
+    // Pass the dealId if editing
+    if (existingDeal?.id) {
+      onSave(formData, existingDeal.id);
+    } else {
+      onSave(formData, null);
+    }
   };
 
   if (!isOpen) return null;

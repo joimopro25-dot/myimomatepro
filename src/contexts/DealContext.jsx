@@ -11,6 +11,7 @@ import {
   logAgentInteraction,
   createDeal,
   updateDeal, // ADD THIS
+  deleteDeal, // ADD THIS
   updateDealStage,
   addViewing,
   submitOffer,
@@ -180,76 +181,56 @@ export const DealProvider = ({ children }) => {
   };
 
   /**
-   * Create a new deal from a property (WITH DIAGNOSTICS)
+   * Create a new deal from form data
    */
-  const createPropertyDeal = async (opportunity, property, agent = null) => {
+  const createPropertyDeal = async (opportunity, formData) => {
     try {
       setLoading(true);
       setError(null);
 
-      // Get consultantId from currentUser
       const consultantId = currentUser?.uid;
-      if (!consultantId) {
-        throw new Error('No authenticated user');
-      }
+      if (!consultantId) throw new Error('No authenticated user');
+      if (!opportunity?.id || !opportunity?.clientId) throw new Error('Invalid opportunity');
 
-      // DIAGNOSTIC: Log what we received
-      console.log('=== CREATE DEAL DIAGNOSTIC ===');
-      console.log('consultantId:', consultantId);
-      console.log('opportunity object:', opportunity);
-      console.log('opportunity.id:', opportunity?.id);
-      console.log('opportunity.clientId:', opportunity?.clientId);
-      console.log('property:', property);
-      console.log('agent:', agent);
+      // Build the complete deal data from form
+      const dealData = createNewDeal({
+        clientId: opportunity.clientId,
+        opportunityId: opportunity.id,
+        property: formData.property,
+        pricing: formData.pricing,
+        propertyAgent: formData.propertyAgent,
+        representation: formData.representation,
+        scoring: formData.scoring,
+        competition: formData.competition,
+        stage: formData.stage || 'lead',
+        notes: formData.notes || '',
+        internalNotes: formData.internalNotes || ''
+      });
 
-      // Validate required fields
-      if (!opportunity?.id) {
-        throw new Error('Opportunity ID is missing');
-      }
-      if (!opportunity?.clientId) {
-        throw new Error('Client ID is missing from opportunity');
-      }
-
-      // Create deal data
-      const dealData = createNewDeal(opportunity, property, agent);
-      console.log('dealData created:', dealData);
-
-      // Calculate initial match score
-      if (opportunity.qualification) {
-        dealData.scoring.propertyMatchScore = calculateMatchScore(
-          dealData,
-          opportunity.qualification
-        );
-      }
-
-      // Validate deal
-      const errors = validateDeal(dealData);
-      if (errors.length > 0) {
-        throw new Error(errors.join(', '));
-      }
-
-      // Log the exact path where deal will be created
-      const dealPath = `consultants/${consultantId}/clients/${opportunity.clientId}/opportunities/${opportunity.id}/deals`;
-      console.log('Creating deal at path:', dealPath);
-
-      // Save to Firestore (WITH consultantId)
+      // Create in Firebase
       const dealId = await createDeal(
-        consultantId,           // 1st param
-        opportunity.id,         // opportunityId - 2nd param
-        opportunity.clientId,   // clientId - 3rd param
-        dealData                // dealData - 4th param
+        consultantId,
+        opportunity.id,
+        opportunity.clientId,
+        dealData
       );
 
-      console.log('Deal created successfully with ID:', dealId);
-      console.log('=== END DIAGNOSTIC ===');
-
-      // Reload deals
-      await loadDeals(opportunity.clientId, opportunity.id);
+      // Add to local state immediately
+      const newDeal = {
+        ...dealData,
+        id: dealId,
+        probability: calculateDealProbability(dealData),
+        summary: formatDealSummary(dealData),
+        viewings: [],
+        totalViewings: 0
+      };
+      
+      setDeals(prev => [...prev, newDeal]);
 
       return dealId;
     } catch (err) {
       console.error('Error creating deal:', err);
-      setError(err.message || 'Erro ao criar negócio');
+      setError('Erro ao criar negócio');
       throw err;
     } finally {
       setLoading(false);
@@ -403,6 +384,32 @@ export const DealProvider = ({ children }) => {
     }
   };
 
+  /**
+   * Delete a deal
+   */
+  const deletePropertyDeal = async (clientId, opportunityId, dealId) => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const consultantId = currentUser?.uid;
+      if (!consultantId) throw new Error('No authenticated user');
+
+      await deleteDeal(consultantId, clientId, opportunityId, dealId);
+
+      // Update local state
+      setDeals(prev => prev.filter(d => d.id !== dealId));
+
+      return true;
+    } catch (err) {
+      console.error('Error deleting deal:', err);
+      setError('Erro ao eliminar negócio');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // ========================================
   // DASHBOARD & STATS
   // ========================================
@@ -485,6 +492,7 @@ export const DealProvider = ({ children }) => {
     loadDeals,
     createPropertyDeal,
     updatePropertyDeal, // ADD THIS
+    deletePropertyDeal, // ADD THIS
     moveDealStage,
     addDealViewing,
     submitDealOffer,
