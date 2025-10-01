@@ -1,15 +1,15 @@
-// components/ViewingFormModal.jsx
-import React, { useState } from 'react';
+// components/ViewingFormModal.jsx - ENHANCED VERSION
+import React, { useState, useEffect } from 'react';
 import {
   XMarkIcon,
   CalendarIcon,
   ClockIcon,
   UserGroupIcon,
   StarIcon as StarOutline,
-  CheckCircleIcon,
-  XCircleIcon,
   ChatBubbleLeftRightIcon,
-  ArrowRightIcon
+  ArrowRightIcon,
+  PlusIcon,
+  TrashIcon
 } from '@heroicons/react/24/outline';
 import { StarIcon as StarSolid } from '@heroicons/react/24/solid';
 
@@ -42,13 +42,13 @@ const PRICE_RATINGS = [
 ];
 
 const NEXT_STEPS = [
-  { value: 'another_viewing', label: 'Quer Ver Novamente' },
-  { value: 'time_to_think', label: 'Precisa Pensar' },
-  { value: 'make_offer', label: 'Quer Fazer Proposta' },
-  { value: 'not_interested', label: 'Não Interessado' }
+  { value: 'another_viewing', label: 'Quer Ver Novamente', icon: '🔄' },
+  { value: 'time_to_think', label: 'Precisa Pensar', icon: '🤔' },
+  { value: 'make_offer', label: 'Quer Fazer Proposta', icon: '💰' },
+  { value: 'not_interested', label: 'Não Interessado', icon: '❌' }
 ];
 
-const ViewingFormModal = ({ isOpen, onClose, onSave, deal, client }) => {
+const ViewingFormModal = ({ isOpen, onClose, onSave, deal, client, existingViewing = null }) => {
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
     time: new Date().toTimeString().slice(0, 5),
@@ -86,6 +86,20 @@ const ViewingFormModal = ({ isOpen, onClose, onSave, deal, client }) => {
   const [positiveInput, setPositiveInput] = useState('');
   const [negativeInput, setNegativeInput] = useState('');
   const [questionInput, setQuestionInput] = useState('');
+  const [otherAttendeeInput, setOtherAttendeeInput] = useState('');
+
+  // Load existing viewing data if editing
+  useEffect(() => {
+    if (existingViewing) {
+      setFormData({
+        ...existingViewing,
+        date: existingViewing.date instanceof Date 
+          ? existingViewing.date.toISOString().split('T')[0]
+          : new Date(existingViewing.date).toISOString().split('T')[0],
+        time: existingViewing.time || new Date().toTimeString().slice(0, 5)
+      });
+    }
+  }, [existingViewing]);
 
   const handleInputChange = (section, field, value) => {
     if (section) {
@@ -128,6 +142,7 @@ const ViewingFormModal = ({ isOpen, onClose, onSave, deal, client }) => {
   };
 
   const handleSubmit = () => {
+    // Validation
     if (!formData.date || !formData.time) {
       alert('Por favor, preencha a data e hora da visita');
       return;
@@ -137,7 +152,15 @@ const ViewingFormModal = ({ isOpen, onClose, onSave, deal, client }) => {
       return;
     }
 
-    onSave(formData);
+    // Convert date string to Date object for saving
+    const viewingData = {
+      ...formData,
+      date: new Date(`${formData.date}T${formData.time}`),
+      dealId: deal.id
+    };
+
+    onSave(viewingData);
+    onClose();
   };
 
   if (!isOpen) return null;
@@ -149,8 +172,11 @@ const ViewingFormModal = ({ isOpen, onClose, onSave, deal, client }) => {
         <div className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white p-6 rounded-t-xl flex-shrink-0">
           <div className="flex justify-between items-center">
             <div>
-              <h2 className="text-2xl font-bold">Registar Visita</h2>
+              <h2 className="text-2xl font-bold">
+                {existingViewing ? 'Editar Visita' : 'Registar Visita'}
+              </h2>
               <p className="text-indigo-100 mt-1">{deal?.property?.address}</p>
+              <p className="text-indigo-200 text-sm mt-1">Cliente: {client?.name}</p>
             </div>
             <button
               onClick={onClose}
@@ -180,9 +206,10 @@ const ViewingFormModal = ({ isOpen, onClose, onSave, deal, client }) => {
                   value={formData.date}
                   onChange={(e) => handleInputChange(null, 'date', e.target.value)}
                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+                  required
                 />
               </div>
-
+              
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Hora *
@@ -192,9 +219,10 @@ const ViewingFormModal = ({ isOpen, onClose, onSave, deal, client }) => {
                   value={formData.time}
                   onChange={(e) => handleInputChange(null, 'time', e.target.value)}
                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+                  required
                 />
               </div>
-
+              
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Duração (min)
@@ -202,28 +230,33 @@ const ViewingFormModal = ({ isOpen, onClose, onSave, deal, client }) => {
                 <input
                   type="number"
                   value={formData.duration}
-                  onChange={(e) => handleInputChange(null, 'duration', parseInt(e.target.value) || 30)}
+                  onChange={(e) => handleInputChange(null, 'duration', parseInt(e.target.value))}
                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
                   min="15"
                   step="15"
                 />
               </div>
+            </div>
 
-              <div className="col-span-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Tipo de Visita
-                </label>
-                <select
-                  value={formData.type}
-                  onChange={(e) => handleInputChange(null, 'type', e.target.value)}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
-                >
-                  {VIEWING_TYPES.map(type => (
-                    <option key={type.value} value={type.value}>
-                      {type.label}
-                    </option>
-                  ))}
-                </select>
+            <div className="mt-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Tipo de Visita
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                {VIEWING_TYPES.map(type => (
+                  <button
+                    key={type.value}
+                    type="button"
+                    onClick={() => handleInputChange(null, 'type', type.value)}
+                    className={`p-3 rounded-lg border-2 transition-all ${
+                      formData.type === type.value
+                        ? 'border-indigo-600 bg-indigo-50 text-indigo-700 font-medium'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    {type.label}
+                  </button>
+                ))}
               </div>
             </div>
           </div>
@@ -231,101 +264,140 @@ const ViewingFormModal = ({ isOpen, onClose, onSave, deal, client }) => {
           {/* Attendees */}
           <div className="mb-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-              <UserGroupIcon className="w-5 h-5 mr-2 text-purple-600" />
+              <UserGroupIcon className="w-5 h-5 mr-2 text-indigo-600" />
               Participantes
             </h3>
             
             <div className="space-y-3">
-              <label className="flex items-center space-x-2">
+              <label className="flex items-center">
                 <input
                   type="checkbox"
                   checked={formData.attendees.agentPresent}
                   onChange={(e) => handleInputChange('attendees', 'agentPresent', e.target.checked)}
-                  className="w-4 h-4 text-indigo-600 rounded"
+                  className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
                 />
-                <span className="text-sm text-gray-700">Agente presente</span>
+                <span className="ml-2 text-sm text-gray-700">Agente Presente</span>
               </label>
-
-              <label className="flex items-center space-x-2">
+              
+              <label className="flex items-center">
                 <input
                   type="checkbox"
                   checked={formData.attendees.sellerPresent}
                   onChange={(e) => handleInputChange('attendees', 'sellerPresent', e.target.checked)}
-                  className="w-4 h-4 text-indigo-600 rounded"
+                  className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
                 />
-                <span className="text-sm text-gray-700">Vendedor presente</span>
+                <span className="ml-2 text-sm text-gray-700">Vendedor Presente</span>
               </label>
+
+              {/* Other Attendees */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Outros Participantes
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={otherAttendeeInput}
+                    onChange={(e) => setOtherAttendeeInput(e.target.value)}
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        addItem('attendees', 'others', otherAttendeeInput, setOtherAttendeeInput);
+                      }
+                    }}
+                    placeholder="Nome do participante..."
+                    className="flex-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => addItem('attendees', 'others', otherAttendeeInput, setOtherAttendeeInput)}
+                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                  >
+                    <PlusIcon className="w-5 h-5" />
+                  </button>
+                </div>
+                {formData.attendees.others.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {formData.attendees.others.map((person, index) => (
+                      <span
+                        key={index}
+                        className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-gray-100 text-gray-800"
+                      >
+                        {person}
+                        <button
+                          type="button"
+                          onClick={() => removeItem('attendees', 'others', index)}
+                          className="ml-2 text-gray-500 hover:text-gray-700"
+                        >
+                          <XMarkIcon className="w-4 h-4" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
-          {/* Overall Impression */}
-          <div className="mb-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">
-              Impressão Geral *
-            </h3>
-            
-            <div className="grid grid-cols-4 gap-3">
-              {OVERALL_IMPRESSIONS.map(impression => (
-                <button
-                  key={impression.value}
-                  onClick={() => handleInputChange('feedback', 'overallImpression', impression.value)}
-                  className={`p-4 rounded-lg border-2 transition-all ${
-                    formData.feedback.overallImpression === impression.value
-                      ? `border-${impression.color}-500 bg-${impression.color}-50`
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                >
-                  <div className="text-2xl mb-2">{impression.label.split(' ')[0]}</div>
-                  <div className="text-sm font-medium">{impression.label.split(' ')[1]}</div>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Interest Level */}
+          {/* Feedback Section */}
           <div className="mb-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-              <StarOutline className="w-5 h-5 mr-2 text-yellow-500" />
-              Nível de Interesse: {formData.feedback.interestLevel}/10
+              <ChatBubbleLeftRightIcon className="w-5 h-5 mr-2 text-indigo-600" />
+              Feedback do Cliente
             </h3>
-            
-            <div className="flex items-center space-x-2">
-              {[...Array(10)].map((_, i) => (
-                <button
-                  key={i}
-                  onClick={() => handleInputChange('feedback', 'interestLevel', i + 1)}
-                  className="focus:outline-none transform hover:scale-110 transition-transform"
-                >
-                  {i < formData.feedback.interestLevel ? (
-                    <StarSolid className="w-8 h-8 text-yellow-500" />
-                  ) : (
-                    <StarOutline className="w-8 h-8 text-gray-300" />
-                  )}
-                </button>
-              ))}
-            </div>
-            
-            <div className="mt-2 text-sm text-gray-600">
-              {formData.feedback.interestLevel >= 9 && '🔥 Cliente muito interessado!'}
-              {formData.feedback.interestLevel >= 7 && formData.feedback.interestLevel < 9 && '😊 Bom interesse'}
-              {formData.feedback.interestLevel >= 5 && formData.feedback.interestLevel < 7 && '🤔 Interesse moderado'}
-              {formData.feedback.interestLevel < 5 && '😕 Pouco interesse'}
-            </div>
-          </div>
 
-          {/* Detailed Feedback */}
-          <div className="mb-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">
-              Feedback Detalhado
-            </h3>
-            
+            {/* Overall Impression */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Impressão Geral *
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                {OVERALL_IMPRESSIONS.map(impression => (
+                  <button
+                    key={impression.value}
+                    type="button"
+                    onClick={() => handleInputChange('feedback', 'overallImpression', impression.value)}
+                    className={`p-3 rounded-lg border-2 transition-all ${
+                      formData.feedback.overallImpression === impression.value
+                        ? `border-${impression.color}-600 bg-${impression.color}-50 text-${impression.color}-700 font-medium`
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    {impression.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Interest Level */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Nível de Interesse: {formData.feedback.interestLevel}/10
+              </label>
+              <div className="flex items-center space-x-1">
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((value) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => handleInputChange('feedback', 'interestLevel', value)}
+                    className="p-1 transition-transform hover:scale-110"
+                  >
+                    {value <= formData.feedback.interestLevel ? (
+                      <StarSolid className="w-6 h-6 text-yellow-400" />
+                    ) : (
+                      <StarOutline className="w-6 h-6 text-gray-300" />
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* Positives */}
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
-                <CheckCircleIcon className="w-4 h-4 mr-1 text-green-600" />
-                Pontos Positivos
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                ✅ Pontos Positivos
               </label>
-              <div className="flex space-x-2 mb-2">
+              <div className="flex gap-2">
                 <input
                   type="text"
                   value={positiveInput}
@@ -336,41 +408,44 @@ const ViewingFormModal = ({ isOpen, onClose, onSave, deal, client }) => {
                       addItem('feedback', 'positives', positiveInput, setPositiveInput);
                     }
                   }}
-                  placeholder="O que gostaram..."
+                  placeholder="O que o cliente gostou..."
                   className="flex-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
                 />
                 <button
+                  type="button"
                   onClick={() => addItem('feedback', 'positives', positiveInput, setPositiveInput)}
                   className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
                 >
-                  +
+                  <PlusIcon className="w-5 h-5" />
                 </button>
               </div>
-              <div className="flex flex-wrap gap-2">
-                {formData.feedback.positives.map((item, index) => (
-                  <span
-                    key={index}
-                    className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-green-100 text-green-800"
-                  >
-                    ✓ {item}
-                    <button
-                      onClick={() => removeItem('feedback', 'positives', index)}
-                      className="ml-2 text-green-600 hover:text-green-800"
+              {formData.feedback.positives.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {formData.feedback.positives.map((item, index) => (
+                    <span
+                      key={index}
+                      className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-green-100 text-green-800"
                     >
-                      ×
-                    </button>
-                  </span>
-                ))}
-              </div>
+                      ✅ {item}
+                      <button
+                        type="button"
+                        onClick={() => removeItem('feedback', 'positives', index)}
+                        className="ml-2 text-green-600 hover:text-green-800"
+                      >
+                        <XMarkIcon className="w-4 h-4" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Negatives */}
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
-                <XCircleIcon className="w-4 h-4 mr-1 text-red-600" />
-                Pontos Negativos / Preocupações
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                ❌ Pontos Negativos / Preocupações
               </label>
-              <div className="flex space-x-2 mb-2">
+              <div className="flex gap-2">
                 <input
                   type="text"
                   value={negativeInput}
@@ -381,41 +456,44 @@ const ViewingFormModal = ({ isOpen, onClose, onSave, deal, client }) => {
                       addItem('feedback', 'negatives', negativeInput, setNegativeInput);
                     }
                   }}
-                  placeholder="O que não gostaram ou preocupações..."
+                  placeholder="Preocupações ou aspetos negativos..."
                   className="flex-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
                 />
                 <button
+                  type="button"
                   onClick={() => addItem('feedback', 'negatives', negativeInput, setNegativeInput)}
                   className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
                 >
-                  +
+                  <PlusIcon className="w-5 h-5" />
                 </button>
               </div>
-              <div className="flex flex-wrap gap-2">
-                {formData.feedback.negatives.map((item, index) => (
-                  <span
-                    key={index}
-                    className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-red-100 text-red-800"
-                  >
-                    ✗ {item}
-                    <button
-                      onClick={() => removeItem('feedback', 'negatives', index)}
-                      className="ml-2 text-red-600 hover:text-red-800"
+              {formData.feedback.negatives.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {formData.feedback.negatives.map((item, index) => (
+                    <span
+                      key={index}
+                      className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-red-100 text-red-800"
                     >
-                      ×
-                    </button>
-                  </span>
-                ))}
-              </div>
+                      ❌ {item}
+                      <button
+                        type="button"
+                        onClick={() => removeItem('feedback', 'negatives', index)}
+                        className="ml-2 text-red-600 hover:text-red-800"
+                      >
+                        <XMarkIcon className="w-4 h-4" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Questions */}
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
-                <ChatBubbleLeftRightIcon className="w-4 h-4 mr-1 text-blue-600" />
-                Questões Levantadas
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                ❓ Questões Levantadas
               </label>
-              <div className="flex space-x-2 mb-2">
+              <div className="flex gap-2">
                 <input
                   type="text"
                   value={questionInput}
@@ -426,43 +504,40 @@ const ViewingFormModal = ({ isOpen, onClose, onSave, deal, client }) => {
                       addItem('feedback', 'questions', questionInput, setQuestionInput);
                     }
                   }}
-                  placeholder="Questões a resolver..."
+                  placeholder="Questões que o cliente levantou..."
                   className="flex-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
                 />
                 <button
+                  type="button"
                   onClick={() => addItem('feedback', 'questions', questionInput, setQuestionInput)}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                 >
-                  +
+                  <PlusIcon className="w-5 h-5" />
                 </button>
               </div>
-              <div className="flex flex-wrap gap-2">
-                {formData.feedback.questions.map((item, index) => (
-                  <span
-                    key={index}
-                    className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-blue-100 text-blue-800"
-                  >
-                    ? {item}
-                    <button
-                      onClick={() => removeItem('feedback', 'questions', index)}
-                      className="ml-2 text-blue-600 hover:text-blue-800"
+              {formData.feedback.questions.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {formData.feedback.questions.map((item, index) => (
+                    <span
+                      key={index}
+                      className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-blue-100 text-blue-800"
                     >
-                      ×
-                    </button>
-                  </span>
-                ))}
-              </div>
+                      ❓ {item}
+                      <button
+                        type="button"
+                        onClick={() => removeItem('feedback', 'questions', index)}
+                        className="ml-2 text-blue-600 hover:text-blue-800"
+                      >
+                        <XMarkIcon className="w-4 h-4" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
-          </div>
 
-          {/* Aspect Ratings */}
-          <div className="mb-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">
-              Avaliação por Área
-            </h3>
-            
+            {/* Aspect Ratings */}
             <div className="grid grid-cols-2 gap-4">
-              {/* Layout */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Layout / Distribuição
@@ -472,7 +547,7 @@ const ViewingFormModal = ({ isOpen, onClose, onSave, deal, client }) => {
                   onChange={(e) => handleInputChange('feedback', 'layout', e.target.value)}
                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
                 >
-                  <option value="">Selecionar...</option>
+                  <option value="">Selecione...</option>
                   {ASPECT_RATINGS.map(rating => (
                     <option key={rating.value} value={rating.value}>
                       {rating.emoji} {rating.label}
@@ -481,17 +556,16 @@ const ViewingFormModal = ({ isOpen, onClose, onSave, deal, client }) => {
                 </select>
               </div>
 
-              {/* Condition */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Estado de Conservação
+                  Estado / Conservação
                 </label>
                 <select
                   value={formData.feedback.condition}
                   onChange={(e) => handleInputChange('feedback', 'condition', e.target.value)}
                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
                 >
-                  <option value="">Selecionar...</option>
+                  <option value="">Selecione...</option>
                   {ASPECT_RATINGS.map(rating => (
                     <option key={rating.value} value={rating.value}>
                       {rating.emoji} {rating.label}
@@ -500,7 +574,6 @@ const ViewingFormModal = ({ isOpen, onClose, onSave, deal, client }) => {
                 </select>
               </div>
 
-              {/* Location */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Localização
@@ -510,7 +583,7 @@ const ViewingFormModal = ({ isOpen, onClose, onSave, deal, client }) => {
                   onChange={(e) => handleInputChange('feedback', 'location', e.target.value)}
                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
                 >
-                  <option value="">Selecionar...</option>
+                  <option value="">Selecione...</option>
                   {ASPECT_RATINGS.map(rating => (
                     <option key={rating.value} value={rating.value}>
                       {rating.emoji} {rating.label}
@@ -519,17 +592,16 @@ const ViewingFormModal = ({ isOpen, onClose, onSave, deal, client }) => {
                 </select>
               </div>
 
-              {/* Price */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Relação Preço/Qualidade
+                  Relação Preço / Valor
                 </label>
                 <select
                   value={formData.feedback.price}
                   onChange={(e) => handleInputChange('feedback', 'price', e.target.value)}
                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
                 >
-                  <option value="">Selecionar...</option>
+                  <option value="">Selecione...</option>
                   {PRICE_RATINGS.map(rating => (
                     <option key={rating.value} value={rating.value}>
                       {rating.emoji} {rating.label}
@@ -546,24 +618,29 @@ const ViewingFormModal = ({ isOpen, onClose, onSave, deal, client }) => {
               <ArrowRightIcon className="w-5 h-5 mr-2 text-indigo-600" />
               Próximos Passos
             </h3>
-            
+
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  O que o cliente quer?
+                  O que o Cliente Quer Fazer?
                 </label>
-                <select
-                  value={formData.followUp.clientWants}
-                  onChange={(e) => handleInputChange('followUp', 'clientWants', e.target.value)}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500"
-                >
-                  <option value="">Selecionar...</option>
+                <div className="grid grid-cols-2 gap-2">
                   {NEXT_STEPS.map(step => (
-                    <option key={step.value} value={step.value}>
+                    <button
+                      key={step.value}
+                      type="button"
+                      onClick={() => handleInputChange('followUp', 'clientWants', step.value)}
+                      className={`p-3 rounded-lg border-2 transition-all text-left ${
+                        formData.followUp.clientWants === step.value
+                          ? 'border-indigo-600 bg-indigo-50 text-indigo-700 font-medium'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <span className="mr-2">{step.icon}</span>
                       {step.label}
-                    </option>
+                    </button>
                   ))}
-                </select>
+                </div>
               </div>
 
               <div>
@@ -621,9 +698,10 @@ const ViewingFormModal = ({ isOpen, onClose, onSave, deal, client }) => {
           </button>
           <button
             onClick={handleSubmit}
-            className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+            className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center"
           >
-            Guardar Visita
+            <CalendarIcon className="w-5 h-5 mr-2" />
+            {existingViewing ? 'Atualizar' : 'Guardar'} Visita
           </button>
         </div>
       </div>

@@ -1,9 +1,10 @@
-// pages/DealBoard.jsx
+// pages/DealBoard.jsx - COMPLETE WITH AUTH FIXES
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useDeal } from '../contexts/DealContext';
 import { useOpportunities } from '../contexts/OpportunityContext';
 import { useClients } from '../contexts/ClientContext';
+import { useAuth } from '../contexts/AuthContext';
 import Layout from '../components/Layout';
 import DealFormModal from '../components/DealFormModal';
 import ViewingFormModal from '../components/ViewingFormModal';
@@ -25,13 +26,15 @@ import {
   DocumentTextIcon,
   ChevronRightIcon,
   PencilIcon,
-  TrashIcon // ADD THIS
+  TrashIcon,
+  CheckCircleIcon
 } from '@heroicons/react/24/outline';
-import { BUYER_DEAL_STAGES, INTEREST_LEVELS, formatDealSummary } from '../models/buyerDealModel';
+import { BUYER_DEAL_STAGES, INTEREST_LEVELS } from '../models/buyerDealModel';
 
 const DealBoard = () => {
   const { clientId, opportunityId } = useParams();
   const navigate = useNavigate();
+  const { currentUser } = useAuth();
   const { getClient } = useClients();
   const { getOpportunity } = useOpportunities();
   const { 
@@ -41,43 +44,78 @@ const DealBoard = () => {
     loading, 
     error,
     createPropertyDeal,
-    updatePropertyDeal, // ADD THIS
-    deletePropertyDeal, // ADD THIS
-    addDealViewing 
+    updatePropertyDeal,
+    deletePropertyDeal,
+    addDealViewing,
+    loadDealViewings
   } = useDeal();
 
   const [client, setClient] = useState(null);
   const [opportunity, setOpportunity] = useState(null);
   const [dealsByStage, setDealsByStage] = useState({});
   const [draggedDeal, setDraggedDeal] = useState(null);
+  
+  // Modal states
   const [showNewDealModal, setShowNewDealModal] = useState(false);
   const [selectedDeal, setSelectedDeal] = useState(null);
   const [showViewingModal, setShowViewingModal] = useState(false);
   const [viewingDeal, setViewingDeal] = useState(null);
-  const [selectedDealForEdit, setSelectedDealForEdit] = useState(null); // ADD THIS
-  const [isDealModalOpen, setIsDealModalOpen] = useState(false); // if not present
+  const [isDealModalOpen, setIsDealModalOpen] = useState(false);
+  const [selectedDealForEdit, setSelectedDealForEdit] = useState(null);
 
-  useEffect(() => {
-    if (clientId && opportunityId) {
-      loadData();
-    }
-  }, [clientId, opportunityId]);
+  // Viewing data
+  const [dealViewings, setDealViewings] = useState({});
+  const [selectedViewingToEdit, setSelectedViewingToEdit] = useState(null);
 
-  const loadData = async () => {
+  // Load initial data
+  const loadInitialData = async () => {
     try {
-      const clientData = await getClient(clientId);
+      // CRITICAL: Wait for authentication
+      if (!currentUser?.uid) {
+        console.log('Waiting for authentication...');
+        return;
+      }
+
+      console.log('=== LOADING DEAL BOARD DATA ===');
+      console.log('Consultant ID:', currentUser.uid);
+      console.log('Client ID:', clientId);
+      console.log('Opportunity ID:', opportunityId);
+
+      const [clientData, opportunityData] = await Promise.all([
+        getClient(clientId),
+        getOpportunity(clientId, opportunityId)
+      ]);
+      
+      console.log('Client loaded:', clientData?.name);
+      console.log('Opportunity loaded:', opportunityData?.title);
+      
       setClient(clientData);
-
-      const oppData = await getOpportunity(clientId, opportunityId);
-      setOpportunity(oppData);
-
+      setOpportunity(opportunityData);
+      
+      // Load deals
+      console.log('Loading deals...');
       await loadDeals(clientId, opportunityId);
     } catch (err) {
       console.error('Error loading data:', err);
     }
   };
 
+  // Load initial data when authentication is ready
   useEffect(() => {
+    if (!currentUser?.uid) {
+      console.log('No user authenticated yet, waiting...');
+      return;
+    }
+    
+    loadInitialData();
+  }, [clientId, opportunityId, currentUser?.uid]);
+
+  // Organize deals by stage
+  useEffect(() => {
+    organizeDealsByStage();
+  }, [deals]);
+
+  const organizeDealsByStage = () => {
     const organized = {};
     BUYER_DEAL_STAGES.forEach(stage => {
       organized[stage.value] = [];
@@ -89,27 +127,38 @@ const DealBoard = () => {
       }
     });
 
+    console.log('Deals organized by stage:', organized);
     setDealsByStage(organized);
-  }, [deals]);
+  };
 
+  // Load viewings for a specific deal
+  const loadViewingsForDeal = async (dealId) => {
+    try {
+      const viewings = await loadDealViewings(clientId, opportunityId, dealId);
+      setDealViewings(prev => ({
+        ...prev,
+        [dealId]: viewings
+      }));
+      return viewings;
+    } catch (err) {
+      console.error('Error loading viewings:', err);
+      return [];
+    }
+  };
+
+  // Drag and drop handlers
   const handleDragStart = (e, deal) => {
     setDraggedDeal(deal);
     e.dataTransfer.effectAllowed = 'move';
   };
 
   const handleDragOver = (e) => {
-    if (e.preventDefault) {
-      e.preventDefault();
-    }
+    e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
-    return false;
   };
 
   const handleDrop = async (e, newStage) => {
-    if (e.stopPropagation) {
-      e.stopPropagation();
-    }
-
+    e.preventDefault();
     if (draggedDeal && draggedDeal.stage !== newStage) {
       try {
         await moveDealStage(clientId, opportunityId, draggedDeal.id, newStage);
@@ -118,109 +167,112 @@ const DealBoard = () => {
         console.error('Error moving deal:', err);
       }
     }
-
     setDraggedDeal(null);
-    return false;
   };
 
-  const handleCreateDeal = async (propertyData) => {
+  // Deal handlers
+  const handleSaveDeal = async (dealData) => {
     try {
-      await createPropertyDeal(opportunity, propertyData);
-      setShowNewDealModal(false);
+      if (selectedDealForEdit) {
+        await updatePropertyDeal(clientId, opportunityId, selectedDealForEdit.id, dealData);
+      } else {
+        await createPropertyDeal(clientId, opportunityId, dealData);
+      }
       await loadDeals(clientId, opportunityId);
+      setIsDealModalOpen(false);
+      setSelectedDealForEdit(null);
     } catch (err) {
-      console.error('Error creating deal:', err);
+      console.error('Error saving deal:', err);
+      alert('Erro ao guardar negócio');
     }
   };
 
-  const handleAddViewing = (deal) => {
+  const handleEditDeal = (deal) => {
+    setSelectedDealForEdit(deal);
+    setIsDealModalOpen(true);
+  };
+
+  const handleDeleteDeal = async (deal) => {
+    if (window.confirm(`Tem certeza que deseja eliminar o negócio "${deal.property?.address}"?`)) {
+      try {
+        await deletePropertyDeal(clientId, opportunityId, deal.id);
+        await loadDeals(clientId, opportunityId);
+        setSelectedDeal(null);
+      } catch (err) {
+        console.error('Error deleting deal:', err);
+        alert('Erro ao eliminar negócio');
+      }
+    }
+  };
+
+  // Viewing handlers
+  const handleAddViewing = async (deal) => {
     setViewingDeal(deal);
+    setSelectedViewingToEdit(null);
+    
+    // Load existing viewings for this deal
+    const viewings = await loadViewingsForDeal(deal.id);
+    
+    setShowViewingModal(true);
+  };
+
+  const handleEditViewing = async (deal, viewing) => {
+    setViewingDeal(deal);
+    setSelectedViewingToEdit(viewing);
     setShowViewingModal(true);
   };
 
   const handleSaveViewing = async (viewingData) => {
     try {
       await addDealViewing(clientId, opportunityId, viewingDeal.id, viewingData);
+      
+      // Reload deals and viewings
+      await loadDeals(clientId, opportunityId);
+      await loadViewingsForDeal(viewingDeal.id);
+      
       setShowViewingModal(false);
       setViewingDeal(null);
-      await loadDeals(clientId, opportunityId);
+      setSelectedViewingToEdit(null);
       
-      // If deal details modal is open, reload it
+      // If viewing details modal is open, reload its viewings
       if (selectedDeal && selectedDeal.id === viewingDeal.id) {
-        const updatedDeal = deals.find(d => d.id === viewingDeal.id);
-        setSelectedDeal(updatedDeal);
+        const updatedViewings = await loadViewingsForDeal(viewingDeal.id);
+        setSelectedDeal(prev => ({
+          ...prev,
+          viewings: updatedViewings
+        }));
       }
     } catch (err) {
-      console.error('Error adding viewing:', err);
-      alert('Erro ao guardar visita: ' + err.message);
+      console.error('Error saving viewing:', err);
+      alert('Erro ao guardar visita');
     }
   };
 
-  const getStageStats = (stage) => {
-    const stageDeals = dealsByStage[stage] || [];
-    const totalValue = stageDeals.reduce((sum, deal) => sum + (deal.pricing?.askingPrice || 0), 0);
-    return {
-      count: stageDeals.length,
-      value: totalValue
-    };
+  const handleViewDealDetails = async (deal) => {
+    // Load viewings for this deal
+    const viewings = await loadViewingsForDeal(deal.id);
+    setSelectedDeal({
+      ...deal,
+      viewings: viewings || []
+    });
   };
 
   const getUrgencyColor = (deal) => {
-    if (deal.competition?.otherOffers > 0) return 'red';
-    if (deal.scoring?.urgencyLevel === 'urgent') return 'orange';
-    if (deal.scoring?.urgencyLevel === 'high') return 'yellow';
+    if (deal.urgency === 'urgent') return 'red';
+    if (deal.urgency === 'high') return 'orange';
+    if (deal.urgency === 'normal') return 'blue';
     return 'gray';
   };
 
-  // Create/Update handler
-  const handleSaveDeal = async (formData, dealId = null) => {
-    try {
-      if (dealId) {
-        // UPDATE existing deal
-        await updatePropertyDeal(opportunity, dealId, formData);
-      } else {
-        // CREATE new deal - pass the complete formData
-        await createPropertyDeal(opportunity, formData);
-      }
-      
-      // Reload deals to get fresh data
-      await loadDeals(clientId, opportunityId);
-      
-      // Close modals and clear state
-      setIsDealModalOpen(false);
-      setSelectedDealForEdit(null);
-      setShowNewDealModal(false);
-    } catch (e) {
-      console.error('Error saving deal:', e);
-      alert('Erro ao guardar negócio: ' + e.message);
-    }
-  };
-
-  // Delete handler
-  const handleDeleteDeal = async (deal) => {
-    if (!window.confirm(`Tem a certeza que deseja eliminar o negócio "${deal.property?.address}"?`)) {
-      return;
-    }
-    
-    try {
-      await deletePropertyDeal(clientId, opportunityId, deal.id);
-      await loadDeals(clientId, opportunityId);
-      setSelectedDeal(null);
-    } catch (e) {
-      console.error('Error deleting deal:', e);
-      alert('Erro ao eliminar negócio: ' + e.message);
-    }
-  };
-
-  const getDealKey = (deal) => {
-    return `${deal.property?.address}-${deal.stage}`;
-  };
-
-  if (loading) {
+  // Show loading while waiting for auth or initial data
+  if (!currentUser?.uid || (loading && !client)) {
     return (
       <Layout>
         <div className="flex items-center justify-center h-64">
-          <ArrowPathIcon className="w-8 h-8 animate-spin text-blue-600" />
+          <div className="text-center">
+            <ArrowPathIcon className="w-8 h-8 animate-spin text-indigo-600 mx-auto mb-4" />
+            <p className="text-gray-600">A carregar...</p>
+          </div>
         </div>
       </Layout>
     );
@@ -228,116 +280,92 @@ const DealBoard = () => {
 
   return (
     <Layout>
-      <div className="max-w-full px-4 py-6">
+      <div className="p-6">
         {/* Header */}
         <div className="mb-6">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">
-                Pipeline de Negócios
-              </h1>
+              <h1 className="text-2xl font-bold text-gray-900">Pipeline de Negócios</h1>
               <p className="text-gray-600 mt-1">
-                {client?.name} - {opportunity?.type === 'buyer' ? 'Comprador' : 'Vendedor'}
+                {client?.name} - {opportunity?.title}
               </p>
             </div>
             <button
-              onClick={() => setShowNewDealModal(true)}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center space-x-2"
+              onClick={() => {
+                setSelectedDealForEdit(null);
+                setIsDealModalOpen(true);
+              }}
+              className="flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
             >
-              <PlusIcon className="w-5 h-5" />
-              <span>Novo Negócio</span>
+              <PlusIcon className="w-5 h-5 mr-2" />
+              Novo Negócio
             </button>
           </div>
         </div>
 
-        {/* Board */}
-        <div className="flex overflow-x-auto gap-4 pb-4">
-          {BUYER_DEAL_STAGES.map(stage => {
-            const stats = getStageStats(stage.value);
-            return (
-              <div
-                key={stage.value}
-                className="flex-shrink-0 w-80"
-                onDragOver={handleDragOver}
-                onDrop={(e) => handleDrop(e, stage.value)}
-              >
-                {/* Stage Header */}
-                <div className={`bg-${stage.color}-100 border-t-4 border-${stage.color}-500 rounded-t-lg p-3`}>
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-semibold text-gray-900">
-                      {stage.label}
-                    </h3>
-                    <span className="bg-white px-2 py-1 rounded-full text-xs font-medium">
-                      {stats.count}
-                    </span>
-                  </div>
-                  {stats.value > 0 && (
-                    <p className="text-xs text-gray-600 mt-1">
-                      Total: €{stats.value.toLocaleString('pt-PT')}
-                    </p>
-                  )}
-                </div>
-
-                {/* Stage Cards */}
-                <div className="bg-gray-50 min-h-[400px] p-2 rounded-b-lg">
-                  {(dealsByStage[stage.value] || []).map(deal => (
-                    <DealCard
-                      key={deal.id}
-                      deal={deal}
-                      onDragStart={handleDragStart}
-                      onClick={() => setSelectedDeal(deal)}
-                      onAddViewing={() => handleAddViewing(deal)}
-                      urgencyColor={getUrgencyColor(deal)}
-                    />
-                  ))}
-                  
-                  {(!dealsByStage[stage.value] || dealsByStage[stage.value].length === 0) && (
-                    <div className="text-center py-8 text-gray-400">
-                      <HomeModernIcon className="w-8 h-8 mx-auto mb-2" />
-                      <p className="text-sm">Sem negócios</p>
-                    </div>
-                  )}
+        {/* Kanban Board */}
+        <div className="flex space-x-4 overflow-x-auto pb-4">
+          {BUYER_DEAL_STAGES.map(stage => (
+            <div
+              key={stage.value}
+              className="flex-shrink-0 w-80"
+              onDragOver={handleDragOver}
+              onDrop={(e) => handleDrop(e, stage.value)}
+            >
+              {/* Stage Header */}
+              <div className={`bg-${stage.color}-100 border-2 border-${stage.color}-300 rounded-lg p-3 mb-3`}>
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold text-gray-900">{stage.label}</h3>
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium bg-${stage.color}-200 text-${stage.color}-800`}>
+                    {dealsByStage[stage.value]?.length || 0}
+                  </span>
                 </div>
               </div>
-            );
-          })}
+
+              {/* Deal Cards */}
+              <div className="space-y-3 min-h-[200px]">
+                {dealsByStage[stage.value]?.map(deal => (
+                  <DealCard
+                    key={deal.id}
+                    deal={deal}
+                    onDragStart={handleDragStart}
+                    onClick={() => handleViewDealDetails(deal)}
+                    onAddViewing={() => handleAddViewing(deal)}
+                    urgencyColor={getUrgencyColor(deal)}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
 
-        {/* Modals */}
-        {showNewDealModal && (
-          <DealFormModal
-            isOpen={showNewDealModal}
-            onClose={() => setShowNewDealModal(false)}
-            onSave={handleCreateDeal}
-            opportunity={opportunity}
-            client={client}
-          />
-        )}
-
+        {/* Deal Details Modal */}
         {selectedDeal && (
           <DealDetailsModal
             deal={selectedDeal}
             client={client}
             onClose={() => setSelectedDeal(null)}
-            onAddViewing={() => {
-              setViewingDeal(selectedDeal);
-              setShowViewingModal(true);
+            onAddViewing={() => handleAddViewing(selectedDeal)}
+            onEditViewing={(viewing) => handleEditViewing(selectedDeal, viewing)}
+            onUpdate={async () => {
+              const viewings = await loadViewingsForDeal(selectedDeal.id);
+              setSelectedDeal(prev => ({
+                ...prev,
+                viewings
+              }));
             }}
-            onUpdate={loadData}
             footer={
-              <div className="flex justify-between items-center w-full">
+              <div className="flex space-x-2">
                 <button
-                  type="button"
-                  className="inline-flex items-center rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white hover:bg-red-500"
                   onClick={() => handleDeleteDeal(selectedDeal)}
+                  className="inline-flex items-center rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white hover:bg-red-500"
                 >
                   <TrashIcon className="h-4 w-4 mr-1" />
                   Eliminar
                 </button>
                 <button
-                  type="button"
-                  className="inline-flex items-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-500"
                   onClick={() => handleEditDeal(selectedDeal)}
+                  className="inline-flex items-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-500"
                 >
                   <PencilIcon className="h-4 w-4 mr-1" />
                   Editar
@@ -347,19 +375,23 @@ const DealBoard = () => {
           />
         )}
 
+        {/* Viewing Form Modal */}
         {showViewingModal && viewingDeal && (
           <ViewingFormModal
             isOpen={showViewingModal}
             onClose={() => {
               setShowViewingModal(false);
               setViewingDeal(null);
+              setSelectedViewingToEdit(null);
             }}
             onSave={handleSaveViewing}
             deal={viewingDeal}
             client={client}
+            existingViewing={selectedViewingToEdit}
           />
         )}
 
+        {/* Deal Form Modal */}
         {isDealModalOpen && (
           <DealFormModal
             isOpen={isDealModalOpen}
@@ -370,7 +402,6 @@ const DealBoard = () => {
             onSave={handleSaveDeal}
             opportunity={opportunity}
             client={client}
-            agents={agents}
             existingDeal={selectedDealForEdit}
           />
         )}
@@ -382,74 +413,65 @@ const DealBoard = () => {
 // Deal Card Component
 const DealCard = ({ deal, onDragStart, onClick, onAddViewing, urgencyColor }) => {
   const interestLevel = INTEREST_LEVELS.find(l => l.value === deal.scoring?.buyerInterestLevel);
+  const viewingCount = deal.viewings?.length || 0;
   
   return (
     <div
       draggable
       onDragStart={(e) => onDragStart(e, deal)}
-      className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 mb-2 cursor-move hover:shadow-md transition-shadow"
+      className="bg-white rounded-lg shadow-sm border-2 border-gray-200 p-4 cursor-move hover:shadow-lg hover:border-indigo-300 transition-all"
     >
       <div onClick={onClick} className="cursor-pointer">
         {/* Property Address */}
         <div className="flex items-start justify-between mb-2">
-          <h4 className="font-medium text-sm text-gray-900 flex-1">
-            {deal.property?.address}
+          <h4 className="font-semibold text-gray-900 flex-1 line-clamp-2">
+            {deal.property?.address || 'Sem endereço'}
           </h4>
-          {deal.competition?.otherOffers > 0 && (
-            <span className="ml-2 px-2 py-1 bg-red-100 text-red-700 text-xs rounded-full flex-shrink-0">
-              {deal.competition.otherOffers} propostas
-            </span>
-          )}
-        </div>
-
-        {/* Property Details */}
-        <div className="flex items-center text-xs text-gray-600 space-x-3 mb-2">
-          <span className="flex items-center">
-            <HomeModernIcon className="w-4 h-4 mr-1" />
-            {deal.property?.bedrooms}Q
-          </span>
-          {deal.property?.area && (
-            <span>{deal.property.area}m²</span>
+          {deal.urgency && (
+            <span className={`ml-2 flex-shrink-0 w-3 h-3 rounded-full bg-${urgencyColor}-500`} />
           )}
         </div>
 
         {/* Price */}
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-sm font-semibold text-gray-900">
-            €{(deal.pricing?.askingPrice || 0).toLocaleString('pt-PT')}
-          </span>
-          {interestLevel && (
-            <span className={`px-2 py-1 bg-${interestLevel.color}-100 text-${interestLevel.color}-800 text-xs rounded-full`}>
-              {interestLevel.emoji} {deal.scoring?.buyerInterestLevel}/10
-            </span>
-          )}
+        <div className="flex items-center text-lg font-bold text-indigo-600 mb-2">
+          <CurrencyEuroIcon className="w-5 h-5 mr-1" />
+          {deal.pricing?.askingPrice?.toLocaleString('pt-PT') || '0'}
         </div>
 
-        {/* Agent */}
-        {deal.propertyAgent?.name && (
-          <div className="text-xs text-gray-600 mb-2 flex items-center">
-            <UserIcon className="w-3 h-3 mr-1" />
-            {deal.propertyAgent.name}
+        {/* Property Details */}
+        <div className="flex items-center text-sm text-gray-600 space-x-3 mb-2">
+          <span>{deal.property?.bedrooms || 0} 🛏️</span>
+          <span>{deal.property?.bathrooms || 0} 🚿</span>
+          <span>{deal.property?.area || 0}m²</span>
+        </div>
+
+        {/* Interest Level */}
+        {interestLevel && (
+          <div className="flex items-center mb-2">
+            <StarIcon className="w-4 h-4 text-yellow-400 mr-1" />
+            <span className={`text-xs font-medium text-${interestLevel.color}-700`}>
+              {interestLevel.label}
+            </span>
           </div>
         )}
 
-        {/* Viewings Count */}
-        {deal.totalViewings > 0 && (
-          <div className="text-xs text-gray-600 flex items-center mb-2">
-            <EyeIcon className="w-3 h-3 mr-1" />
-            {deal.totalViewings} {deal.totalViewings === 1 ? 'visita' : 'visitas'}
+        {/* Viewing Count */}
+        {viewingCount > 0 && (
+          <div className="flex items-center text-xs text-gray-600 bg-gray-100 rounded px-2 py-1 mb-2 w-fit">
+            <EyeIcon className="w-4 h-4 mr-1" />
+            {viewingCount} {viewingCount === 1 ? 'visita' : 'visitas'}
           </div>
         )}
       </div>
 
       {/* Quick Actions */}
-      <div className="pt-2 border-t flex items-center justify-between">
+      <div className="pt-2 border-t flex items-center justify-between mt-2">
         <button
           onClick={(e) => {
             e.stopPropagation();
             onAddViewing();
           }}
-          className="text-xs text-indigo-600 hover:text-indigo-800 flex items-center"
+          className="text-xs text-indigo-600 hover:text-indigo-800 flex items-center font-medium"
         >
           <PlusIcon className="w-3 h-3 mr-1" />
           Visita
@@ -466,8 +488,8 @@ const DealCard = ({ deal, onDragStart, onClick, onAddViewing, urgencyColor }) =>
   );
 };
 
-// Deal Details Modal
-const DealDetailsModal = ({ deal, client, onClose, onAddViewing, onUpdate, footer }) => {
+// Deal Details Modal Component
+const DealDetailsModal = ({ deal, client, onClose, onAddViewing, onEditViewing, onUpdate, footer }) => {
   const [activeTab, setActiveTab] = useState('overview');
 
   return (
@@ -478,6 +500,9 @@ const DealDetailsModal = ({ deal, client, onClose, onAddViewing, onUpdate, foote
           <div>
             <h2 className="text-xl font-semibold">{deal.property?.address}</h2>
             <p className="text-sm text-gray-600 mt-1">{client?.name}</p>
+            <p className="text-lg font-bold text-indigo-600 mt-1">
+              €{deal.pricing?.askingPrice?.toLocaleString('pt-PT')}
+            </p>
           </div>
           <button onClick={onClose}>
             <XMarkIcon className="w-6 h-6 text-gray-400 hover:text-gray-600" />
@@ -516,7 +541,6 @@ const DealDetailsModal = ({ deal, client, onClose, onAddViewing, onUpdate, foote
                   : 'border-transparent text-gray-600 hover:text-gray-900'
               }`}
             >
-              <DocumentTextIcon className="w-4 h-4 mr-1 inline" />
               Notas
             </button>
           </div>
@@ -525,69 +549,49 @@ const DealDetailsModal = ({ deal, client, onClose, onAddViewing, onUpdate, foote
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6">
           {activeTab === 'overview' && (
-            <div className="grid grid-cols-2 gap-6">
+            <div className="space-y-6">
+              {/* Property Details */}
               <div>
-                <h3 className="font-medium mb-3">Detalhes do Imóvel</h3>
-                <dl className="space-y-2">
+                <h3 className="text-lg font-semibold mb-3">Detalhes do Imóvel</h3>
+                <dl className="grid grid-cols-2 gap-4">
                   <div>
                     <dt className="text-sm text-gray-600">Tipo</dt>
-                    <dd className="font-medium">{deal.property?.type}</dd>
+                    <dd className="text-sm font-medium">{deal.property?.type || 'N/A'}</dd>
                   </div>
                   <div>
                     <dt className="text-sm text-gray-600">Quartos</dt>
-                    <dd className="font-medium">{deal.property?.bedrooms}</dd>
+                    <dd className="text-sm font-medium">{deal.property?.bedrooms || 0}</dd>
                   </div>
                   <div>
                     <dt className="text-sm text-gray-600">Casas de Banho</dt>
-                    <dd className="font-medium">{deal.property?.bathrooms}</dd>
+                    <dd className="text-sm font-medium">{deal.property?.bathrooms || 0}</dd>
                   </div>
                   <div>
                     <dt className="text-sm text-gray-600">Área</dt>
-                    <dd className="font-medium">{deal.property?.area}m²</dd>
+                    <dd className="text-sm font-medium">{deal.property?.area || 0}m²</dd>
                   </div>
                 </dl>
               </div>
 
-              <div>
-                <h3 className="font-medium mb-3">Preços</h3>
-                <dl className="space-y-2">
-                  <div>
-                    <dt className="text-sm text-gray-600">Preço Pedido</dt>
-                    <dd className="font-medium">€{deal.pricing?.askingPrice?.toLocaleString('pt-PT')}</dd>
-                  </div>
-                  {deal.pricing?.marketValue && (
-                    <div>
-                      <dt className="text-sm text-gray-600">Valor de Mercado</dt>
-                      <dd className="font-medium">€{deal.pricing.marketValue.toLocaleString('pt-PT')}</dd>
-                    </div>
-                  )}
-                  {deal.pricing?.currentOffer && (
-                    <div>
-                      <dt className="text-sm text-gray-600">Proposta Atual</dt>
-                      <dd className="font-medium text-green-600">€{deal.pricing.currentOffer.toLocaleString('pt-PT')}</dd>
-                    </div>
-                  )}
-                </dl>
-              </div>
-
+              {/* Agent Info */}
               {deal.propertyAgent?.name && (
-                <div className="col-span-2">
-                  <h3 className="font-medium mb-3">Agente do Imóvel</h3>
+                <div>
+                  <h3 className="text-lg font-semibold mb-3">Agente do Imóvel</h3>
                   <dl className="space-y-2">
                     <div>
                       <dt className="text-sm text-gray-600">Nome</dt>
-                      <dd className="font-medium">{deal.propertyAgent.name}</dd>
+                      <dd className="text-sm font-medium">{deal.propertyAgent.name}</dd>
                     </div>
                     {deal.propertyAgent.agency && (
                       <div>
                         <dt className="text-sm text-gray-600">Agência</dt>
-                        <dd className="font-medium">{deal.propertyAgent.agency}</dd>
+                        <dd className="text-sm font-medium">{deal.propertyAgent.agency}</dd>
                       </div>
                     )}
                     {deal.propertyAgent.phone && (
                       <div>
                         <dt className="text-sm text-gray-600">Telefone</dt>
-                        <dd className="font-medium">{deal.propertyAgent.phone}</dd>
+                        <dd className="text-sm font-medium">{deal.propertyAgent.phone}</dd>
                       </div>
                     )}
                   </dl>
@@ -608,7 +612,10 @@ const DealDetailsModal = ({ deal, client, onClose, onAddViewing, onUpdate, foote
                   Adicionar Visita
                 </button>
               </div>
-              <ViewingHistory viewings={deal.viewings || []} />
+              <ViewingHistory 
+                viewings={deal.viewings || []} 
+                onEditViewing={onEditViewing}
+              />
             </div>
           )}
 
@@ -617,13 +624,15 @@ const DealDetailsModal = ({ deal, client, onClose, onAddViewing, onUpdate, foote
               {deal.notes && (
                 <div>
                   <h3 className="font-medium mb-2">Notas Gerais</h3>
-                  <p className="text-gray-700 whitespace-pre-wrap">{deal.notes}</p>
+                  <p className="text-gray-700 whitespace-pre-wrap bg-gray-50 p-4 rounded-lg">
+                    {deal.notes}
+                  </p>
                 </div>
               )}
               {deal.internalNotes && (
                 <div>
                   <h3 className="font-medium mb-2">Notas Internas</h3>
-                  <p className="text-gray-700 whitespace-pre-wrap bg-yellow-50 p-3 rounded-lg">
+                  <p className="text-gray-700 whitespace-pre-wrap bg-yellow-50 p-4 rounded-lg border-l-4 border-yellow-400">
                     {deal.internalNotes}
                   </p>
                 </div>
@@ -634,6 +643,13 @@ const DealDetailsModal = ({ deal, client, onClose, onAddViewing, onUpdate, foote
             </div>
           )}
         </div>
+
+        {/* Footer */}
+        {footer && (
+          <div className="bg-gray-50 px-6 py-4 border-t flex justify-end flex-shrink-0">
+            {footer}
+          </div>
+        )}
       </div>
     </div>
   );
