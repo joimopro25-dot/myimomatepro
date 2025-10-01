@@ -66,6 +66,7 @@ const DealBoard = () => {
   // Viewing data
   const [dealViewings, setDealViewings] = useState({});
   const [selectedViewingToEdit, setSelectedViewingToEdit] = useState(null);
+  const [viewingMode, setViewingMode] = useState('record'); // 'schedule' | 'record' | 'complete'
 
   // Load initial data
   const loadInitialData = async () => {
@@ -209,15 +210,39 @@ const DealBoard = () => {
   const handleAddViewing = async (deal) => {
     setViewingDeal(deal);
     setSelectedViewingToEdit(null);
-    
     // Load existing viewings for this deal
-    const viewings = await loadViewingsForDeal(deal.id);
-    
+    await loadViewingsForDeal(deal.id);
     setShowViewingModal(true);
   };
 
+  // Schedule a new visit (basic info only)
+  const handleScheduleViewing = (deal) => {
+    setViewingDeal(deal);
+    setViewingMode('schedule');
+    setSelectedViewingToEdit(null);
+    setShowViewingModal(true);
+  };
+
+  // Record a completed visit (full form)
+  const handleRecordViewing = (deal) => {
+    setViewingDeal(deal);
+    setViewingMode('record');
+    setSelectedViewingToEdit(null);
+    setShowViewingModal(true);
+  };
+
+  // Complete a scheduled visit (add feedback)
+  const handleCompleteViewing = (deal, viewing) => {
+    setViewingDeal(deal);
+    setViewingMode('complete');
+    setSelectedViewingToEdit(viewing);
+    setShowViewingModal(true);
+  };
+
+  // Edit existing viewing
   const handleEditViewing = async (deal, viewing) => {
     setViewingDeal(deal);
+    setViewingMode(viewing?.status === 'scheduled' ? 'schedule' : 'record');
     setSelectedViewingToEdit(viewing);
     setShowViewingModal(true);
   };
@@ -225,16 +250,15 @@ const DealBoard = () => {
   const handleSaveViewing = async (viewingData) => {
     try {
       await addDealViewing(clientId, opportunityId, viewingDeal.id, viewingData);
-      
       // Reload deals and viewings
       await loadDeals(clientId, opportunityId);
       await loadViewingsForDeal(viewingDeal.id);
-      
+
       setShowViewingModal(false);
       setViewingDeal(null);
       setSelectedViewingToEdit(null);
-      
-      // If viewing details modal is open, reload its viewings
+      setViewingMode('record');
+
       if (selectedDeal && selectedDeal.id === viewingDeal.id) {
         const updatedViewings = await loadViewingsForDeal(viewingDeal.id);
         setSelectedDeal(prev => ({
@@ -330,7 +354,8 @@ const DealBoard = () => {
                     deal={deal}
                     onDragStart={handleDragStart}
                     onClick={() => handleViewDealDetails(deal)}
-                    onAddViewing={() => handleAddViewing(deal)}
+                    onSchedule={() => handleScheduleViewing(deal)}
+                    onRecord={() => handleRecordViewing(deal)}
                     urgencyColor={getUrgencyColor(deal)}
                   />
                 ))}
@@ -347,6 +372,7 @@ const DealBoard = () => {
             onClose={() => setSelectedDeal(null)}
             onAddViewing={() => handleAddViewing(selectedDeal)}
             onEditViewing={(viewing) => handleEditViewing(selectedDeal, viewing)}
+            onCompleteViewing={(viewing) => handleCompleteViewing(selectedDeal, viewing)}
             onUpdate={async () => {
               const viewings = await loadViewingsForDeal(selectedDeal.id);
               setSelectedDeal(prev => ({
@@ -383,11 +409,13 @@ const DealBoard = () => {
               setShowViewingModal(false);
               setViewingDeal(null);
               setSelectedViewingToEdit(null);
+              setViewingMode('record');
             }}
             onSave={handleSaveViewing}
             deal={viewingDeal}
             client={client}
             existingViewing={selectedViewingToEdit}
+            mode={viewingMode}
           />
         )}
 
@@ -411,10 +439,10 @@ const DealBoard = () => {
 };
 
 // Deal Card Component
-const DealCard = ({ deal, onDragStart, onClick, onAddViewing, urgencyColor }) => {
+const DealCard = ({ deal, onDragStart, onClick, onSchedule, onRecord, urgencyColor }) => {
   const interestLevel = INTEREST_LEVELS.find(l => l.value === deal.scoring?.buyerInterestLevel);
   const viewingCount = deal.viewings?.length || 0;
-  
+
   return (
     <div
       draggable
@@ -464,24 +492,28 @@ const DealCard = ({ deal, onDragStart, onClick, onAddViewing, urgencyColor }) =>
         )}
       </div>
 
-      {/* Quick Actions */}
-      <div className="pt-2 border-t flex items-center justify-between mt-2">
+      {/* Two Buttons */}
+      <div className="mt-4 flex gap-2">
         <button
           onClick={(e) => {
             e.stopPropagation();
-            onAddViewing();
+            onSchedule();
           }}
-          className="text-xs text-indigo-600 hover:text-indigo-800 flex items-center font-medium"
+          className="flex-1 inline-flex items-center justify-center px-3 py-2 border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors text-sm font-medium"
         >
-          <PlusIcon className="w-3 h-3 mr-1" />
-          Visita
+          <CalendarIcon className="w-4 h-4 mr-1" />
+          Agendar
         </button>
+
         <button
-          onClick={onClick}
-          className="text-xs text-gray-600 hover:text-gray-800 flex items-center"
+          onClick={(e) => {
+            e.stopPropagation();
+            onRecord();
+          }}
+          className="flex-1 inline-flex items-center justify-center px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium"
         >
-          Detalhes
-          <ChevronRightIcon className="w-3 h-3 ml-1" />
+          <CheckCircleIcon className="w-4 h-4 mr-1" />
+          Registar
         </button>
       </div>
     </div>
@@ -489,7 +521,7 @@ const DealCard = ({ deal, onDragStart, onClick, onAddViewing, urgencyColor }) =>
 };
 
 // Deal Details Modal Component
-const DealDetailsModal = ({ deal, client, onClose, onAddViewing, onEditViewing, onUpdate, footer }) => {
+const DealDetailsModal = ({ deal, client, onClose, onAddViewing, onEditViewing, onCompleteViewing, onUpdate, footer }) => {
   const [activeTab, setActiveTab] = useState('overview');
 
   return (
@@ -612,9 +644,10 @@ const DealDetailsModal = ({ deal, client, onClose, onAddViewing, onEditViewing, 
                   Adicionar Visita
                 </button>
               </div>
-              <ViewingHistory 
-                viewings={deal.viewings || []} 
-                onEditViewing={onEditViewing}
+              <ViewingHistory
+                viewings={deal.viewings || []}
+                onEdit={(viewing) => onEditViewing(viewing)}
+                onComplete={(viewing) => onCompleteViewing(viewing)}
               />
             </div>
           )}

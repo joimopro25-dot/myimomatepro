@@ -165,33 +165,87 @@ export const BuyerDealSchema = {
 export const ViewingSchema = {
   id: '',
   dealId: '',
+
+  // Workflow status
+  status: 'scheduled', // 'scheduled' | 'completed'
+
+  // Scheduling
   date: null,
   time: '',
   duration: 30, // minutes
   type: 'first_visit', // first_visit, second_visit, inspection, final_visit
-  
+
+  // Attendees
   attendees: {
-    clientAttended: true,
-    spouseAttended: false,
+    buyers: [],           // array of names
     agentPresent: true,
-    others: '' // Other attendees
+    sellerPresent: false,
+    others: []            // array of names
   },
-  
+
+  // Feedback (for completed visits)
   feedback: {
-    interestLevel: 0, // 0-10
     overallImpression: '', // loved, liked, neutral, disliked
-    positives: '', // What they liked
-    negatives: '', // Concerns/issues
-    questions: '' // Questions raised
+    interestLevel: 5,      // 0-10
+    positives: [],         // string[]
+    negatives: [],         // string[]
+    questions: [],         // string[]
+
+    // Detailed ratings
+    layout: '',            // great, good, acceptable, poor
+    condition: '',         // excellent, good, needs_work, poor (use RATING_OPTIONS values)
+    location: '',
+    price: ''
   },
-  
-  nextSteps: '', // What happens next
-  photos: [], // Photos from viewing
+
+  // Follow-up
+  followUp: {
+    clientWants: '',       // make_offer, another_viewing, think_about_it, not_interested
+    nextSteps: '',
+    scheduledFor: null
+  },
+
   notes: '',
-  
+
   createdAt: null,
-  createdBy: ''
+  createdBy: '',
+  completedAt: null // when marked completed
 };
+
+// Optional helpers for UI
+export const VIEWING_STATUS = [
+  { value: 'scheduled', label: 'Agendada', color: 'yellow' },
+  { value: 'completed', label: 'Concluída', color: 'green' }
+];
+
+export const VIEWING_TYPES = [
+  { value: 'first_visit', label: 'Primeira Visita' },
+  { value: 'second_visit', label: 'Segunda Visita' },
+  { value: 'inspection', label: 'Inspeção' },
+  { value: 'final_visit', label: 'Visita Final' }
+];
+
+// UI enums for ViewingFormModal
+export const IMPRESSION_OPTIONS = [
+  { value: 'loved', label: '😍 Adorou', color: 'green' },
+  { value: 'liked', label: '👍 Gostou', color: 'blue' },
+  { value: 'neutral', label: '😐 Neutro', color: 'gray' },
+  { value: 'disliked', label: '👎 Não Gostou', color: 'red' }
+];
+
+export const RATING_OPTIONS = [
+  { value: 'great', label: 'Excelente' },
+  { value: 'good', label: 'Bom' },
+  { value: 'acceptable', label: 'Aceitável' },
+  { value: 'poor', label: 'Fraco' }
+];
+
+export const NEXT_STEPS = [
+  { value: 'make_offer', label: 'Fazer Proposta', icon: '💰' },
+  { value: 'another_viewing', label: 'Nova Visita', icon: '🏠' },
+  { value: 'think_about_it', label: 'Pensar', icon: '🤔' },
+  { value: 'not_interested', label: 'Não Interessado', icon: '❌' }
+];
 
 /**
  * ===== OFFER SCHEMA =====
