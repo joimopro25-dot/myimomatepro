@@ -1,8 +1,6 @@
 /**
  * SIDEBAR COMPONENT - MyImoMatePro
- * Unified lateral navigation for entire CRM
- * Theme: Corporate Glamour - Elegant and Professional
- * Updated to include Opportunities navigation
+ * FIXED: Added Negócios/Deals to navigation
  */
 
 import React, { useState } from 'react';
@@ -13,6 +11,7 @@ import {
     HomeIcon,
     UsersIcon,
     BriefcaseIcon,
+    ShoppingBagIcon,
     CogIcon,
     ArrowRightOnRectangleIcon,
     UserCircleIcon,
@@ -24,6 +23,7 @@ import {
     HomeIcon as HomeIconSolid,
     UsersIcon as UsersIconSolid,
     BriefcaseIcon as BriefcaseIconSolid,
+    ShoppingBagIcon as ShoppingBagIconSolid,
     CogIcon as CogIconSolid
 } from '@heroicons/react/24/solid';
 
@@ -43,7 +43,7 @@ const Sidebar = ({ isCollapsed = false, onToggleCollapse }) => {
         }
     };
 
-    // Navigation items - including opportunities
+    // Navigation items - FIXED: Added Deals
     const navigationItems = [
         {
             name: 'Dashboard',
@@ -67,13 +67,36 @@ const Sidebar = ({ isCollapsed = false, onToggleCollapse }) => {
             iconSolid: BriefcaseIconSolid,
             description: 'Gestão de oportunidades',
             badge: stats?.totalOpportunities || 0
+        },
+        {
+            name: 'Negócios',
+            href: '/deals',
+            icon: ShoppingBagIcon,
+            iconSolid: ShoppingBagIconSolid,
+            description: 'Pipeline de negócios',
+            badge: stats?.totalDeals || 0
         }
     ];
 
     const isActiveRoute = (href) => {
+        // Exact match for dashboard
         if (href === '/dashboard') {
             return location.pathname === '/dashboard';
         }
+        
+        // Special case: Deal board routes should highlight "Negócios"
+        if (href === '/deals') {
+            return location.pathname === '/deals' || 
+                   location.pathname.includes('/deals');
+        }
+        
+        // For other routes, check if path starts with href
+        // But exclude deal board routes from matching /clients
+        if (href === '/clients') {
+            return location.pathname.startsWith('/clients') && 
+                   !location.pathname.includes('/deals');
+        }
+        
         return location.pathname.startsWith(href);
     };
 
@@ -133,33 +156,35 @@ const Sidebar = ({ isCollapsed = false, onToggleCollapse }) => {
                             <div className="flex items-center justify-center w-6 h-6">
                                 <Icon className={`w-5 h-5 transition-colors ${
                                     isActive 
-                                        ? 'text-blue-400 drop-shadow-[0_0_8px_rgba(96,165,250,0.5)]' 
-                                        : 'text-slate-400 group-hover:text-white'
+                                        ? 'text-blue-400' 
+                                        : 'text-slate-400 group-hover:text-slate-200'
                                 }`} />
                             </div>
-
+                            
                             {!isCollapsed && (
                                 <>
-                                    <span className={`ml-3 text-sm font-medium transition-colors ${
-                                        isActive ? 'text-white' : 'text-slate-300 group-hover:text-white'
+                                    <span className={`ml-3 font-medium transition-colors ${
+                                        isActive 
+                                            ? 'text-white' 
+                                            : 'text-slate-300 group-hover:text-white'
                                     }`}>
                                         {item.name}
                                     </span>
-
-                                    {item.badge !== undefined && item.badge > 0 && (
-                                        <span className={`ml-auto px-2 py-0.5 text-xs rounded-full transition-all ${
+                                    
+                                    {item.badge !== undefined && (
+                                        <span className={`ml-auto px-2 py-0.5 text-xs rounded-full font-medium ${
                                             isActive
-                                                ? 'bg-blue-500/30 text-blue-300 border border-blue-400/30'
-                                                : 'bg-slate-700/50 text-slate-400 group-hover:bg-slate-600/50 group-hover:text-white'
+                                                ? 'bg-blue-500/30 text-blue-200'
+                                                : 'bg-slate-700 text-slate-300 group-hover:bg-slate-600'
                                         }`}>
-                                            {item.badge}
+                                            {item.badge > 99 ? '99+' : item.badge}
                                         </span>
                                     )}
                                 </>
                             )}
-
-                            {isCollapsed && item.badge !== undefined && item.badge > 0 && (
-                                <span className="absolute -top-1 -right-1 w-5 h-5 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-xs font-bold">
+                            
+                            {isCollapsed && item.badge !== undefined && (
+                                <span className="absolute left-10 top-2 px-1.5 py-0.5 text-xs rounded-full font-medium bg-blue-500 text-white">
                                     {item.badge > 99 ? '99+' : item.badge}
                                 </span>
                             )}
@@ -204,65 +229,63 @@ const Sidebar = ({ isCollapsed = false, onToggleCollapse }) => {
                             <div>
                                 <p className="text-xs text-slate-400">Plano</p>
                                 <p className="text-sm font-medium text-white">
-                                    {subscription.plan === 'premium' ? 'Premium' : 'Básico'}
+                                    {subscription.plan === 'premium' ? 'Professional' : 
+                                     subscription.plan === 'enterprise' ? 'Shark' : 'Rookie'}
                                 </p>
                             </div>
-                            {subscription.plan === 'premium' && (
-                                <div className="w-6 h-6 bg-gradient-to-r from-yellow-400 to-amber-500 rounded-full flex items-center justify-center">
-                                    <SparklesIcon className="w-4 h-4 text-white" />
-                                </div>
-                            )}
+                            <Link
+                                to="/account"
+                                className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                            >
+                                Gerir
+                            </Link>
                         </div>
                     </div>
                 )}
 
+                {/* User Profile */}
                 <div className="relative">
                     <button
                         onClick={() => setShowUserMenu(!showUserMenu)}
-                        className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-slate-700/50 transition-colors ${
+                        className={`w-full flex items-center space-x-3 px-3 py-2 rounded-xl hover:bg-slate-700/50 transition-colors ${
                             isCollapsed ? 'justify-center' : ''
                         }`}
-                        title={isCollapsed ? currentUser?.displayName || currentUser?.email : ''}
                     >
-                        <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+                        <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
                             <UserCircleIcon className="w-5 h-5 text-white" />
                         </div>
-
                         {!isCollapsed && (
                             <div className="flex-1 text-left">
-                                <p className="font-medium text-white text-sm">
-                                    {currentUser?.displayName || 'Utilizador'}
+                                <p className="text-sm font-medium text-white truncate">
+                                    {currentUser?.email?.split('@')[0] || 'Utilizador'}
                                 </p>
                                 <p className="text-xs text-slate-400 truncate">
-                                    {currentUser?.email}
+                                    {currentUser?.email || ''}
                                 </p>
                             </div>
                         )}
                     </button>
 
-                    {/* Dropdown Menu */}
-                    {showUserMenu && !isCollapsed && (
-                        <div className="absolute bottom-full left-0 right-0 mb-2 bg-slate-800 rounded-lg shadow-xl border border-slate-700/50 py-2">
+                    {/* User Dropdown Menu */}
+                    {showUserMenu && (
+                        <div className="absolute bottom-full left-0 right-0 mb-2 bg-slate-800 rounded-lg shadow-xl border border-slate-700 overflow-hidden">
                             <Link
                                 to="/account"
                                 onClick={() => setShowUserMenu(false)}
-                                className="flex items-center space-x-3 px-4 py-2 hover:bg-slate-700/50 transition-colors"
+                                className="flex items-center px-4 py-3 hover:bg-slate-700/50 transition-colors"
                             >
-                                <CogIcon className="w-4 h-4 text-slate-400" />
-                                <span className="text-sm text-slate-300">Configurações</span>
+                                <CogIcon className="w-5 h-5 text-slate-400 mr-3" />
+                                <span className="text-sm text-slate-200">Configurações</span>
                             </Link>
-
-                            <hr className="my-2 border-slate-700/50" />
-
                             <button
                                 onClick={() => {
                                     setShowUserMenu(false);
                                     handleLogout();
                                 }}
-                                className="w-full flex items-center space-x-3 px-4 py-2 hover:bg-red-500/10 transition-colors text-red-400 hover:text-red-300"
+                                className="w-full flex items-center px-4 py-3 hover:bg-slate-700/50 transition-colors text-red-400"
                             >
-                                <ArrowRightOnRectangleIcon className="w-4 h-4" />
-                                <span className="text-sm">Terminar Sessão</span>
+                                <ArrowRightOnRectangleIcon className="w-5 h-5 mr-3" />
+                                <span className="text-sm">Sair</span>
                             </button>
                         </div>
                     )}

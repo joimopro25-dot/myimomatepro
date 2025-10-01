@@ -1,13 +1,11 @@
 /**
  * OPPORTUNITY LIST - MyImoMatePro
- * Dashboard view to see all opportunities across all clients
- * Read-only list with filters and quick navigation
+ * FIXED: Using nested Firestore structure like DealList
  */
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useOpportunities } from '../contexts/OpportunityContext';
-import { collection, getDocs, query, where, doc, getDoc } from 'firebase/firestore';
+import { collection, getDocs } from 'firebase/firestore';
 import { db, auth } from '../firebase/config';
 import Layout from '../components/Layout';
 import {
@@ -29,16 +27,11 @@ import {
 import {
   OPPORTUNITY_STATUS,
   BUYER_SCORE_CRITERIA,
-  URGENCY_LEVELS,
-  PROPERTY_TYPES,
-  formatPriceRange,
-  getStatusColor,
-  getScoreColor
+  URGENCY_LEVELS
 } from '../models/opportunityModel';
 
 const OpportunityList = () => {
   const navigate = useNavigate();
-  const { getAllOpportunities, loading: contextLoading, error: contextError } = useOpportunities();
   
   const [opportunities, setOpportunities] = useState([]);
   const [filteredOpportunities, setFilteredOpportunities] = useState([]);
@@ -57,123 +50,72 @@ const OpportunityList = () => {
   const [sortBy, setSortBy] = useState('createdAt');
   const [sortOrder, setSortOrder] = useState('desc');
 
-  // Load opportunities on mount
   useEffect(() => {
     loadOpportunities();
   }, []);
+
+  useEffect(() => {
+    applyFilters();
+  }, [searchTerm, filterType, filterStatus, filterScore, filterUrgency, sortBy, sortOrder, opportunities]);
 
   const loadOpportunities = async () => {
     try {
       setLoading(true);
       setError(null);
-      
+
       if (!auth.currentUser) {
-        throw new Error('Utilizador não autenticado. Por favor, faça login novamente.');
+        throw new Error('Utilizador não autenticado');
       }
-      
-      const allOpps = [];
-      const currentUserId = auth.currentUser.uid;
-      
-      // Strategy 1: Try to get all clients first
-      let clientsMap = new Map();
-      try {
-        const clientsSnapshot = await getDocs(collection(db, 'clients'));
-        clientsSnapshot.forEach(doc => {
-          clientsMap.set(doc.id, { id: doc.id, ...doc.data() });
+
+      const allOpportunities = [];
+
+      // Get all clients using NESTED structure
+      const clientsRef = collection(db, 'consultants', auth.currentUser.uid, 'clients');
+      const clientsSnapshot = await getDocs(clientsRef);
+
+      console.log(`Found ${clientsSnapshot.size} clients`);
+
+      // For each client, get opportunities
+      for (const clientDoc of clientsSnapshot.docs) {
+        const clientData = clientDoc.data();
+        
+        const opportunitiesRef = collection(
+          db,
+          'consultants',
+          auth.currentUser.uid,
+          'clients',
+          clientDoc.id,
+          'opportunities'
+        );
+        const opportunitiesSnapshot = await getDocs(opportunitiesRef);
+
+        console.log(`Found ${opportunitiesSnapshot.size} opportunities for client ${clientDoc.id}`);
+
+        opportunitiesSnapshot.docs.forEach(oppDoc => {
+          const oppData = oppDoc.data();
+          allOpportunities.push({
+            id: oppDoc.id,
+            clientId: clientDoc.id,
+            clientName: clientData.name,
+            clientPhone: clientData.phone,
+            clientEmail: clientData.email,
+            ...oppData,
+            createdAt: oppData.createdAt?.toDate ? oppData.createdAt.toDate() : new Date(),
+            updatedAt: oppData.updatedAt?.toDate ? oppData.updatedAt.toDate() : null
+          });
         });
-        console.log(`Loaded ${clientsMap.size} clients`);
-      } catch (err) {
-        console.log('Could not load clients collection, will try alternative approach');
       }
-      
-      // If no clients loaded, try with consultant filter
-      if (clientsMap.size === 0) {
-        try {
-          const clientsQuery = query(
-            collection(db, 'clients'),
-            where('consultantId', '==', currentUserId)
-          );
-          const clientsSnapshot = await getDocs(clientsQuery);
-          clientsSnapshot.forEach(doc => {
-            clientsMap.set(doc.id, { id: doc.id, ...doc.data() });
-          });
-          console.log(`Loaded ${clientsMap.size} clients for consultant ${currentUserId}`);
-        } catch (err) {
-          console.log('Could not load filtered clients either');
-        }
-      }
-      
-      // Strategy 2: If still no clients, try to load opportunities directly from known client IDs
-      // This handles the case where we can read subcollections but not parent collections
-      const knownClientIds = ['lpRiBqqtTnBK4tuBiFAZ']; // Add known client IDs here
-      
-      if (clientsMap.size === 0) {
-        // Try to load client data individually
-        for (const clientId of knownClientIds) {
-          try {
-            const clientDoc = await getDoc(doc(db, 'clients', clientId));
-            if (clientDoc.exists()) {
-              clientsMap.set(clientId, { id: clientId, ...clientDoc.data() });
-            }
-          } catch (err) {
-            console.log(`Could not load client ${clientId}:`, err.message);
-          }
-        }
-      }
-      
-      // Load opportunities from all known clients
-      const clientIdsToCheck = clientsMap.size > 0 
-        ? Array.from(clientsMap.keys())
-        : knownClientIds;
-      
-      for (const clientId of clientIdsToCheck) {
-        try {
-          const oppsSnapshot = await getDocs(
-            collection(db, 'clients', clientId, 'opportunities')
-          );
-          
-          const clientData = clientsMap.get(clientId) || {};
-          
-          oppsSnapshot.docs.forEach(oppDoc => {
-            const oppData = oppDoc.data();
-            const opportunity = {
-              id: oppDoc.id,
-              ...oppData,
-              clientId: clientId,
-              clientName: clientData.name || 'Cliente',
-              clientPhone: clientData.phone || '',
-              clientEmail: clientData.email || '',
-              // Ensure dates are properly handled
-              createdAt: oppData.createdAt?.toDate ? oppData.createdAt.toDate() : 
-                        (oppData.createdAt ? new Date(oppData.createdAt) : new Date()),
-              updatedAt: oppData.updatedAt?.toDate ? oppData.updatedAt.toDate() : 
-                        (oppData.updatedAt ? new Date(oppData.updatedAt) : null),
-              lastActivityAt: oppData.lastActivityAt?.toDate ? oppData.lastActivityAt.toDate() : 
-                             (oppData.lastActivityAt ? new Date(oppData.lastActivityAt) : null)
-            };
-            allOpps.push(opportunity);
-          });
-        } catch (err) {
-          console.error(`Error loading opportunities for client ${clientId}:`, err);
-        }
-      }
-      
-      console.log(`Total opportunities loaded: ${allOpps.length}`);
-      setOpportunities(allOpps);
-      setFilteredOpportunities(allOpps);
-      
+
+      console.log(`Total opportunities loaded: ${allOpportunities.length}`);
+      setOpportunities(allOpportunities);
+      setFilteredOpportunities(allOpportunities);
     } catch (err) {
       console.error('Error loading opportunities:', err);
-      setError(err.message || 'Erro ao carregar oportunidades');
+      setError(err.message);
     } finally {
       setLoading(false);
     }
   };
-
-  // Apply filters when filter criteria change
-  useEffect(() => {
-    applyFilters();
-  }, [searchTerm, filterType, filterStatus, filterScore, filterUrgency, sortBy, sortOrder, opportunities]);
 
   const applyFilters = () => {
     let filtered = [...opportunities];
@@ -310,12 +252,6 @@ const OpportunityList = () => {
 
         {/* Client Info */}
         <div className="space-y-2 mb-4">
-          {opp.clientName && (
-            <div className="flex items-center text-sm text-gray-600">
-              <UserIcon className="w-4 h-4 mr-2" />
-              {opp.clientName}
-            </div>
-          )}
           {opp.clientPhone && (
             <div className="flex items-center text-sm text-gray-600">
               <PhoneIcon className="w-4 h-4 mr-2" />
@@ -336,7 +272,7 @@ const OpportunityList = () => {
                 </div>
                 <span className="font-medium text-sm">
                   {opp.qualification.budget.maxPrice 
-                    ? `Até ${parseInt(opp.qualification.budget.maxPrice).toLocaleString('pt-PT')} €`
+                    ? `Até €${parseInt(opp.qualification.budget.maxPrice).toLocaleString('pt-PT')}`
                     : 'A definir'
                   }
                 </span>
@@ -378,23 +314,6 @@ const OpportunityList = () => {
               </div>
             )}
 
-            {/* Property Type */}
-            {opp.qualification.requirements?.propertyTypes?.length > 0 && (
-              <div className="flex items-start justify-between">
-                <div className="flex items-center text-sm text-gray-600">
-                  <HomeModernIcon className="w-4 h-4 mr-2" />
-                  Tipo
-                </div>
-                <div className="text-right">
-                  <span className="text-sm text-gray-700">
-                    {opp.qualification.requirements.propertyTypes[0] === 'house' ? 'Moradia' : 
-                     opp.qualification.requirements.propertyTypes[0] === 'apartment' ? 'Apartamento' :
-                     opp.qualification.requirements.propertyTypes[0]}
-                  </span>
-                </div>
-              </div>
-            )}
-
             {/* Bedrooms */}
             {opp.qualification.requirements?.bedrooms?.min && (
               <div className="flex items-center justify-between">
@@ -417,11 +336,10 @@ const OpportunityList = () => {
         {/* Stats */}
         <div className="flex items-center justify-between pt-4 border-t text-xs text-gray-500">
           <span>
-            Criado {opp.createdAt ? new Date(opp.createdAt).toLocaleDateString('pt-PT') : 'N/A'}
+            Criado {opp.createdAt ? opp.createdAt.toLocaleDateString('pt-PT') : 'N/A'}
           </span>
           <div className="flex items-center space-x-4">
             <span>{opp.stats?.totalDeals || 0} negócios</span>
-            <span>{opp.stats?.propertiesViewed || 0} visitas</span>
           </div>
         </div>
       </div>
@@ -430,15 +348,15 @@ const OpportunityList = () => {
 
   return (
     <Layout>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="p-6">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Oportunidades</h1>
-          <p className="text-gray-600 mt-2">Gestão de todas as oportunidades de compra e venda</p>
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-gray-900">Oportunidades</h1>
+          <p className="text-gray-600 mt-1">Gestão de todas as oportunidades de compra e venda</p>
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
             <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
             <p className="text-sm text-gray-600">Total</p>
@@ -477,7 +395,7 @@ const OpportunityList = () => {
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   placeholder="Pesquisar por nome, telefone ou localização..."
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                 />
               </div>
             </div>
@@ -492,30 +410,10 @@ const OpportunityList = () => {
               <ChevronDownIcon className={`w-4 h-4 ml-2 transform transition-transform ${showFilters ? 'rotate-180' : ''}`} />
             </button>
 
-            {/* Sort */}
-            <div className="flex items-center space-x-2">
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="createdAt">Data de Criação</option>
-                <option value="urgency">Urgência</option>
-                <option value="score">Score</option>
-                <option value="price">Preço</option>
-              </select>
-              <button
-                onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-                className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-              >
-                <ArrowTrendingUpIcon className={`w-5 h-5 transform transition-transform ${sortOrder === 'desc' ? 'rotate-180' : ''}`} />
-              </button>
-            </div>
-
             {/* Reload Button */}
             <button
               onClick={loadOpportunities}
-              className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
               disabled={loading}
             >
               <ArrowPathIcon className={`w-5 h-5 mr-2 ${loading ? 'animate-spin' : ''}`} />
@@ -531,7 +429,7 @@ const OpportunityList = () => {
                 <select
                   value={filterType}
                   onChange={(e) => setFilterType(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
                 >
                   <option value="all">Todos</option>
                   <option value="buyer">Compradores</option>
@@ -544,7 +442,7 @@ const OpportunityList = () => {
                 <select
                   value={filterStatus}
                   onChange={(e) => setFilterStatus(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
                 >
                   <option value="all">Todos</option>
                   {OPPORTUNITY_STATUS.map(status => (
@@ -560,7 +458,7 @@ const OpportunityList = () => {
                 <select
                   value={filterScore}
                   onChange={(e) => setFilterScore(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
                 >
                   <option value="all">Todos</option>
                   <option value="A">Score A</option>
@@ -574,7 +472,7 @@ const OpportunityList = () => {
                 <select
                   value={filterUrgency}
                   onChange={(e) => setFilterUrgency(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
                 >
                   <option value="all">Todas</option>
                   {URGENCY_LEVELS.map(level => (
@@ -606,7 +504,10 @@ const OpportunityList = () => {
         {/* Opportunities Grid */}
         {loading ? (
           <div className="flex items-center justify-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+            <div className="text-center">
+              <ArrowPathIcon className="w-8 h-8 animate-spin text-indigo-600 mx-auto mb-4" />
+              <p className="text-gray-600">A carregar oportunidades...</p>
+            </div>
           </div>
         ) : error ? (
           <div className="text-center py-12">
@@ -615,7 +516,7 @@ const OpportunityList = () => {
             <p className="text-sm text-gray-600">{error}</p>
             <button
               onClick={loadOpportunities}
-              className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
             >
               Tentar Novamente
             </button>
