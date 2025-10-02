@@ -338,6 +338,66 @@ export const OpportunityProvider = ({ children }) => {
     }
   }, [currentOpportunity, getOpportunity, currentUser]);
 
+  // ===== UPDATE BUYER OPPORTUNITY (with validation & scoring) =====
+  const updateBuyerOpportunity = useCallback(async (clientId, opportunityId, opportunityData) => {
+    if (!currentUser?.uid || !clientId || !opportunityId) {
+      throw new Error('Missing required IDs');
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      // Validate data
+      const validation = validateBuyerOpportunity(opportunityData);
+      if (!validation.isValid) {
+        throw new Error('Dados inválidos: ' + Object.values(validation.errors).join(', '));
+      }
+
+      // Recalculate buyer score
+      const buyerScore = calculateBuyerScore(opportunityData.qualification);
+
+      // Use NESTED path
+      const oppRef = doc(db, 'consultants', currentUser.uid, 'clients', clientId, 'opportunities', opportunityId);
+
+      await updateDoc(oppRef, {
+        ...opportunityData,
+        buyerScore,
+        updatedAt: serverTimestamp(),
+        clientId,
+        consultantId: currentUser.uid
+      });
+
+      console.log('Buyer opportunity updated successfully');
+
+      // Update current opportunity state
+      setCurrentOpportunity(prev => ({
+        ...prev,
+        ...opportunityData,
+        buyerScore,
+        updatedAt: Timestamp.now()
+      }));
+
+      // Log activity
+      await addClientActivity(clientId, {
+        type: 'opportunity_updated',
+        description: 'Oportunidade de compra atualizada',
+        metadata: {
+          opportunityId,
+          buyerScore
+        }
+      });
+
+      return true;
+    } catch (err) {
+      console.error('Error updating buyer opportunity:', err);
+      setError(err.message);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, [currentUser]);
+
   // ===== GET ALL OPPORTUNITIES =====
   const getAllOpportunities = useCallback(async () => {
     try {
@@ -480,6 +540,7 @@ export const OpportunityProvider = ({ children }) => {
     
     // Actions
     createBuyerOpportunity,
+    updateBuyerOpportunity,  // added
     createOpportunity,
     getClientOpportunities,
     getOpportunity,

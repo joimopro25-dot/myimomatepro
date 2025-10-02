@@ -1,13 +1,13 @@
 /**
  * BUYER OPPORTUNITY FORM - MyImoMatePro
  * Multi-step form for qualifying buyer opportunities
- * Created from client context
+ * FIXED: Proper edit mode support with client data loading
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate, useParams } from 'react-router-dom'; // UPDATED: added useParams
+import { useNavigate, useParams } from 'react-router-dom';
 import { useOpportunities } from '../contexts/OpportunityContext';
-import Layout from '../components/Layout'; // ADDED
+import { useClients } from '../contexts/ClientContext';
 import {
   PROPERTY_TYPES,
   PROPERTY_PURPOSE,
@@ -27,30 +27,33 @@ import {
   SparklesIcon
 } from '@heroicons/react/24/outline';
 
-const BuyerOpportunityForm = ({ clientId: propClientId, clientName, onComplete, onCancel }) => { // UPDATED signature
+const BuyerOpportunityForm = ({ clientId: propClientId, clientName: propClientName, onComplete, onCancel }) => {
   const navigate = useNavigate();
-  const { clientId: urlClientId, opportunityId } = useParams(); // ADDED
-  const clientId = propClientId || urlClientId; // ADDED
-  const isEditMode = !!opportunityId; // ADDED
+  const { clientId: urlClientId, opportunityId } = useParams();
+  const clientId = propClientId || urlClientId;
+  const isEditMode = !!opportunityId;
 
   const { 
     createBuyerOpportunity, 
-    updateBuyerOpportunity, // ADDED
-    getOpportunity,         // ADDED
+    updateBuyerOpportunity,
+    getOpportunity,
     loading, 
     error: contextError 
   } = useOpportunities();
   
+  const { getClient } = useClients();
+  
   // Form state
   const [currentStep, setCurrentStep] = useState(1);
   const totalSteps = 4;
+  const [clientName, setClientName] = useState(propClientName || '');
+  const [isLoadingData, setIsLoadingData] = useState(isEditMode);
   
-  // Initialize form data
+  // Initialize form data with proper defaults to avoid null values
   const getInitialFormData = () => ({
-    title: '', // NEW: Title field to identify this opportunity
+    title: '',
     status: 'active',
     qualification: {
-      // Budget
       budget: {
         minPrice: '',
         maxPrice: '',
@@ -63,7 +66,6 @@ const BuyerOpportunityForm = ({ clientId: propClientId, clientName, onComplete, 
         monthlyPaymentCapacity: '',
         needsSaleProceeds: false
       },
-      // Requirements
       requirements: {
         propertyTypes: [],
         purpose: 'primary_residence',
@@ -82,7 +84,6 @@ const BuyerOpportunityForm = ({ clientId: propClientId, clientName, onComplete, 
         maxBuildingAge: '',
         renovationNeeded: 'any'
       },
-      // Timeline
       timeline: {
         urgency: 'flexible',
         idealMoveDate: '',
@@ -94,7 +95,6 @@ const BuyerOpportunityForm = ({ clientId: propClientId, clientName, onComplete, 
         preApprovedForViewing: false
       }
     },
-    // Notes
     internalNotes: '',
     clientExpectations: '',
     consultantStrategy: ''
@@ -103,6 +103,114 @@ const BuyerOpportunityForm = ({ clientId: propClientId, clientName, onComplete, 
   const [formData, setFormData] = useState(getInitialFormData());
   const [validationErrors, setValidationErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Load opportunity and client data for editing
+  useEffect(() => {
+    let isMounted = true; // Prevent state updates if unmounted
+    
+    const loadData = async () => {
+      if (!isEditMode || !opportunityId || !clientId) return;
+      
+      setIsLoadingData(true);
+      try {
+        // Load opportunity data
+        const oppData = await getOpportunity(clientId, opportunityId);
+        if (oppData && isMounted) {
+          // Normalize data to ensure no null values
+          const normalizedData = normalizeFormData(oppData);
+          setFormData(normalizedData);
+        }
+        
+        // Load client data if not provided via props
+        if (!propClientName && isMounted) {
+          const clientData = await getClient(clientId);
+          if (clientData) {
+            setClientName(clientData.name || 'Cliente');
+          }
+        }
+      } catch (e) {
+        console.error('Error loading data for edit:', e);
+      } finally {
+        if (isMounted) {
+          setIsLoadingData(false);
+        }
+      }
+    };
+    
+    loadData();
+    
+    return () => {
+      isMounted = false; // Cleanup
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEditMode, opportunityId, clientId, propClientName]); // Removed getOpportunity and getClient
+
+  // Normalize form data to replace null/undefined with empty strings
+  const normalizeFormData = (data) => {
+    const initial = getInitialFormData();
+    
+    // Deep merge with defaults to ensure no null values
+    const normalized = {
+      ...initial,
+      ...data,
+      title: data.title || '',
+      status: data.status || 'active',
+      qualification: {
+        budget: {
+          ...initial.qualification.budget,
+          ...(data.qualification?.budget || {}),
+          minPrice: data.qualification?.budget?.minPrice || '',
+          maxPrice: data.qualification?.budget?.maxPrice || '',
+          idealPrice: data.qualification?.budget?.idealPrice || '',
+          financingAmount: data.qualification?.budget?.financingAmount || '',
+          bankName: data.qualification?.budget?.bankName || '',
+          downPaymentAvailable: data.qualification?.budget?.downPaymentAvailable || '',
+          monthlyPaymentCapacity: data.qualification?.budget?.monthlyPaymentCapacity || ''
+        },
+        requirements: {
+          ...initial.qualification.requirements,
+          ...(data.qualification?.requirements || {}),
+          propertyTypes: data.qualification?.requirements?.propertyTypes || [],
+          preferredLocations: data.qualification?.requirements?.preferredLocations || [],
+          excludedLocations: data.qualification?.requirements?.excludedLocations || [],
+          mustHaveFeatures: data.qualification?.requirements?.mustHaveFeatures || [],
+          niceToHaveFeatures: data.qualification?.requirements?.niceToHaveFeatures || [],
+          dealBreakers: data.qualification?.requirements?.dealBreakers || [],
+          workAddress: data.qualification?.requirements?.workAddress || '',
+          maxDistanceToWork: data.qualification?.requirements?.maxDistanceToWork || '',
+          maxFloor: data.qualification?.requirements?.maxFloor || '',
+          minFloor: data.qualification?.requirements?.minFloor || '',
+          maxBuildingAge: data.qualification?.requirements?.maxBuildingAge || '',
+          bedrooms: {
+            min: data.qualification?.requirements?.bedrooms?.min || 1,
+            max: data.qualification?.requirements?.bedrooms?.max || ''
+          },
+          bathrooms: {
+            min: data.qualification?.requirements?.bathrooms?.min || 1,
+            max: data.qualification?.requirements?.bathrooms?.max || ''
+          },
+          area: {
+            min: data.qualification?.requirements?.area?.min || '',
+            max: data.qualification?.requirements?.area?.max || ''
+          }
+        },
+        timeline: {
+          ...initial.qualification.timeline,
+          ...(data.qualification?.timeline || {}),
+          viewingAvailability: data.qualification?.timeline?.viewingAvailability || [],
+          idealMoveDate: data.qualification?.timeline?.idealMoveDate || '',
+          currentSituationDetails: data.qualification?.timeline?.currentSituationDetails || '',
+          motivationToBuy: data.qualification?.timeline?.motivationToBuy || '',
+          decisionMakers: data.qualification?.timeline?.decisionMakers || ''
+        }
+      },
+      internalNotes: data.internalNotes || '',
+      clientExpectations: data.clientExpectations || '',
+      consultantStrategy: data.consultantStrategy || ''
+    };
+    
+    return normalized;
+  };
 
   // Handle field changes with nested object support
   const handleFieldChange = useCallback((path, value) => {
@@ -222,7 +330,7 @@ const BuyerOpportunityForm = ({ clientId: propClientId, clientName, onComplete, 
       }
 
       if (isEditMode) {
-        await updateBuyerOpportunity(clientId, opportunityId, formData); // UPDATED
+        await updateBuyerOpportunity(clientId, opportunityId, formData);
         if (onComplete) {
           onComplete(opportunityId);
         } else {
@@ -270,23 +378,6 @@ const BuyerOpportunityForm = ({ clientId: propClientId, clientName, onComplete, 
     handleFieldChange(path, current.filter((_, i) => i !== index));
   };
 
-  // Load opportunity data for editing
-  useEffect(() => {
-    if (isEditMode && opportunityId) {
-      const loadOpportunity = async () => {
-        try {
-          const oppData = await getOpportunity(clientId, opportunityId);
-          if (oppData) {
-            setFormData(oppData); // Adjust mapping if your stored shape differs
-          }
-        } catch (e) {
-          console.error('Error loading opportunity for edit:', e);
-        }
-      };
-      loadOpportunity();
-    }
-  }, [isEditMode, opportunityId, clientId, getOpportunity]);
-
   // Render step content
   const renderStepContent = () => {
     switch (currentStep) {
@@ -323,7 +414,7 @@ const BuyerOpportunityForm = ({ clientId: propClientId, clientName, onComplete, 
           </label>
           <input
             type="text"
-            value={formData.title}
+            value={formData.title || ''}
             onChange={(e) => handleFieldChange('title', e.target.value)}
             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
             placeholder="Ex: T3 Lisboa para família, Investimento em terreno Sintra, etc."
@@ -344,7 +435,7 @@ const BuyerOpportunityForm = ({ clientId: propClientId, clientName, onComplete, 
             </label>
             <input
               type="number"
-              value={formData.qualification.budget.minPrice}
+              value={formData.qualification.budget.minPrice || ''}
               onChange={(e) => handleFieldChange('qualification.budget.minPrice', e.target.value)}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
               placeholder="150000"
@@ -356,7 +447,7 @@ const BuyerOpportunityForm = ({ clientId: propClientId, clientName, onComplete, 
             </label>
             <input
               type="number"
-              value={formData.qualification.budget.maxPrice}
+              value={formData.qualification.budget.maxPrice || ''}
               onChange={(e) => handleFieldChange('qualification.budget.maxPrice', e.target.value)}
               className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-green-500 ${
                 validationErrors['budget.maxPrice'] ? 'border-red-500' : 'border-gray-300'
@@ -373,7 +464,7 @@ const BuyerOpportunityForm = ({ clientId: propClientId, clientName, onComplete, 
             </label>
             <input
               type="number"
-              value={formData.qualification.budget.idealPrice}
+              value={formData.qualification.budget.idealPrice || ''}
               onChange={(e) => handleFieldChange('qualification.budget.idealPrice', e.target.value)}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
               placeholder="200000"
@@ -419,7 +510,7 @@ const BuyerOpportunityForm = ({ clientId: propClientId, clientName, onComplete, 
                 </label>
                 <input
                   type="number"
-                  value={formData.qualification.budget.financingAmount}
+                  value={formData.qualification.budget.financingAmount || ''}
                   onChange={(e) => handleFieldChange('qualification.budget.financingAmount', e.target.value)}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
                   placeholder="180000"
@@ -431,7 +522,7 @@ const BuyerOpportunityForm = ({ clientId: propClientId, clientName, onComplete, 
                 </label>
                 <input
                   type="text"
-                  value={formData.qualification.budget.bankName}
+                  value={formData.qualification.budget.bankName || ''}
                   onChange={(e) => handleFieldChange('qualification.budget.bankName', e.target.value)}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
                   placeholder="Nome do banco"
@@ -443,7 +534,7 @@ const BuyerOpportunityForm = ({ clientId: propClientId, clientName, onComplete, 
                 </label>
                 <input
                   type="number"
-                  value={formData.qualification.budget.downPaymentAvailable}
+                  value={formData.qualification.budget.downPaymentAvailable || ''}
                   onChange={(e) => handleFieldChange('qualification.budget.downPaymentAvailable', e.target.value)}
                   className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-green-500 ${
                     validationErrors['budget.downPaymentAvailable'] ? 'border-red-500' : 'border-gray-300'
@@ -460,7 +551,7 @@ const BuyerOpportunityForm = ({ clientId: propClientId, clientName, onComplete, 
                 </label>
                 <input
                   type="number"
-                  value={formData.qualification.budget.monthlyPaymentCapacity}
+                  value={formData.qualification.budget.monthlyPaymentCapacity || ''}
                   onChange={(e) => handleFieldChange('qualification.budget.monthlyPaymentCapacity', e.target.value)}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
                   placeholder="1200"
@@ -565,7 +656,7 @@ const BuyerOpportunityForm = ({ clientId: propClientId, clientName, onComplete, 
             <input
               type="number"
               min="0"
-              value={formData.qualification.requirements.bedrooms.min}
+              value={formData.qualification.requirements.bedrooms.min || ''}
               onChange={(e) => handleFieldChange('qualification.requirements.bedrooms.min', e.target.value)}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
               placeholder="2"
@@ -576,7 +667,7 @@ const BuyerOpportunityForm = ({ clientId: propClientId, clientName, onComplete, 
             <input
               type="number"
               min="0"
-              value={formData.qualification.requirements.bedrooms.max}
+              value={formData.qualification.requirements.bedrooms.max || ''}
               onChange={(e) => handleFieldChange('qualification.requirements.bedrooms.max', e.target.value)}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
               placeholder="4"
@@ -587,7 +678,7 @@ const BuyerOpportunityForm = ({ clientId: propClientId, clientName, onComplete, 
             <input
               type="number"
               min="0"
-              value={formData.qualification.requirements.bathrooms.min}
+              value={formData.qualification.requirements.bathrooms.min || ''}
               onChange={(e) => handleFieldChange('qualification.requirements.bathrooms.min', e.target.value)}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
               placeholder="1"
@@ -598,7 +689,7 @@ const BuyerOpportunityForm = ({ clientId: propClientId, clientName, onComplete, 
             <input
               type="number"
               min="0"
-              value={formData.qualification.requirements.bathrooms.max}
+              value={formData.qualification.requirements.bathrooms.max || ''}
               onChange={(e) => handleFieldChange('qualification.requirements.bathrooms.max', e.target.value)}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
               placeholder="3"
@@ -611,7 +702,7 @@ const BuyerOpportunityForm = ({ clientId: propClientId, clientName, onComplete, 
             <label className="block text-sm font-medium text-gray-700 mb-2">Área Mínima (m²)</label>
             <input
               type="number"
-              value={formData.qualification.requirements.area.min}
+              value={formData.qualification.requirements.area.min || ''}
               onChange={(e) => handleFieldChange('qualification.requirements.area.min', e.target.value)}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
               placeholder="80"
@@ -621,7 +712,7 @@ const BuyerOpportunityForm = ({ clientId: propClientId, clientName, onComplete, 
             <label className="block text-sm font-medium text-gray-700 mb-2">Área Máxima (m²)</label>
             <input
               type="number"
-              value={formData.qualification.requirements.area.max}
+              value={formData.qualification.requirements.area.max || ''}
               onChange={(e) => handleFieldChange('qualification.requirements.area.max', e.target.value)}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
               placeholder="150"
@@ -634,7 +725,7 @@ const BuyerOpportunityForm = ({ clientId: propClientId, clientName, onComplete, 
             <label className="block text-sm font-medium text-gray-700 mb-2">Andar Mínimo</label>
             <input
               type="number"
-              value={formData.qualification.requirements.minFloor}
+              value={formData.qualification.requirements.minFloor || ''}
               onChange={(e) => handleFieldChange('qualification.requirements.minFloor', e.target.value)}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
               placeholder="0"
@@ -644,7 +735,7 @@ const BuyerOpportunityForm = ({ clientId: propClientId, clientName, onComplete, 
             <label className="block text-sm font-medium text-gray-700 mb-2">Andar Máximo</label>
             <input
               type="number"
-              value={formData.qualification.requirements.maxFloor}
+              value={formData.qualification.requirements.maxFloor || ''}
               onChange={(e) => handleFieldChange('qualification.requirements.maxFloor', e.target.value)}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
               placeholder="5"
@@ -654,7 +745,7 @@ const BuyerOpportunityForm = ({ clientId: propClientId, clientName, onComplete, 
             <label className="block text-sm font-medium text-gray-700 mb-2">Idade Máxima (anos)</label>
             <input
               type="number"
-              value={formData.qualification.requirements.maxBuildingAge}
+              value={formData.qualification.requirements.maxBuildingAge || ''}
               onChange={(e) => handleFieldChange('qualification.requirements.maxBuildingAge', e.target.value)}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
               placeholder="20"
@@ -747,7 +838,7 @@ const BuyerOpportunityForm = ({ clientId: propClientId, clientName, onComplete, 
             </label>
             <input
               type="text"
-              value={formData.qualification.requirements.workAddress}
+              value={formData.qualification.requirements.workAddress || ''}
               onChange={(e) => handleFieldChange('qualification.requirements.workAddress', e.target.value)}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
               placeholder="Ex: Av. da Liberdade, Lisboa"
@@ -759,7 +850,7 @@ const BuyerOpportunityForm = ({ clientId: propClientId, clientName, onComplete, 
             </label>
             <input
               type="text"
-              value={formData.qualification.requirements.maxDistanceToWork}
+              value={formData.qualification.requirements.maxDistanceToWork || ''}
               onChange={(e) => handleFieldChange('qualification.requirements.maxDistanceToWork', e.target.value)}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
               placeholder="Ex: 30 min ou 20 km"
@@ -907,7 +998,7 @@ const BuyerOpportunityForm = ({ clientId: propClientId, clientName, onComplete, 
             </label>
             <input
               type="text"
-              value={formData.qualification.timeline.currentSituationDetails}
+              value={formData.qualification.timeline.currentSituationDetails || ''}
               onChange={(e) => handleFieldChange('qualification.timeline.currentSituationDetails', e.target.value)}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
               placeholder="Ex: Contrato termina em Março, casa dos pais, etc."
@@ -927,7 +1018,7 @@ const BuyerOpportunityForm = ({ clientId: propClientId, clientName, onComplete, 
             </label>
             <input
               type="date"
-              value={formData.qualification.timeline.idealMoveDate}
+              value={formData.qualification.timeline.idealMoveDate || ''}
               onChange={(e) => handleFieldChange('qualification.timeline.idealMoveDate', e.target.value)}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
             />
@@ -938,7 +1029,7 @@ const BuyerOpportunityForm = ({ clientId: propClientId, clientName, onComplete, 
               Motivação para Comprar
             </label>
             <textarea
-              value={formData.qualification.timeline.motivationToBuy}
+              value={formData.qualification.timeline.motivationToBuy || ''}
               onChange={(e) => handleFieldChange('qualification.timeline.motivationToBuy', e.target.value)}
               rows={3}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
@@ -952,7 +1043,7 @@ const BuyerOpportunityForm = ({ clientId: propClientId, clientName, onComplete, 
             </label>
             <input
               type="text"
-              value={formData.qualification.timeline.decisionMakers}
+              value={formData.qualification.timeline.decisionMakers || ''}
               onChange={(e) => handleFieldChange('qualification.timeline.decisionMakers', e.target.value)}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
               placeholder="Ex: Casal, precisa aprovação dos pais, decisão individual..."
@@ -996,7 +1087,7 @@ const BuyerOpportunityForm = ({ clientId: propClientId, clientName, onComplete, 
               Expectativas do Cliente
             </label>
             <textarea
-              value={formData.clientExpectations}
+              value={formData.clientExpectations || ''}
               onChange={(e) => handleFieldChange('clientExpectations', e.target.value)}
               rows={3}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
@@ -1009,7 +1100,7 @@ const BuyerOpportunityForm = ({ clientId: propClientId, clientName, onComplete, 
               Estratégia do Consultor
             </label>
             <textarea
-              value={formData.consultantStrategy}
+              value={formData.consultantStrategy || ''}
               onChange={(e) => handleFieldChange('consultantStrategy', e.target.value)}
               rows={3}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
@@ -1022,7 +1113,7 @@ const BuyerOpportunityForm = ({ clientId: propClientId, clientName, onComplete, 
               Notas Internas
             </label>
             <textarea
-              value={formData.internalNotes}
+              value={formData.internalNotes || ''}
               onChange={(e) => handleFieldChange('internalNotes', e.target.value)}
               rows={3}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
@@ -1072,6 +1163,20 @@ const BuyerOpportunityForm = ({ clientId: propClientId, clientName, onComplete, 
     </div>
   );
 
+  // Show loading state while fetching data in edit mode
+  if (isLoadingData) {
+    return (
+      <div className="max-w-4xl mx-auto p-6">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">A carregar dados da oportunidade...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-4xl mx-auto p-6">
       {/* Header */}
@@ -1079,17 +1184,17 @@ const BuyerOpportunityForm = ({ clientId: propClientId, clientName, onComplete, 
         <div className="flex items-center justify-between">
           <div className="flex items-center">
             <button
-              onClick={onCancel}
+              onClick={onCancel || (() => navigate(-1))}
               className="mr-4 p-2 text-gray-600 hover:text-gray-900 transition-colors"
             >
               <ArrowLeftIcon className="w-5 h-5" />
             </button>
             <div>
               <h1 className="text-2xl font-bold text-gray-900">
-                Nova Oportunidade de Compra
+                {isEditMode ? 'Editar Oportunidade de Compra' : 'Nova Oportunidade de Compra'}
               </h1>
               <p className="text-sm text-gray-600 mt-1">
-                Cliente: <span className="font-medium">{clientName}</span>
+                Cliente: <span className="font-medium">{clientName || 'A carregar...'}</span>
               </p>
             </div>
           </div>
@@ -1116,7 +1221,7 @@ const BuyerOpportunityForm = ({ clientId: propClientId, clientName, onComplete, 
       <div className="mt-8 flex justify-between">
         <button
           type="button"
-          onClick={currentStep === 1 ? onCancel : handlePrevious}
+          onClick={currentStep === 1 ? (onCancel || (() => navigate(-1))) : handlePrevious}
           className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
         >
           {currentStep === 1 ? 'Cancelar' : 'Anterior'}
@@ -1137,7 +1242,10 @@ const BuyerOpportunityForm = ({ clientId: propClientId, clientName, onComplete, 
             disabled={isSubmitting || loading}
             className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isSubmitting ? 'Criando...' : 'Criar Oportunidade'}
+            {isSubmitting 
+              ? (isEditMode ? 'A guardar...' : 'A criar...') 
+              : (isEditMode ? 'Guardar Alterações' : 'Criar Oportunidade')
+            }
           </button>
         )}
       </div>
