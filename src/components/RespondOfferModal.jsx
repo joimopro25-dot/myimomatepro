@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { X, CheckCircle, XCircle, ArrowLeftRight, FileX, MessageSquare } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { useDeal } from '../contexts/DealContext';
 import { updateOffer } from '../models/buyerDealModel';
 import { Timestamp } from 'firebase/firestore';
 
@@ -16,6 +17,7 @@ const RespondOfferModal = ({
   onSuccess 
 }) => {
   const { currentUser } = useAuth();
+  const { initializeTransaction } = useDeal();
   const [loading, setLoading] = useState(false);
   const [responseData, setResponseData] = useState({
     counterAmount: '',
@@ -111,6 +113,12 @@ const RespondOfferModal = ({
         offer.id,
         updateData
       );
+
+      // If accepted, initialize transaction
+      if (action === 'accept') {
+        const acceptedOffer = { ...offer, ...updateData, status: 'accepted' };
+        await initializeTransaction(clientId, opportunityId, dealId, acceptedOffer);
+      }
 
       // IMPORTANT: Close modal first
       onClose();

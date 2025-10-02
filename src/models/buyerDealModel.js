@@ -121,19 +121,24 @@ export const DEAL_PRIORITY = [
 
 // Deal stages for Kanban board
 export const BUYER_DEAL_STAGES = [
-  { value: 'lead', label: 'Lead', color: 'gray' },
-  { value: 'viewing', label: 'A Visitar', color: 'blue' },
-  { value: 'viewing_scheduled', label: 'Visita Agendada', color: 'blue' },
-  { value: 'viewing_completed', label: 'Visita Realizada', color: 'cyan' },
-  { value: 'evaluating', label: 'Em Avaliação', color: 'yellow' },
-  { value: 'offer_made', label: 'Proposta Feita', color: 'yellow' },
-  { value: 'offer_submitted', label: 'Proposta Enviada', color: 'orange' },
-  { value: 'negotiating', label: 'Em Negociação', color: 'orange' },
-  { value: 'negotiation', label: 'Negociação', color: 'orange' },
-  { value: 'accepted', label: 'Aceite', color: 'green' },
-  { value: 'closed_won', label: 'Fechado (Ganho)', color: 'green' },
-  { value: 'lost', label: 'Perdido', color: 'red' },
-  { value: 'closed_lost', label: 'Fechado (Perdido)', color: 'red' }
+  { value: 'lead', label: 'Lead', color: 'gray', order: 1 },
+  { value: 'viewing', label: 'A Visitar', color: 'blue', order: 2 },
+  { value: 'viewing_scheduled', label: 'Visita Agendada', color: 'indigo', order: 3 },
+  { value: 'viewing_completed', label: 'Visita Realizada', color: 'purple', order: 4 },
+  { value: 'evaluation', label: 'Em Avaliação', color: 'yellow', order: 5 },
+  { value: 'offer', label: 'Proposta Feita', color: 'orange', order: 6 },
+  { value: 'negotiation', label: 'Negociação', color: 'amber', order: 7 },
+  { value: 'accepted', label: 'Aceite', color: 'green', order: 8 },
+
+  // NEW TRANSACTION STAGES
+  { value: 'cpcv_preparation', label: 'CPCV em Preparação', color: 'emerald', order: 9 },
+  { value: 'cpcv_signed', label: 'CPCV Assinado', color: 'teal', order: 10 },
+  { value: 'escritura_scheduled', label: 'Escritura Agendada', color: 'cyan', order: 11 },
+  { value: 'completed', label: 'Concluído', color: 'green', order: 12 },
+
+  { value: 'won', label: 'Fechado (Ganho)', color: 'green', order: 13 },
+  { value: 'lost', label: 'Perdido', color: 'red', order: 14 },
+  { value: 'closed_lost', label: 'Fechado (Perdido)', color: 'red', order: 15 }
 ];
 
 // Interest levels

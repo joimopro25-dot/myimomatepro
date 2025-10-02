@@ -50,6 +50,15 @@ import {
   getAgentRating
 } from '../models/agentModel';
 
+import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from "../firebase/config";
+import { 
+  createTransactionData, 
+  updateCPCVData, 
+  updateEscrituraData,
+  completeTransaction 
+} from '../models/transactionModel';
+
 const DealContext = createContext();
 
 export const useDeal = () => {
@@ -591,6 +600,70 @@ export const DealProvider = ({ children }) => {
   };
 
   // ========================================
+  // TRANSACTION OPERATIONS
+  // ========================================
+  /**
+   * Initialize transaction after offer acceptance
+   */
+  const initializeTransaction = async (clientId, opportunityId, dealId, acceptedOffer) => {
+    try {
+      const transactionData = createTransactionData(acceptedOffer);
+
+      await updateDoc(
+        doc(db, `consultants/${currentUser.uid}/clients/${clientId}/opportunities/${opportunityId}/deals/${dealId}`),
+        {
+          transaction: transactionData,
+          stage: 'cpcv_preparation',
+          updatedAt: serverTimestamp()
+        }
+      );
+
+      // Optimistically update local state
+      setDeals(prev =>
+        prev.map(d =>
+          d.id === dealId
+            ? { ...d, transaction: transactionData, stage: 'cpcv_preparation', updatedAt: new Date() }
+            : d
+        )
+      );
+
+      return transactionData;
+    } catch (error) {
+      console.error('Error initializing transaction:', error);
+      throw error;
+    }
+  };
+
+  /**
+   * Update transaction (CPCV, Escritura, etc)
+   */
+  const updateTransaction = async (clientId, opportunityId, dealId, transactionData) => {
+    try {
+      await updateDoc(
+        doc(db, `consultants/${currentUser.uid}/clients/${clientId}/opportunities/${opportunityId}/deals/${dealId}`),
+        {
+          transaction: transactionData,
+          stage: transactionData.stage,
+          updatedAt: serverTimestamp()
+        }
+      );
+
+      // Optimistically update local state
+      setDeals(prev =>
+        prev.map(d =>
+          d.id === dealId
+            ? { ...d, transaction: transactionData, stage: transactionData.stage, updatedAt: new Date() }
+            : d
+        )
+      );
+      return true;
+    } catch (error) {
+      console.error('Error updating transaction:', error);
+      throw error;
+    }
+  };
+
+  // ========================================
   // UTILITY FUNCTIONS
   // ========================================
 
@@ -656,6 +729,10 @@ export const DealProvider = ({ children }) => {
 
     // Activity operations
     loadDealActivities,
+
+    // Transaction operations
+    initializeTransaction,
+    updateTransaction,
 
     // Utility functions
     getDealsNeedingAttention,

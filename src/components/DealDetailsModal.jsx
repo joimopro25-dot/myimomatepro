@@ -11,6 +11,8 @@ import ViewingHistory from './ViewingHistory';
 import OfferTimeline from './OfferTimeline';
 import MakeOfferModal from './MakeOfferModal';
 import RespondOfferModal from './RespondOfferModal';
+import { useDeal } from '../contexts/DealContext';
+import TransactionTimeline from './TransactionTimeline';
 
 const DealDetailsModal = ({ 
   deal, 
@@ -25,6 +27,8 @@ const DealDetailsModal = ({
 }) => {
   const [activeTab, setActiveTab] = useState('overview');
   const [offerRefreshKey, setOfferRefreshKey] = useState(0); // ensure present
+
+  const { updateTransaction } = useDeal();
   
   // Offer modal states
   const [showMakeOfferModal, setShowMakeOfferModal] = useState(false);
@@ -68,6 +72,18 @@ const DealDetailsModal = ({
     if (onUpdate) {
       onUpdate();
     }
+  };
+
+  // Helper: map transaction stage to label
+  const getStageLabel = (stage) => {
+    const labels = {
+      offer_accepted: 'Proposta Aceite',
+      cpcv_preparation: 'Preparação CPCV',
+      cpcv_signed: 'CPCV Assinado',
+      escritura_scheduled: 'Escritura Agendada',
+      completed: 'Concluído'
+    };
+    return labels[stage] || stage || 'Em curso';
   };
 
   return (
@@ -136,6 +152,23 @@ const DealDetailsModal = ({
               >
                 Notas
               </button>
+              {deal.transaction && (
+                <button
+                  onClick={() => setActiveTab('transaction')}
+                  className={`py-3 border-b-2 font-medium text-sm ${
+                    activeTab === 'transaction'
+                      ? 'border-blue-600 text-blue-600'
+                      : 'border-transparent text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  <span className="inline-flex items-center gap-2">
+                    Transação
+                    <span className="ml-2 px-2 py-0.5 bg-purple-100 text-purple-700 rounded text-xs">
+                      {getStageLabel(deal.transaction.stage)}
+                    </span>
+                  </span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -266,6 +299,16 @@ const DealDetailsModal = ({
                   Guardar Notas
                 </button>
               </div>
+            )}
+
+            {activeTab === 'transaction' && deal.transaction && (
+              <TransactionTimeline
+                transaction={deal.transaction}
+                onUpdateTransaction={async (updated) => {
+                  await updateTransaction(client.id, opportunity.id, deal.id, updated);
+                  if (onUpdate) onUpdate();
+                }}
+              />
             )}
           </div>
 

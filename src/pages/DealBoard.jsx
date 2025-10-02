@@ -12,6 +12,7 @@ import ViewingHistory from '../components/ViewingHistory';
 import OfferTimeline from '../components/OfferTimeline';
 import MakeOfferModal from '../components/MakeOfferModal';
 import RespondOfferModal from '../components/RespondOfferModal';
+import TransactionTimeline from '../components/TransactionTimeline';
 import {
   HomeModernIcon,
   MapPinIcon,
@@ -443,7 +444,7 @@ const DealBoard = () => {
   );
 };
 
-// Deal Card Component - UPDATED WITH OFFER BADGES
+// Deal Card Component - UPDATED WITH TRANSACTION BADGE
 const DealCard = ({ deal, onDragStart, onClick, onSchedule, onRecord, urgencyColor }) => {
   const interestLevel = INTEREST_LEVELS.find(l => l.value === deal.scoring?.buyerInterestLevel);
   const viewingCount = deal.viewings?.length || 0;
@@ -457,6 +458,25 @@ const DealCard = ({ deal, onDragStart, onClick, onSchedule, onRecord, urgencyCol
   };
 
   const offerStatusConfig = getOfferStatusConfig();
+
+  const getTransactionBadgeColor = (stage) => {
+    const map = {
+      offer_accepted: 'bg-green-100 text-green-800 border-green-200',
+      cpcv_signed: 'bg-purple-100 text-purple-800 border-purple-200',
+      escritura_scheduled: 'bg-blue-100 text-blue-800 border-blue-200',
+      completed: 'bg-emerald-100 text-emerald-800 border-emerald-200'
+    };
+    return map[stage] || 'bg-gray-100 text-gray-800 border-gray-200';
+  };
+  const getStageLabel = (stage) => {
+    const labels = {
+      offer_accepted: 'Proposta Aceite',
+      cpcv_signed: 'CPCV Assinado',
+      escritura_scheduled: 'Escritura Agendada',
+      completed: 'Concluído'
+    };
+    return labels[stage] || stage;
+  };
 
   return (
     <div
@@ -523,6 +543,13 @@ const DealCard = ({ deal, onDragStart, onClick, onSchedule, onRecord, urgencyCol
             </span>
           )}
         </div>
+
+        {/* Transaction Badge - NEW */}
+        {deal.transaction?.stage && (
+          <div className={`inline-flex items-center text-xs font-medium rounded px-2 py-1 border ${getTransactionBadgeColor(deal.transaction.stage)}`}>
+            {getStageLabel(deal.transaction.stage)}
+          </div>
+        )}
       </div>
 
       {/* Two Buttons */}
@@ -553,15 +580,17 @@ const DealCard = ({ deal, onDragStart, onClick, onSchedule, onRecord, urgencyCol
   );
 };
 
-// Deal Details Modal Component - UPDATED WITH PROPOSTAS TAB
+// Deal Details Modal Component - UPDATED WITH TRANSACTION TAB
 const DealDetailsModal = ({ deal, client, opportunity, onClose, onAddViewing, onEditViewing, onCompleteViewing, onUpdate, footer }) => {
   const [activeTab, setActiveTab] = useState('overview');
-  
+
   // Offer modal states
   const [showMakeOfferModal, setShowMakeOfferModal] = useState(false);
   const [showRespondOfferModal, setShowRespondOfferModal] = useState(false);
   const [selectedOffer, setSelectedOffer] = useState(null);
   const [offerAction, setOfferAction] = useState(null);
+
+  const { updateTransaction } = useDeal();
 
   const handleMakeOffer = (offer = null) => {
     setSelectedOffer(offer);
@@ -648,6 +677,18 @@ const DealDetailsModal = ({ deal, client, opportunity, onClose, onAddViewing, on
               >
                 Notas
               </button>
+              {deal.transaction && (
+                <button
+                  onClick={() => setActiveTab('transaction')}
+                  className={`py-3 border-b-2 font-medium text-sm ${
+                    activeTab === 'transaction'
+                      ? 'border-blue-600 text-blue-600'
+                      : 'border-transparent text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  Transação
+                </button>
+              )}
             </div>
           </div>
 
@@ -757,6 +798,16 @@ const DealDetailsModal = ({ deal, client, opportunity, onClose, onAddViewing, on
                   <p className="text-gray-500 text-center py-8">Sem notas</p>
                 )}
               </div>
+            )}
+
+            {activeTab === 'transaction' && deal.transaction && (
+              <TransactionTimeline
+                transaction={deal.transaction}
+                onUpdateTransaction={async (updated) => {
+                  await updateTransaction(client.id, opportunity.id, deal.id, updated);
+                  if (onUpdate) onUpdate();
+                }}
+              />
             )}
           </div>
 
