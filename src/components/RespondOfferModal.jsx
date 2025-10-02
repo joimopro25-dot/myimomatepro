@@ -15,7 +15,7 @@ const RespondOfferModal = ({
   action, // 'accept', 'reject', 'counter', 'send'
   onSuccess 
 }) => {
-  const { user } = useAuth();
+  const { currentUser } = useAuth();
   const [loading, setLoading] = useState(false);
   const [responseData, setResponseData] = useState({
     counterAmount: '',
@@ -106,7 +106,7 @@ const RespondOfferModal = ({
       }
 
       await updateOffer(
-        user.uid,
+        currentUser.uid,
         clientId,
         opportunityId,
         dealId,

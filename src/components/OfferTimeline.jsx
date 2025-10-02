@@ -2,10 +2,10 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { getOffers, OFFER_STATUS } from '../models/buyerDealModel';
-import { Clock, CheckCircle, XCircle, ArrowLeftRight, AlertCircle, FileX, Edit } from 'lucide-react';
+import { Clock, CheckCircle, XCircle, ArrowLeftRight, AlertCircle, FileX, Edit, Lock } from 'lucide-react';
 
 const OfferTimeline = ({ clientId, opportunityId, dealId, onMakeOffer, onRespondOffer }) => {
-  const { user } = useAuth();
+  const { currentUser } = useAuth();
   const [offers, setOffers] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -16,7 +16,7 @@ const OfferTimeline = ({ clientId, opportunityId, dealId, onMakeOffer, onRespond
   const loadOffers = async () => {
     try {
       setLoading(true);
-      const data = await getOffers(user.uid, clientId, opportunityId, dealId);
+      const data = await getOffers(currentUser.uid, clientId, opportunityId, dealId);
       setOffers(data);
     } catch (error) {
       console.error('Error loading offers:', error);
@@ -116,13 +116,17 @@ const OfferTimeline = ({ clientId, opportunityId, dealId, onMakeOffer, onRespond
     );
   };
 
-  const OfferCard = ({ offer }) => {
+  const OfferCard = ({ offer, isLocked, onMakeOffer, onRespondOffer }) => {
     const statusConfig = getStatusConfig(offer.status);
-    const showActions = offer.status === 'countered' || offer.status === 'sent';
+    const showActions = !isLocked && (offer.status === 'countered' || offer.status === 'sent');
     const hasCounter = offer.counterAmount > 0;
 
     return (
-      <div className="border rounded-lg p-4 bg-white hover:shadow-md transition-shadow">
+      <div
+        className={`border rounded-lg p-4 bg-white hover:shadow-md transition-shadow ${
+          isLocked && offer.status !== 'accepted' ? 'opacity-50' : ''
+        }`}
+      >
         {/* Header */}
         <div className="flex items-start justify-between mb-3">
           <div className="flex items-center gap-2">
@@ -265,7 +269,7 @@ const OfferTimeline = ({ clientId, opportunityId, dealId, onMakeOffer, onRespond
         )}
 
         {/* Draft Actions */}
-        {offer.status === 'draft' && (
+        {offer.status === 'draft' && !isLocked && (
           <div className="flex gap-2 mt-4 pt-3 border-t">
             <button
               onClick={() => onMakeOffer(offer)}
@@ -285,6 +289,9 @@ const OfferTimeline = ({ clientId, opportunityId, dealId, onMakeOffer, onRespond
     );
   };
 
+  const hasAcceptedOffer = offers.some(offer => offer.status === 'accepted');
+  const acceptedOffer = offers.find(offer => offer.status === 'accepted');
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -293,7 +300,7 @@ const OfferTimeline = ({ clientId, opportunityId, dealId, onMakeOffer, onRespond
     );
   }
 
-  if (offers.length === 0) {
+  if (!loading && offers.length === 0) {
     return (
       <div className="text-center py-8">
         <div className="text-gray-400 mb-4">
@@ -312,23 +319,48 @@ const OfferTimeline = ({ clientId, opportunityId, dealId, onMakeOffer, onRespond
 
   return (
     <div className="space-y-4">
+      {/* Accepted Offer Banner - NEW */}
+      {hasAcceptedOffer && acceptedOffer && (
+        <div className="bg-green-50 border-2 border-green-500 rounded-lg p-4 mb-4">
+          <div className="flex items-center gap-3">
+            <CheckCircle className="w-6 h-6 text-green-600" />
+            <div className="flex-1">
+              <h4 className="font-semibold text-green-900">
+                ✅ Proposta Aceite - Negócio Fechado
+              </h4>
+              <p className="text-sm text-green-700 mt-1">
+                Proposta #{acceptedOffer.offerNumber} aceite por {formatCurrency(acceptedOffer.counterAmount || acceptedOffer.amount)}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-semibold text-gray-900">
           📋 Histórico de Propostas ({offers.length})
         </h3>
-        <button
-          onClick={() => onMakeOffer(null)}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
-        >
-          + Nova Proposta
-        </button>
+        {!hasAcceptedOffer && (
+          <button
+            onClick={() => onMakeOffer(null)}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+          >
+            + Nova Proposta
+          </button>
+        )}
       </div>
 
       {/* Timeline */}
       <div className="space-y-4">
         {offers.map((offer) => (
-          <OfferCard key={offer.id} offer={offer} />
+          <OfferCard
+            key={offer.id}
+            offer={offer}
+            isLocked={hasAcceptedOffer && offer.status !== 'accepted'}
+            onMakeOffer={onMakeOffer}
+            onRespondOffer={onRespondOffer}
+          />
         ))}
       </div>
     </div>

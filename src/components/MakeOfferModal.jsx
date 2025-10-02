@@ -15,7 +15,7 @@ const MakeOfferModal = ({
   existingOffer = null,
   onSuccess 
 }) => {
-  const { user } = useAuth();
+  const { currentUser } = useAuth();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     amount: '',
@@ -110,7 +110,7 @@ const MakeOfferModal = ({
       if (existingOffer) {
         // Update existing draft offer
         await updateOffer(
-          user.uid,
+          currentUser.uid,
           clientId,
           opportunityId,
           dealId,
@@ -120,7 +120,7 @@ const MakeOfferModal = ({
       } else {
         // Create new offer
         await createOffer(
-          user.uid,
+          currentUser.uid,
           clientId,
           opportunityId,
           dealId,
@@ -132,6 +132,7 @@ const MakeOfferModal = ({
       onClose();
     } catch (error) {
       console.error('Error saving offer:', error);
+      console.error('Error details:', error.message, error.stack);
       alert('Erro ao guardar proposta. Tente novamente.');
     } finally {
       setLoading(false);

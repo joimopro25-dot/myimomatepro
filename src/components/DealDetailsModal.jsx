@@ -24,6 +24,7 @@ const DealDetailsModal = ({
   footer 
 }) => {
   const [activeTab, setActiveTab] = useState('overview');
+  const [offerRefreshKey, setOfferRefreshKey] = useState(0); // ensure present
   
   // Offer modal states
   const [showMakeOfferModal, setShowMakeOfferModal] = useState(false);
@@ -31,26 +32,42 @@ const DealDetailsModal = ({
   const [selectedOffer, setSelectedOffer] = useState(null);
   const [offerAction, setOfferAction] = useState(null);
 
+  // UPDATED: Prevent actions when an offer is accepted
   const handleMakeOffer = (offer = null) => {
+    const hasAccepted = deal.latestOfferStatus === 'accepted';
+    if (hasAccepted && !offer) {
+      alert('Não é possível criar novas propostas. Uma oferta já foi aceite.');
+      return;
+    }
     setSelectedOffer(offer);
     setShowMakeOfferModal(true);
   };
 
   const handleRespondOffer = (offer, action) => {
+    const locked = deal.latestOfferStatus === 'accepted' && offer.status !== 'accepted';
+    if (locked) {
+      alert('Não é possível modificar propostas. Uma oferta já foi aceite.');
+      return;
+    }
     setSelectedOffer(offer);
     setOfferAction(action);
     setShowRespondOfferModal(true);
   };
 
   const handleOfferSuccess = () => {
-    // Reload deal data to get updated offers
-    if (onUpdate) {
-      onUpdate();
-    }
+    // Force refresh by changing key
+    setOfferRefreshKey(prev => prev + 1);
+
+    // Close modals
     setShowMakeOfferModal(false);
     setShowRespondOfferModal(false);
     setSelectedOffer(null);
     setOfferAction(null);
+
+    // Update parent deal data
+    if (onUpdate) {
+      onUpdate();
+    }
   };
 
   return (
@@ -220,6 +237,7 @@ const DealDetailsModal = ({
 
             {activeTab === 'propostas' && (
               <OfferTimeline
+                key={`offers-${deal.id}-${offerRefreshKey}`} // Enhanced key
                 clientId={client.id}
                 opportunityId={opportunity.id}
                 dealId={deal.id}
