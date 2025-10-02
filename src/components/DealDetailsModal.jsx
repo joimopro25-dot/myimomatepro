@@ -55,16 +55,16 @@ const DealDetailsModal = ({
   };
 
   const handleOfferSuccess = () => {
-    // Force refresh by changing key
+    // 1) Force OfferTimeline remount
     setOfferRefreshKey(prev => prev + 1);
 
-    // Close modals
+    // 2) Clear modal states (modals close themselves too)
     setShowMakeOfferModal(false);
     setShowRespondOfferModal(false);
     setSelectedOffer(null);
     setOfferAction(null);
 
-    // Update parent deal data
+    // 3) Refresh parent deal data
     if (onUpdate) {
       onUpdate();
     }
@@ -237,7 +237,7 @@ const DealDetailsModal = ({
 
             {activeTab === 'propostas' && (
               <OfferTimeline
-                key={`offers-${deal.id}-${offerRefreshKey}`} // Enhanced key
+                key={`offers-${deal.id}-${offerRefreshKey}`}
                 clientId={client.id}
                 opportunityId={opportunity.id}
                 dealId={deal.id}

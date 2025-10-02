@@ -52,7 +52,6 @@ const RespondOfferModal = ({
 
       switch (action) {
         case 'accept':
-          // Accept the offer or counter-offer
           updateData = {
             status: 'accepted',
             sellerResponse: responseData.sellerResponse || 'Proposta aceite',
@@ -61,7 +60,6 @@ const RespondOfferModal = ({
           break;
 
         case 'reject':
-          // Reject the offer
           updateData = {
             status: 'rejected',
             sellerResponse: responseData.sellerResponse || 'Proposta recusada',
@@ -70,9 +68,9 @@ const RespondOfferModal = ({
           break;
 
         case 'counter':
-          // Counter with new amount
           if (!responseData.counterAmount || parseFloat(responseData.counterAmount) <= 0) {
             alert('Por favor, insira um valor válido para a contraproposta');
+            setLoading(false);
             return;
           }
           updateData = {
@@ -85,15 +83,14 @@ const RespondOfferModal = ({
           break;
 
         case 'send':
-          // Send the draft offer
           updateData = {
             status: 'sent',
-            sentAt: Timestamp.now()
+            sentAt: Timestamp.now(),
+            expiresAt: Timestamp.fromMillis(Date.now() + (offer.expiryHours * 60 * 60 * 1000))
           };
           break;
 
         case 'withdraw':
-          // Withdraw the offer
           updateData = {
             status: 'withdrawn',
             sellerResponse: responseData.sellerResponse || 'Proposta retirada pelo comprador',
@@ -102,6 +99,7 @@ const RespondOfferModal = ({
           break;
 
         default:
+          setLoading(false);
           return;
       }
 
@@ -114,14 +112,19 @@ const RespondOfferModal = ({
         updateData
       );
 
-      onSuccess();
+      // IMPORTANT: Close modal first
       onClose();
+
+      // Then trigger success callback (will refresh parent)
+      if (onSuccess) {
+        onSuccess();
+      }
     } catch (error) {
       console.error('Error responding to offer:', error);
       alert('Erro ao processar resposta. Tente novamente.');
-    } finally {
-      setLoading(false);
+      setLoading(false); // Only reset loading on error
     }
+    // Don't reset loading on success - modal will unmount
   };
 
   const getModalConfig = () => {

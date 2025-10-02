@@ -108,7 +108,6 @@ const MakeOfferModal = ({
       };
 
       if (existingOffer) {
-        // Update existing draft offer
         await updateOffer(
           currentUser.uid,
           clientId,
@@ -118,7 +117,6 @@ const MakeOfferModal = ({
           offerData
         );
       } else {
-        // Create new offer
         await createOffer(
           currentUser.uid,
           clientId,
@@ -128,15 +126,20 @@ const MakeOfferModal = ({
         );
       }
 
-      onSuccess();
+      // IMPORTANT: Close modal first
       onClose();
+
+      // Then trigger success callback (will refresh parent)
+      if (onSuccess) {
+        onSuccess();
+      }
     } catch (error) {
       console.error('Error saving offer:', error);
       console.error('Error details:', error.message, error.stack);
       alert('Erro ao guardar proposta. Tente novamente.');
-    } finally {
-      setLoading(false);
+      setLoading(false); // Only reset loading on error
     }
+    // Don't reset loading on success - modal will unmount
   };
 
   if (!isOpen) return null;
