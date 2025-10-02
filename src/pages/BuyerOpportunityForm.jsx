@@ -5,8 +5,9 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom'; // UPDATED: added useParams
 import { useOpportunities } from '../contexts/OpportunityContext';
+import Layout from '../components/Layout'; // ADDED
 import {
   PROPERTY_TYPES,
   PROPERTY_PURPOSE,
@@ -26,9 +27,19 @@ import {
   SparklesIcon
 } from '@heroicons/react/24/outline';
 
-const BuyerOpportunityForm = ({ clientId, clientName, onComplete, onCancel }) => {
+const BuyerOpportunityForm = ({ clientId: propClientId, clientName, onComplete, onCancel }) => { // UPDATED signature
   const navigate = useNavigate();
-  const { createBuyerOpportunity, loading, error: contextError } = useOpportunities();
+  const { clientId: urlClientId, opportunityId } = useParams(); // ADDED
+  const clientId = propClientId || urlClientId; // ADDED
+  const isEditMode = !!opportunityId; // ADDED
+
+  const { 
+    createBuyerOpportunity, 
+    updateBuyerOpportunity, // ADDED
+    getOpportunity,         // ADDED
+    loading, 
+    error: contextError 
+  } = useOpportunities();
   
   // Form state
   const [currentStep, setCurrentStep] = useState(1);
@@ -210,15 +221,23 @@ const BuyerOpportunityForm = ({ clientId, clientName, onComplete, onCancel }) =>
         return;
       }
 
-      const opportunityId = await createBuyerOpportunity(clientId, formData);
-      
-      if (onComplete) {
-        onComplete(opportunityId);
+      if (isEditMode) {
+        await updateBuyerOpportunity(clientId, opportunityId, formData); // UPDATED
+        if (onComplete) {
+          onComplete(opportunityId);
+        } else {
+          navigate(`/clients/${clientId}/opportunities/${opportunityId}`);
+        }
       } else {
-        navigate(`/clients/${clientId}/opportunities/${opportunityId}`);
+        const newOpportunityId = await createBuyerOpportunity(clientId, formData);
+        if (onComplete) {
+          onComplete(newOpportunityId);
+        } else {
+          navigate(`/clients/${clientId}/opportunities/${newOpportunityId}`);
+        }
       }
     } catch (err) {
-      console.error('Error creating opportunity:', err);
+      console.error('Error saving opportunity:', err);
       setIsSubmitting(false);
     }
   };
@@ -250,6 +269,23 @@ const BuyerOpportunityForm = ({ clientId, clientName, onComplete, onCancel }) =>
     
     handleFieldChange(path, current.filter((_, i) => i !== index));
   };
+
+  // Load opportunity data for editing
+  useEffect(() => {
+    if (isEditMode && opportunityId) {
+      const loadOpportunity = async () => {
+        try {
+          const oppData = await getOpportunity(clientId, opportunityId);
+          if (oppData) {
+            setFormData(oppData); // Adjust mapping if your stored shape differs
+          }
+        } catch (e) {
+          console.error('Error loading opportunity for edit:', e);
+        }
+      };
+      loadOpportunity();
+    }
+  }, [isEditMode, opportunityId, clientId, getOpportunity]);
 
   // Render step content
   const renderStepContent = () => {

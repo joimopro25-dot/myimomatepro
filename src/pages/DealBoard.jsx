@@ -1,4 +1,4 @@
-// pages/DealBoard.jsx - COMPLETE WITH AUTH FIXES
+// pages/DealBoard.jsx - COMPLETE WITH OFFER SUPPORT
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useDeal } from '../contexts/DealContext';
@@ -9,6 +9,9 @@ import Layout from '../components/Layout';
 import DealFormModal from '../components/DealFormModal';
 import ViewingFormModal from '../components/ViewingFormModal';
 import ViewingHistory from '../components/ViewingHistory';
+import OfferTimeline from '../components/OfferTimeline';
+import MakeOfferModal from '../components/MakeOfferModal';
+import RespondOfferModal from '../components/RespondOfferModal';
 import {
   HomeModernIcon,
   MapPinIcon,
@@ -29,7 +32,7 @@ import {
   TrashIcon,
   CheckCircleIcon
 } from '@heroicons/react/24/outline';
-import { BUYER_DEAL_STAGES, INTEREST_LEVELS } from '../models/buyerDealModel';
+import { BUYER_DEAL_STAGES, INTEREST_LEVELS, OFFER_STATUS } from '../models/buyerDealModel';
 
 const DealBoard = () => {
   const { clientId, opportunityId } = useParams();
@@ -369,12 +372,14 @@ const DealBoard = () => {
           <DealDetailsModal
             deal={selectedDeal}
             client={client}
+            opportunity={opportunity}
             onClose={() => setSelectedDeal(null)}
             onAddViewing={() => handleAddViewing(selectedDeal)}
             onEditViewing={(viewing) => handleEditViewing(selectedDeal, viewing)}
             onCompleteViewing={(viewing) => handleCompleteViewing(selectedDeal, viewing)}
             onUpdate={async () => {
               const viewings = await loadViewingsForDeal(selectedDeal.id);
+              await loadDeals(clientId, opportunityId);
               setSelectedDeal(prev => ({
                 ...prev,
                 viewings
@@ -438,10 +443,20 @@ const DealBoard = () => {
   );
 };
 
-// Deal Card Component
+// Deal Card Component - UPDATED WITH OFFER BADGES
 const DealCard = ({ deal, onDragStart, onClick, onSchedule, onRecord, urgencyColor }) => {
   const interestLevel = INTEREST_LEVELS.find(l => l.value === deal.scoring?.buyerInterestLevel);
   const viewingCount = deal.viewings?.length || 0;
+  const offerCount = deal.offerCount || 0;
+  const latestOfferStatus = deal.latestOfferStatus;
+  
+  // Get offer status config for color coding
+  const getOfferStatusConfig = () => {
+    if (!latestOfferStatus) return null;
+    return OFFER_STATUS.find(s => s.value === latestOfferStatus);
+  };
+
+  const offerStatusConfig = getOfferStatusConfig();
 
   return (
     <div
@@ -473,23 +488,41 @@ const DealCard = ({ deal, onDragStart, onClick, onSchedule, onRecord, urgencyCol
           <span>{deal.property?.area || 0}m²</span>
         </div>
 
-        {/* Interest Level */}
-        {interestLevel && (
-          <div className="flex items-center mb-2">
-            <StarIcon className="w-4 h-4 text-yellow-400 mr-1" />
-            <span className={`text-xs font-medium text-${interestLevel.color}-700`}>
-              {interestLevel.label}
-            </span>
-          </div>
-        )}
+        {/* Badges Section */}
+        <div className="flex flex-wrap gap-2 mb-2">
+          {/* Interest Level */}
+          {interestLevel && (
+            <div className="flex items-center">
+              <StarIcon className="w-4 h-4 text-yellow-400 mr-1" />
+              <span className={`text-xs font-medium text-${interestLevel.color}-700`}>
+                {interestLevel.label}
+              </span>
+            </div>
+          )}
 
-        {/* Viewing Count */}
-        {viewingCount > 0 && (
-          <div className="flex items-center text-xs text-gray-600 bg-gray-100 rounded px-2 py-1 mb-2 w-fit">
-            <EyeIcon className="w-4 h-4 mr-1" />
-            {viewingCount} {viewingCount === 1 ? 'visita' : 'visitas'}
-          </div>
-        )}
+          {/* Viewing Count */}
+          {viewingCount > 0 && (
+            <div className="flex items-center text-xs text-gray-600 bg-gray-100 rounded px-2 py-1">
+              <EyeIcon className="w-4 h-4 mr-1" />
+              {viewingCount} {viewingCount === 1 ? 'visita' : 'visitas'}
+            </div>
+          )}
+
+          {/* Offer Count Badge - NEW */}
+          {offerCount > 0 && (
+            <div className="flex items-center text-xs font-medium text-purple-800 bg-purple-100 rounded px-2 py-1 border border-purple-200">
+              <DocumentTextIcon className="w-4 h-4 mr-1" />
+              {offerCount} {offerCount === 1 ? 'proposta' : 'propostas'}
+            </div>
+          )}
+
+          {/* Latest Offer Status Badge - NEW */}
+          {offerStatusConfig && (
+            <span className={`text-xs font-medium px-2 py-1 rounded border bg-${offerStatusConfig.color}-100 text-${offerStatusConfig.color}-800 border-${offerStatusConfig.color}-200`}>
+              {offerStatusConfig.label}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Two Buttons */}
@@ -520,171 +553,256 @@ const DealCard = ({ deal, onDragStart, onClick, onSchedule, onRecord, urgencyCol
   );
 };
 
-// Deal Details Modal Component
-const DealDetailsModal = ({ deal, client, onClose, onAddViewing, onEditViewing, onCompleteViewing, onUpdate, footer }) => {
+// Deal Details Modal Component - UPDATED WITH PROPOSTAS TAB
+const DealDetailsModal = ({ deal, client, opportunity, onClose, onAddViewing, onEditViewing, onCompleteViewing, onUpdate, footer }) => {
   const [activeTab, setActiveTab] = useState('overview');
+  
+  // Offer modal states
+  const [showMakeOfferModal, setShowMakeOfferModal] = useState(false);
+  const [showRespondOfferModal, setShowRespondOfferModal] = useState(false);
+  const [selectedOffer, setSelectedOffer] = useState(null);
+  const [offerAction, setOfferAction] = useState(null);
+
+  const handleMakeOffer = (offer = null) => {
+    setSelectedOffer(offer);
+    setShowMakeOfferModal(true);
+  };
+
+  const handleRespondOffer = (offer, action) => {
+    setSelectedOffer(offer);
+    setOfferAction(action);
+    setShowRespondOfferModal(true);
+  };
+
+  const handleOfferSuccess = () => {
+    // Reload deal data to get updated offers
+    if (onUpdate) {
+      onUpdate();
+    }
+    setShowMakeOfferModal(false);
+    setShowRespondOfferModal(false);
+    setSelectedOffer(null);
+    setOfferAction(null);
+  };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-xl max-w-5xl w-full max-h-[90vh] flex flex-col">
-        {/* Header */}
-        <div className="p-6 border-b flex justify-between items-center flex-shrink-0">
-          <div>
-            <h2 className="text-xl font-semibold">{deal.property?.address}</h2>
-            <p className="text-sm text-gray-600 mt-1">{client?.name}</p>
-            <p className="text-lg font-bold text-indigo-600 mt-1">
-              €{deal.pricing?.askingPrice?.toLocaleString('pt-PT')}
-            </p>
-          </div>
-          <button onClick={onClose}>
-            <XMarkIcon className="w-6 h-6 text-gray-400 hover:text-gray-600" />
-          </button>
-        </div>
-
-        {/* Tabs */}
-        <div className="border-b flex-shrink-0">
-          <div className="flex space-x-6 px-6">
-            <button
-              onClick={() => setActiveTab('overview')}
-              className={`py-3 border-b-2 font-medium text-sm ${
-                activeTab === 'overview'
-                  ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              Visão Geral
-            </button>
-            <button
-              onClick={() => setActiveTab('viewings')}
-              className={`py-3 border-b-2 font-medium text-sm flex items-center ${
-                activeTab === 'viewings'
-                  ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              <EyeIcon className="w-4 h-4 mr-1" />
-              Visitas ({deal.viewings?.length || 0})
-            </button>
-            <button
-              onClick={() => setActiveTab('notes')}
-              className={`py-3 border-b-2 font-medium text-sm ${
-                activeTab === 'notes'
-                  ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              Notas
+    <>
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div className="bg-white rounded-xl max-w-5xl w-full max-h-[90vh] flex flex-col">
+          {/* Header */}
+          <div className="p-6 border-b flex justify-between items-center flex-shrink-0">
+            <div>
+              <h2 className="text-xl font-semibold">{deal.property?.address}</h2>
+              <p className="text-sm text-gray-600 mt-1">{client?.name}</p>
+              <p className="text-lg font-bold text-indigo-600 mt-1">
+                €{deal.pricing?.askingPrice?.toLocaleString('pt-PT')}
+              </p>
+            </div>
+            <button onClick={onClose}>
+              <XMarkIcon className="w-6 h-6 text-gray-400 hover:text-gray-600" />
             </button>
           </div>
-        </div>
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6">
-          {activeTab === 'overview' && (
-            <div className="space-y-6">
-              {/* Property Details */}
-              <div>
-                <h3 className="text-lg font-semibold mb-3">Detalhes do Imóvel</h3>
-                <dl className="grid grid-cols-2 gap-4">
-                  <div>
-                    <dt className="text-sm text-gray-600">Tipo</dt>
-                    <dd className="text-sm font-medium">{deal.property?.type || 'N/A'}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-sm text-gray-600">Quartos</dt>
-                    <dd className="text-sm font-medium">{deal.property?.bedrooms || 0}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-sm text-gray-600">Casas de Banho</dt>
-                    <dd className="text-sm font-medium">{deal.property?.bathrooms || 0}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-sm text-gray-600">Área</dt>
-                    <dd className="text-sm font-medium">{deal.property?.area || 0}m²</dd>
-                  </div>
-                </dl>
-              </div>
+          {/* Tabs */}
+          <div className="border-b flex-shrink-0">
+            <div className="flex space-x-6 px-6">
+              <button
+                onClick={() => setActiveTab('overview')}
+                className={`py-3 border-b-2 font-medium text-sm ${
+                  activeTab === 'overview'
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                Visão Geral
+              </button>
+              <button
+                onClick={() => setActiveTab('viewings')}
+                className={`py-3 border-b-2 font-medium text-sm flex items-center ${
+                  activeTab === 'viewings'
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <EyeIcon className="w-4 h-4 mr-1" />
+                Visitas ({deal.viewings?.length || 0})
+              </button>
+              <button
+                onClick={() => setActiveTab('propostas')}
+                className={`py-3 border-b-2 font-medium text-sm flex items-center ${
+                  activeTab === 'propostas'
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <DocumentTextIcon className="w-4 h-4 mr-1" />
+                Propostas ({deal.offerCount || 0})
+              </button>
+              <button
+                onClick={() => setActiveTab('notes')}
+                className={`py-3 border-b-2 font-medium text-sm ${
+                  activeTab === 'notes'
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                Notas
+              </button>
+            </div>
+          </div>
 
-              {/* Agent Info */}
-              {deal.propertyAgent?.name && (
+          {/* Content */}
+          <div className="flex-1 overflow-y-auto p-6">
+            {activeTab === 'overview' && (
+              <div className="space-y-6">
+                {/* Property Details */}
                 <div>
-                  <h3 className="text-lg font-semibold mb-3">Agente do Imóvel</h3>
-                  <dl className="space-y-2">
+                  <h3 className="text-lg font-semibold mb-3">Detalhes do Imóvel</h3>
+                  <dl className="grid grid-cols-2 gap-4">
                     <div>
-                      <dt className="text-sm text-gray-600">Nome</dt>
-                      <dd className="text-sm font-medium">{deal.propertyAgent.name}</dd>
+                      <dt className="text-sm text-gray-600">Tipo</dt>
+                      <dd className="text-sm font-medium">{deal.property?.type || 'N/A'}</dd>
                     </div>
-                    {deal.propertyAgent.agency && (
-                      <div>
-                        <dt className="text-sm text-gray-600">Agência</dt>
-                        <dd className="text-sm font-medium">{deal.propertyAgent.agency}</dd>
-                      </div>
-                    )}
-                    {deal.propertyAgent.phone && (
-                      <div>
-                        <dt className="text-sm text-gray-600">Telefone</dt>
-                        <dd className="text-sm font-medium">{deal.propertyAgent.phone}</dd>
-                      </div>
-                    )}
+                    <div>
+                      <dt className="text-sm text-gray-600">Quartos</dt>
+                      <dd className="text-sm font-medium">{deal.property?.bedrooms || 0}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-sm text-gray-600">Casas de Banho</dt>
+                      <dd className="text-sm font-medium">{deal.property?.bathrooms || 0}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-sm text-gray-600">Área</dt>
+                      <dd className="text-sm font-medium">{deal.property?.area || 0}m²</dd>
+                    </div>
                   </dl>
                 </div>
-              )}
-            </div>
-          )}
 
-          {activeTab === 'viewings' && (
-            <div>
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold">Histórico de Visitas</h3>
-                <button
-                  onClick={onAddViewing}
-                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 flex items-center"
-                >
-                  <PlusIcon className="w-4 h-4 mr-2" />
-                  Adicionar Visita
-                </button>
+                {/* Agent Info */}
+                {deal.propertyAgent?.name && (
+                  <div>
+                    <h3 className="text-lg font-semibold mb-3">Agente do Imóvel</h3>
+                    <dl className="space-y-2">
+                      <div>
+                        <dt className="text-sm text-gray-600">Nome</dt>
+                        <dd className="text-sm font-medium">{deal.propertyAgent.name}</dd>
+                      </div>
+                      {deal.propertyAgent.agency && (
+                        <div>
+                          <dt className="text-sm text-gray-600">Agência</dt>
+                          <dd className="text-sm font-medium">{deal.propertyAgent.agency}</dd>
+                        </div>
+                      )}
+                      {deal.propertyAgent.phone && (
+                        <div>
+                          <dt className="text-sm text-gray-600">Telefone</dt>
+                          <dd className="text-sm font-medium">{deal.propertyAgent.phone}</dd>
+                        </div>
+                      )}
+                    </dl>
+                  </div>
+                )}
               </div>
-              <ViewingHistory
-                viewings={deal.viewings || []}
-                onEdit={(viewing) => onEditViewing(viewing)}
-                onComplete={(viewing) => onCompleteViewing(viewing)}
-              />
-            </div>
-          )}
+            )}
 
-          {activeTab === 'notes' && (
-            <div className="space-y-4">
-              {deal.notes && (
-                <div>
-                  <h3 className="font-medium mb-2">Notas Gerais</h3>
-                  <p className="text-gray-700 whitespace-pre-wrap bg-gray-50 p-4 rounded-lg">
-                    {deal.notes}
-                  </p>
+            {activeTab === 'viewings' && (
+              <div>
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-lg font-semibold">Histórico de Visitas</h3>
+                  <button
+                    onClick={onAddViewing}
+                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 flex items-center"
+                  >
+                    <PlusIcon className="w-4 h-4 mr-2" />
+                    Adicionar Visita
+                  </button>
                 </div>
-              )}
-              {deal.internalNotes && (
-                <div>
-                  <h3 className="font-medium mb-2">Notas Internas</h3>
-                  <p className="text-gray-700 whitespace-pre-wrap bg-yellow-50 p-4 rounded-lg border-l-4 border-yellow-400">
-                    {deal.internalNotes}
-                  </p>
-                </div>
-              )}
-              {!deal.notes && !deal.internalNotes && (
-                <p className="text-gray-500 text-center py-8">Sem notas</p>
-              )}
+                <ViewingHistory
+                  viewings={deal.viewings || []}
+                  onEdit={(viewing) => onEditViewing(viewing)}
+                  onComplete={(viewing) => onCompleteViewing(viewing)}
+                />
+              </div>
+            )}
+
+            {activeTab === 'propostas' && (
+              <OfferTimeline
+                clientId={client.id}
+                opportunityId={opportunity.id}
+                dealId={deal.id}
+                onMakeOffer={handleMakeOffer}
+                onRespondOffer={handleRespondOffer}
+              />
+            )}
+
+            {activeTab === 'notes' && (
+              <div className="space-y-4">
+                {deal.notes && (
+                  <div>
+                    <h3 className="font-medium mb-2">Notas Gerais</h3>
+                    <p className="text-gray-700 whitespace-pre-wrap bg-gray-50 p-4 rounded-lg">
+                      {deal.notes}
+                    </p>
+                  </div>
+                )}
+                {deal.internalNotes && (
+                  <div>
+                    <h3 className="font-medium mb-2">Notas Internas</h3>
+                    <p className="text-gray-700 whitespace-pre-wrap bg-yellow-50 p-4 rounded-lg border-l-4 border-yellow-400">
+                      {deal.internalNotes}
+                    </p>
+                  </div>
+                )}
+                {!deal.notes && !deal.internalNotes && (
+                  <p className="text-gray-500 text-center py-8">Sem notas</p>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Footer */}
+          {footer && (
+            <div className="bg-gray-50 px-6 py-4 border-t flex justify-end flex-shrink-0">
+              {footer}
             </div>
           )}
         </div>
-
-        {/* Footer */}
-        {footer && (
-          <div className="bg-gray-50 px-6 py-4 border-t flex justify-end flex-shrink-0">
-            {footer}
-          </div>
-        )}
       </div>
-    </div>
+
+      {/* Offer Modals */}
+      {showMakeOfferModal && (
+        <MakeOfferModal
+          isOpen={showMakeOfferModal}
+          onClose={() => {
+            setShowMakeOfferModal(false);
+            setSelectedOffer(null);
+          }}
+          clientId={client.id}
+          opportunityId={opportunity.id}
+          dealId={deal.id}
+          propertyPrice={deal.pricing?.askingPrice}
+          existingOffer={selectedOffer}
+          onSuccess={handleOfferSuccess}
+        />
+      )}
+
+      {showRespondOfferModal && selectedOffer && (
+        <RespondOfferModal
+          isOpen={showRespondOfferModal}
+          onClose={() => {
+            setShowRespondOfferModal(false);
+            setSelectedOffer(null);
+            setOfferAction(null);
+          }}
+          clientId={client.id}
+          opportunityId={opportunity.id}
+          dealId={deal.id}
+          offer={selectedOffer}
+          action={offerAction}
+          onSuccess={handleOfferSuccess}
+        />
+      )}
+    </>
   );
 };
 

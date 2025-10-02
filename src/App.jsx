@@ -16,6 +16,7 @@ import OpportunityList from './pages/OpportunityList';
 import OpportunityView from './pages/OpportunityView';
 import DealList from './pages/DealList';
 import DealBoard from './pages/DealBoard';
+import BuyerOpportunityForm from './pages/BuyerOpportunityForm';
 import './index.css';
 
 // Component to protect authenticated routes
@@ -91,10 +92,14 @@ function AppRoutes() {
             <OpportunityList />
           </ProtectedRoute>
         } />
-
         <Route path="/clients/:clientId/opportunities/:opportunityId" element={
           <ProtectedRoute>
             <OpportunityView />
+          </ProtectedRoute>
+        } />
+        <Route path="/clients/:clientId/opportunities/:opportunityId/edit" element={
+          <ProtectedRoute>
+            <BuyerOpportunityForm />
           </ProtectedRoute>
         } />
 
