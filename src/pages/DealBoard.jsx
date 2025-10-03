@@ -1,4 +1,4 @@
-// pages/DealBoard.jsx - COMPLETE WITH OFFER SUPPORT
+// pages/DealBoard.jsx - WITH VERTICAL/HORIZONTAL LAYOUT & HIDE EMPTY STAGES
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useDeal } from '../contexts/DealContext';
@@ -31,7 +31,10 @@ import {
   ChevronRightIcon,
   PencilIcon,
   TrashIcon,
-  CheckCircleIcon
+  CheckCircleIcon,
+  Bars3Icon,
+  Squares2X2Icon,
+  EyeSlashIcon
 } from '@heroicons/react/24/outline';
 import { BUYER_DEAL_STAGES, INTEREST_LEVELS, OFFER_STATUS } from '../models/buyerDealModel';
 
@@ -59,6 +62,10 @@ const DealBoard = () => {
   const [dealsByStage, setDealsByStage] = useState({});
   const [draggedDeal, setDraggedDeal] = useState(null);
   
+  // Layout preferences
+  const [viewMode, setViewMode] = useState('horizontal'); // 'horizontal' or 'vertical'
+  const [collapseEmpty, setCollapseEmpty] = useState(true);
+  
   // Modal states
   const [showNewDealModal, setShowNewDealModal] = useState(false);
   const [selectedDeal, setSelectedDeal] = useState(null);
@@ -70,52 +77,35 @@ const DealBoard = () => {
   // Viewing data
   const [dealViewings, setDealViewings] = useState({});
   const [selectedViewingToEdit, setSelectedViewingToEdit] = useState(null);
-  const [viewingMode, setViewingMode] = useState('record'); // 'schedule' | 'record' | 'complete'
+  const [viewingMode, setViewingMode] = useState('record');
 
   // Load initial data
   const loadInitialData = async () => {
     try {
-      // CRITICAL: Wait for authentication
       if (!currentUser?.uid) {
         console.log('Waiting for authentication...');
         return;
       }
-
-      console.log('=== LOADING DEAL BOARD DATA ===');
-      console.log('Consultant ID:', currentUser.uid);
-      console.log('Client ID:', clientId);
-      console.log('Opportunity ID:', opportunityId);
 
       const [clientData, opportunityData] = await Promise.all([
         getClient(clientId),
         getOpportunity(clientId, opportunityId)
       ]);
       
-      console.log('Client loaded:', clientData?.name);
-      console.log('Opportunity loaded:', opportunityData?.title);
-      
       setClient(clientData);
       setOpportunity(opportunityData);
       
-      // Load deals
-      console.log('Loading deals...');
       await loadDeals(clientId, opportunityId);
     } catch (err) {
       console.error('Error loading data:', err);
     }
   };
 
-  // Load initial data when authentication is ready
   useEffect(() => {
-    if (!currentUser?.uid) {
-      console.log('No user authenticated yet, waiting...');
-      return;
-    }
-    
+    if (!currentUser?.uid) return;
     loadInitialData();
   }, [clientId, opportunityId, currentUser?.uid]);
 
-  // Organize deals by stage
   useEffect(() => {
     organizeDealsByStage();
   }, [deals]);
@@ -132,11 +122,18 @@ const DealBoard = () => {
       }
     });
 
-    console.log('Deals organized by stage:', organized);
     setDealsByStage(organized);
   };
 
-  // Load viewings for a specific deal
+  // Get visible stages (filter empty if needed)
+  const getVisibleStages = () => {
+    return BUYER_DEAL_STAGES; // Always show all stages
+  };
+
+  const isStageEmpty = (stage) => {
+    return !dealsByStage[stage.value]?.length;
+  };
+
   const loadViewingsForDeal = async (dealId) => {
     try {
       const viewings = await loadDealViewings(clientId, opportunityId, dealId);
@@ -151,7 +148,6 @@ const DealBoard = () => {
     }
   };
 
-  // Drag and drop handlers
   const handleDragStart = (e, deal) => {
     setDraggedDeal(deal);
     e.dataTransfer.effectAllowed = 'move';
@@ -175,7 +171,6 @@ const DealBoard = () => {
     setDraggedDeal(null);
   };
 
-  // Deal handlers
   const handleSaveDeal = async (dealData) => {
     try {
       if (selectedDealForEdit) {
@@ -210,16 +205,6 @@ const DealBoard = () => {
     }
   };
 
-  // Viewing handlers
-  const handleAddViewing = async (deal) => {
-    setViewingDeal(deal);
-    setSelectedViewingToEdit(null);
-    // Load existing viewings for this deal
-    await loadViewingsForDeal(deal.id);
-    setShowViewingModal(true);
-  };
-
-  // Schedule a new visit (basic info only)
   const handleScheduleViewing = (deal) => {
     setViewingDeal(deal);
     setViewingMode('schedule');
@@ -227,7 +212,6 @@ const DealBoard = () => {
     setShowViewingModal(true);
   };
 
-  // Record a completed visit (full form)
   const handleRecordViewing = (deal) => {
     setViewingDeal(deal);
     setViewingMode('record');
@@ -235,7 +219,6 @@ const DealBoard = () => {
     setShowViewingModal(true);
   };
 
-  // Complete a scheduled visit (add feedback)
   const handleCompleteViewing = (deal, viewing) => {
     setViewingDeal(deal);
     setViewingMode('complete');
@@ -243,7 +226,6 @@ const DealBoard = () => {
     setShowViewingModal(true);
   };
 
-  // Edit existing viewing
   const handleEditViewing = async (deal, viewing) => {
     setViewingDeal(deal);
     setViewingMode(viewing?.status === 'scheduled' ? 'schedule' : 'record');
@@ -254,7 +236,6 @@ const DealBoard = () => {
   const handleSaveViewing = async (viewingData) => {
     try {
       await addDealViewing(clientId, opportunityId, viewingDeal.id, viewingData);
-      // Reload deals and viewings
       await loadDeals(clientId, opportunityId);
       await loadViewingsForDeal(viewingDeal.id);
 
@@ -277,7 +258,6 @@ const DealBoard = () => {
   };
 
   const handleViewDealDetails = async (deal) => {
-    // Load viewings for this deal
     const viewings = await loadViewingsForDeal(deal.id);
     setSelectedDeal({
       ...deal,
@@ -292,7 +272,6 @@ const DealBoard = () => {
     return 'gray';
   };
 
-  // Show loading while waiting for auth or initial data
   if (!currentUser?.uid || (loading && !client)) {
     return (
       <Layout>
@@ -306,10 +285,12 @@ const DealBoard = () => {
     );
   }
 
+  const visibleStages = getVisibleStages();
+
   return (
     <Layout>
       <div className="p-6">
-        {/* Header */}
+        {/* Header with Controls */}
         <div className="mb-6">
           <div className="flex items-center justify-between">
             <div>
@@ -318,64 +299,180 @@ const DealBoard = () => {
                 {client?.name} - {opportunity?.title}
               </p>
             </div>
-            <button
-              onClick={() => {
-                setSelectedDealForEdit(null);
-                setIsDealModalOpen(true);
-              }}
-              className="flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
-            >
-              <PlusIcon className="w-5 h-5 mr-2" />
-              Novo Negócio
-            </button>
+            
+            <div className="flex items-center gap-3">
+              {/* View Mode Toggle */}
+              <div className="flex items-center bg-gray-100 rounded-lg p-1">
+                <button
+                  onClick={() => setViewMode('horizontal')}
+                  className={`px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2 ${
+                    viewMode === 'horizontal'
+                      ? 'bg-white text-indigo-600 shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                  title="Vista Horizontal (Kanban)"
+                >
+                  <Squares2X2Icon className="w-4 h-4" />
+                  Horizontal
+                </button>
+                <button
+                  onClick={() => setViewMode('vertical')}
+                  className={`px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2 ${
+                    viewMode === 'vertical'
+                      ? 'bg-white text-indigo-600 shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                  title="Vista Vertical (Lista)"
+                >
+                  <Bars3Icon className="w-4 h-4" />
+                  Vertical
+                </button>
+              </div>
+
+              {/* Collapse Empty Toggle */}
+              <button
+                onClick={() => setCollapseEmpty(!collapseEmpty)}
+                className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
+                  collapseEmpty
+                    ? 'bg-indigo-100 text-indigo-700'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+                title={collapseEmpty ? 'Expandir etapas vazias' : 'Minimizar etapas vazias'}
+              >
+                <EyeSlashIcon className="w-4 h-4" />
+                {collapseEmpty ? 'Expandir Vazias' : 'Minimizar Vazias'}
+              </button>
+
+              {/* New Deal Button */}
+              <button
+                onClick={() => {
+                  setSelectedDealForEdit(null);
+                  setIsDealModalOpen(true);
+                }}
+                className="flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+              >
+                <PlusIcon className="w-5 h-5 mr-2" />
+                Novo Negócio
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Kanban Board */}
-        <div className="flex space-x-4 overflow-x-auto pb-4">
-          {BUYER_DEAL_STAGES.map(stage => (
-            <div
-              key={stage.value}
-              className="flex-shrink-0 w-80"
-              onDragOver={handleDragOver}
-              onDrop={(e) => handleDrop(e, stage.value)}
-            >
-              {/* Stage Header */}
-              <div className={`bg-${stage.color}-100 border-2 border-${stage.color}-300 rounded-lg p-3 mb-3`}>
-                <div className="flex items-center justify-between">
-                  <h3 className="font-semibold text-gray-900">{stage.label}</h3>
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium bg-${stage.color}-200 text-${stage.color}-800`}>
-                    {dealsByStage[stage.value]?.length || 0}
-                  </span>
+        {/* Pipeline Views */}
+        {viewMode === 'horizontal' ? (
+          /* Horizontal Kanban View with Collapsed Empty Columns */
+          <div className="flex space-x-4 overflow-x-auto pb-4">
+            {visibleStages.map(stage => {
+              const isEmpty = isStageEmpty(stage);
+              const isCollapsed = isEmpty && collapseEmpty;
+
+              return (
+                <div
+                  key={stage.value}
+                  className={`flex-shrink-0 transition-all duration-300 ${
+                    isCollapsed ? 'w-16' : 'w-80'
+                  }`}
+                  onDragOver={handleDragOver}
+                  onDrop={(e) => handleDrop(e, stage.value)}
+                >
+                  {isCollapsed ? (
+                    /* Collapsed Empty Stage - Vertical Bar */
+                    <div className={`h-full min-h-[400px] bg-${stage.color}-100 border-2 border-${stage.color}-300 rounded-lg p-2 flex flex-col items-center justify-start cursor-pointer hover:bg-${stage.color}-200 transition-colors`}
+                      onClick={() => setCollapseEmpty(false)}
+                      title={`${stage.label} (vazio) - Clique para expandir`}
+                    >
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium bg-${stage.color}-200 text-${stage.color}-800 mb-3`}>
+                        0
+                      </span>
+                      <div className="writing-mode-vertical text-sm font-semibold text-gray-700 transform rotate-180">
+                        {stage.label}
+                      </div>
+                    </div>
+                  ) : (
+                    /* Normal Stage Display */
+                    <>
+                      <div className={`bg-${stage.color}-100 border-2 border-${stage.color}-300 rounded-lg p-3 mb-3`}>
+                        <div className="flex items-center justify-between">
+                          <h3 className="font-semibold text-gray-900">{stage.label}</h3>
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium bg-${stage.color}-200 text-${stage.color}-800`}>
+                            {dealsByStage[stage.value]?.length || 0}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="space-y-3 min-h-[200px]">
+                        {dealsByStage[stage.value]?.map(deal => (
+                          <DealCard
+                            key={deal.id}
+                            deal={deal}
+                            onDragStart={handleDragStart}
+                            onClick={() => handleViewDealDetails(deal)}
+                            onSchedule={() => handleScheduleViewing(deal)}
+                            onRecord={() => handleRecordViewing(deal)}
+                            urgencyColor={getUrgencyColor(deal)}
+                          />
+                        ))}
+                      </div>
+                    </>
+                  )}
                 </div>
-              </div>
+              );
+            })}
+          </div>
+        ) : (
+          /* Vertical List View */
+          <div className="space-y-4">
+            {visibleStages.map(stage => (
+              <div
+                key={stage.value}
+                className="bg-white rounded-lg border-2 border-gray-200 overflow-hidden"
+                onDragOver={handleDragOver}
+                onDrop={(e) => handleDrop(e, stage.value)}
+              >
+                <div className={`bg-${stage.color}-100 border-b-2 border-${stage.color}-300 px-6 py-3`}>
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-semibold text-gray-900 text-lg">{stage.label}</h3>
+                    <span className={`px-3 py-1 rounded-full text-sm font-medium bg-${stage.color}-200 text-${stage.color}-800`}>
+                      {dealsByStage[stage.value]?.length || 0} {dealsByStage[stage.value]?.length === 1 ? 'negócio' : 'negócios'}
+                    </span>
+                  </div>
+                </div>
 
-              {/* Deal Cards */}
-              <div className="space-y-3 min-h-[200px]">
-                {dealsByStage[stage.value]?.map(deal => (
-                  <DealCard
-                    key={deal.id}
-                    deal={deal}
-                    onDragStart={handleDragStart}
-                    onClick={() => handleViewDealDetails(deal)}
-                    onSchedule={() => handleScheduleViewing(deal)}
-                    onRecord={() => handleRecordViewing(deal)}
-                    urgencyColor={getUrgencyColor(deal)}
-                  />
-                ))}
+                {dealsByStage[stage.value]?.length > 0 ? (
+                  <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    {dealsByStage[stage.value].map(deal => (
+                      <DealCard
+                        key={deal.id}
+                        deal={deal}
+                        onDragStart={handleDragStart}
+                        onClick={() => handleViewDealDetails(deal)}
+                        onSchedule={() => handleScheduleViewing(deal)}
+                        onRecord={() => handleRecordViewing(deal)}
+                        urgencyColor={getUrgencyColor(deal)}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-8 text-center text-gray-500">
+                    <p className="text-sm">Nenhum negócio nesta etapa</p>
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
 
-        {/* Deal Details Modal */}
+        {/* Modals - same as before */}
         {selectedDeal && (
           <DealDetailsModal
             deal={selectedDeal}
             client={client}
             opportunity={opportunity}
             onClose={() => setSelectedDeal(null)}
-            onAddViewing={() => handleAddViewing(selectedDeal)}
+            onAddViewing={() => {
+              setViewingDeal(selectedDeal);
+              setShowViewingModal(true);
+            }}
             onEditViewing={(viewing) => handleEditViewing(selectedDeal, viewing)}
             onCompleteViewing={(viewing) => handleCompleteViewing(selectedDeal, viewing)}
             onUpdate={async () => {
@@ -407,7 +504,6 @@ const DealBoard = () => {
           />
         )}
 
-        {/* Viewing Form Modal */}
         {showViewingModal && viewingDeal && (
           <ViewingFormModal
             isOpen={showViewingModal}
@@ -425,7 +521,6 @@ const DealBoard = () => {
           />
         )}
 
-        {/* Deal Form Modal */}
         {isDealModalOpen && (
           <DealFormModal
             isOpen={isDealModalOpen}
@@ -444,14 +539,13 @@ const DealBoard = () => {
   );
 };
 
-// Deal Card Component - UPDATED WITH TRANSACTION BADGE
+// DealCard Component - same as before
 const DealCard = ({ deal, onDragStart, onClick, onSchedule, onRecord, urgencyColor }) => {
   const interestLevel = INTEREST_LEVELS.find(l => l.value === deal.scoring?.buyerInterestLevel);
   const viewingCount = deal.viewings?.length || 0;
   const offerCount = deal.offerCount || 0;
   const latestOfferStatus = deal.latestOfferStatus;
   
-  // Get offer status config for color coding
   const getOfferStatusConfig = () => {
     if (!latestOfferStatus) return null;
     return OFFER_STATUS.find(s => s.value === latestOfferStatus);
@@ -468,6 +562,7 @@ const DealCard = ({ deal, onDragStart, onClick, onSchedule, onRecord, urgencyCol
     };
     return map[stage] || 'bg-gray-100 text-gray-800 border-gray-200';
   };
+  
   const getStageLabel = (stage) => {
     const labels = {
       offer_accepted: 'Proposta Aceite',
@@ -485,7 +580,6 @@ const DealCard = ({ deal, onDragStart, onClick, onSchedule, onRecord, urgencyCol
       className="bg-white rounded-lg shadow-sm border-2 border-gray-200 p-4 cursor-move hover:shadow-lg hover:border-indigo-300 transition-all"
     >
       <div onClick={onClick} className="cursor-pointer">
-        {/* Property Address */}
         <div className="flex items-start justify-between mb-2">
           <h4 className="font-semibold text-gray-900 flex-1 line-clamp-2">
             {deal.property?.address || 'Sem endereço'}
@@ -495,22 +589,18 @@ const DealCard = ({ deal, onDragStart, onClick, onSchedule, onRecord, urgencyCol
           )}
         </div>
 
-        {/* Price */}
         <div className="flex items-center text-lg font-bold text-indigo-600 mb-2">
           <CurrencyEuroIcon className="w-5 h-5 mr-1" />
           {deal.pricing?.askingPrice?.toLocaleString('pt-PT') || '0'}
         </div>
 
-        {/* Property Details */}
         <div className="flex items-center text-sm text-gray-600 space-x-3 mb-2">
           <span>{deal.property?.bedrooms || 0} 🛏️</span>
           <span>{deal.property?.bathrooms || 0} 🚿</span>
           <span>{deal.property?.area || 0}m²</span>
         </div>
 
-        {/* Badges Section */}
         <div className="flex flex-wrap gap-2 mb-2">
-          {/* Interest Level */}
           {interestLevel && (
             <div className="flex items-center">
               <StarIcon className="w-4 h-4 text-yellow-400 mr-1" />
@@ -520,7 +610,6 @@ const DealCard = ({ deal, onDragStart, onClick, onSchedule, onRecord, urgencyCol
             </div>
           )}
 
-          {/* Viewing Count */}
           {viewingCount > 0 && (
             <div className="flex items-center text-xs text-gray-600 bg-gray-100 rounded px-2 py-1">
               <EyeIcon className="w-4 h-4 mr-1" />
@@ -528,7 +617,6 @@ const DealCard = ({ deal, onDragStart, onClick, onSchedule, onRecord, urgencyCol
             </div>
           )}
 
-          {/* Offer Count Badge - NEW */}
           {offerCount > 0 && (
             <div className="flex items-center text-xs font-medium text-purple-800 bg-purple-100 rounded px-2 py-1 border border-purple-200">
               <DocumentTextIcon className="w-4 h-4 mr-1" />
@@ -536,7 +624,6 @@ const DealCard = ({ deal, onDragStart, onClick, onSchedule, onRecord, urgencyCol
             </div>
           )}
 
-          {/* Latest Offer Status Badge - NEW */}
           {offerStatusConfig && (
             <span className={`text-xs font-medium px-2 py-1 rounded border bg-${offerStatusConfig.color}-100 text-${offerStatusConfig.color}-800 border-${offerStatusConfig.color}-200`}>
               {offerStatusConfig.label}
@@ -544,7 +631,6 @@ const DealCard = ({ deal, onDragStart, onClick, onSchedule, onRecord, urgencyCol
           )}
         </div>
 
-        {/* Transaction Badge - NEW */}
         {deal.transaction?.stage && (
           <div className={`inline-flex items-center text-xs font-medium rounded px-2 py-1 border ${getTransactionBadgeColor(deal.transaction.stage)}`}>
             {getStageLabel(deal.transaction.stage)}
@@ -552,7 +638,6 @@ const DealCard = ({ deal, onDragStart, onClick, onSchedule, onRecord, urgencyCol
         )}
       </div>
 
-      {/* Two Buttons */}
       <div className="mt-4 flex gap-2">
         <button
           onClick={(e) => {
@@ -580,11 +665,9 @@ const DealCard = ({ deal, onDragStart, onClick, onSchedule, onRecord, urgencyCol
   );
 };
 
-// Deal Details Modal Component - UPDATED WITH TRANSACTION TAB
+// DealDetailsModal - Keep the same from your original file
 const DealDetailsModal = ({ deal, client, opportunity, onClose, onAddViewing, onEditViewing, onCompleteViewing, onUpdate, footer }) => {
   const [activeTab, setActiveTab] = useState('overview');
-
-  // Offer modal states
   const [showMakeOfferModal, setShowMakeOfferModal] = useState(false);
   const [showRespondOfferModal, setShowRespondOfferModal] = useState(false);
   const [selectedOffer, setSelectedOffer] = useState(null);
@@ -604,10 +687,7 @@ const DealDetailsModal = ({ deal, client, opportunity, onClose, onAddViewing, on
   };
 
   const handleOfferSuccess = () => {
-    // Reload deal data to get updated offers
-    if (onUpdate) {
-      onUpdate();
-    }
+    if (onUpdate) onUpdate();
     setShowMakeOfferModal(false);
     setShowRespondOfferModal(false);
     setSelectedOffer(null);
@@ -618,7 +698,6 @@ const DealDetailsModal = ({ deal, client, opportunity, onClose, onAddViewing, on
     <>
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
         <div className="bg-white rounded-xl max-w-5xl w-full max-h-[90vh] flex flex-col">
-          {/* Header */}
           <div className="p-6 border-b flex justify-between items-center flex-shrink-0">
             <div>
               <h2 className="text-xl font-semibold">{deal.property?.address}</h2>
@@ -632,7 +711,6 @@ const DealDetailsModal = ({ deal, client, opportunity, onClose, onAddViewing, on
             </button>
           </div>
 
-          {/* Tabs */}
           <div className="border-b flex-shrink-0">
             <div className="flex space-x-6 px-6">
               <button
@@ -692,11 +770,9 @@ const DealDetailsModal = ({ deal, client, opportunity, onClose, onAddViewing, on
             </div>
           </div>
 
-          {/* Content */}
           <div className="flex-1 overflow-y-auto p-6">
             {activeTab === 'overview' && (
               <div className="space-y-6">
-                {/* Property Details */}
                 <div>
                   <h3 className="text-lg font-semibold mb-3">Detalhes do Imóvel</h3>
                   <dl className="grid grid-cols-2 gap-4">
@@ -719,7 +795,6 @@ const DealDetailsModal = ({ deal, client, opportunity, onClose, onAddViewing, on
                   </dl>
                 </div>
 
-                {/* Agent Info */}
                 {deal.propertyAgent?.name && (
                   <div>
                     <h3 className="text-lg font-semibold mb-3">Agente do Imóvel</h3>
@@ -811,7 +886,6 @@ const DealDetailsModal = ({ deal, client, opportunity, onClose, onAddViewing, on
             )}
           </div>
 
-          {/* Footer */}
           {footer && (
             <div className="bg-gray-50 px-6 py-4 border-t flex justify-end flex-shrink-0">
               {footer}
@@ -820,7 +894,6 @@ const DealDetailsModal = ({ deal, client, opportunity, onClose, onAddViewing, on
         </div>
       </div>
 
-      {/* Offer Modals */}
       {showMakeOfferModal && (
         <MakeOfferModal
           isOpen={showMakeOfferModal}
