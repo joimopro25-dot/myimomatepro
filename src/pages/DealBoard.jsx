@@ -1,6 +1,6 @@
-// pages/DealBoard.jsx - WITH VERTICAL/HORIZONTAL LAYOUT & HIDE EMPTY STAGES
+// pages/DealBoard.jsx - WITH INDIVIDUAL COLLAPSIBLE COLUMNS
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useDeal } from '../contexts/DealContext';
 import { useOpportunities } from '../contexts/OpportunityContext';
 import { useClients } from '../contexts/ClientContext';
@@ -29,11 +29,10 @@ import {
   EyeIcon,
   DocumentTextIcon,
   ChevronRightIcon,
+  ChevronLeftIcon,
   PencilIcon,
   TrashIcon,
   CheckCircleIcon,
-  Bars3Icon,
-  Squares2X2Icon,
   EyeSlashIcon
 } from '@heroicons/react/24/outline';
 import { BUYER_DEAL_STAGES, INTEREST_LEVELS, OFFER_STATUS } from '../models/buyerDealModel';
@@ -41,6 +40,7 @@ import { BUYER_DEAL_STAGES, INTEREST_LEVELS, OFFER_STATUS } from '../models/buye
 const DealBoard = () => {
   const { clientId, opportunityId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { currentUser } = useAuth();
   const { getClient } = useClients();
   const { getOpportunity } = useOpportunities();
@@ -63,8 +63,7 @@ const DealBoard = () => {
   const [draggedDeal, setDraggedDeal] = useState(null);
   
   // Layout preferences
-  const [viewMode, setViewMode] = useState('horizontal'); // 'horizontal' or 'vertical'
-  const [collapseEmpty, setCollapseEmpty] = useState(true);
+  const [collapsedStages, setCollapsedStages] = useState(new Set());
   
   // Modal states
   const [showNewDealModal, setShowNewDealModal] = useState(false);
@@ -79,7 +78,6 @@ const DealBoard = () => {
   const [selectedViewingToEdit, setSelectedViewingToEdit] = useState(null);
   const [viewingMode, setViewingMode] = useState('record');
 
-  // Load initial data
   const loadInitialData = async () => {
     try {
       if (!currentUser?.uid) {
@@ -108,6 +106,15 @@ const DealBoard = () => {
 
   useEffect(() => {
     organizeDealsByStage();
+    
+    // Auto-collapse empty stages
+    const newCollapsedStages = new Set();
+    BUYER_DEAL_STAGES.forEach(stage => {
+      if (!dealsByStage[stage.value]?.length) {
+        newCollapsedStages.add(stage.value);
+      }
+    });
+    setCollapsedStages(newCollapsedStages);
   }, [deals]);
 
   const organizeDealsByStage = () => {
@@ -125,13 +132,28 @@ const DealBoard = () => {
     setDealsByStage(organized);
   };
 
-  // Get visible stages (filter empty if needed)
   const getVisibleStages = () => {
-    return BUYER_DEAL_STAGES; // Always show all stages
+    return BUYER_DEAL_STAGES;
   };
 
   const isStageEmpty = (stage) => {
     return !dealsByStage[stage.value]?.length;
+  };
+
+  const toggleStageCollapse = (stageValue) => {
+    setCollapsedStages(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(stageValue)) {
+        newSet.delete(stageValue);
+      } else {
+        newSet.add(stageValue);
+      }
+      return newSet;
+    });
+  };
+
+  const isStageCollapsed = (stageValue) => {
+    return collapsedStages.has(stageValue);
   };
 
   const loadViewingsForDeal = async (dealId) => {
@@ -272,6 +294,16 @@ const DealBoard = () => {
     return 'gray';
   };
 
+  useEffect(() => {
+    if (location.state?.openDealId && deals.length > 0) {
+      const dealToOpen = deals.find(d => d.id === location.state.openDealId);
+      if (dealToOpen) {
+        handleViewDealDetails(dealToOpen);
+        window.history.replaceState({}, document.title);
+      }
+    }
+  }, [location.state, deals]);
+
   if (!currentUser?.uid || (loading && !client)) {
     return (
       <Layout>
@@ -290,7 +322,6 @@ const DealBoard = () => {
   return (
     <Layout>
       <div className="p-6">
-        {/* Header with Controls */}
         <div className="mb-6">
           <div className="flex items-center justify-between">
             <div>
@@ -301,49 +332,6 @@ const DealBoard = () => {
             </div>
             
             <div className="flex items-center gap-3">
-              {/* View Mode Toggle */}
-              <div className="flex items-center bg-gray-100 rounded-lg p-1">
-                <button
-                  onClick={() => setViewMode('horizontal')}
-                  className={`px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2 ${
-                    viewMode === 'horizontal'
-                      ? 'bg-white text-indigo-600 shadow-sm'
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                  title="Vista Horizontal (Kanban)"
-                >
-                  <Squares2X2Icon className="w-4 h-4" />
-                  Horizontal
-                </button>
-                <button
-                  onClick={() => setViewMode('vertical')}
-                  className={`px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2 ${
-                    viewMode === 'vertical'
-                      ? 'bg-white text-indigo-600 shadow-sm'
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                  title="Vista Vertical (Lista)"
-                >
-                  <Bars3Icon className="w-4 h-4" />
-                  Vertical
-                </button>
-              </div>
-
-              {/* Collapse Empty Toggle */}
-              <button
-                onClick={() => setCollapseEmpty(!collapseEmpty)}
-                className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
-                  collapseEmpty
-                    ? 'bg-indigo-100 text-indigo-700'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-                title={collapseEmpty ? 'Expandir etapas vazias' : 'Minimizar etapas vazias'}
-              >
-                <EyeSlashIcon className="w-4 h-4" />
-                {collapseEmpty ? 'Expandir Vazias' : 'Minimizar Vazias'}
-              </button>
-
-              {/* New Deal Button */}
               <button
                 onClick={() => {
                   setSelectedDealForEdit(null);
@@ -358,111 +346,85 @@ const DealBoard = () => {
           </div>
         </div>
 
-        {/* Pipeline Views */}
-        {viewMode === 'horizontal' ? (
-          /* Horizontal Kanban View with Collapsed Empty Columns */
-          <div className="flex space-x-4 overflow-x-auto pb-4">
-            {visibleStages.map(stage => {
-              const isEmpty = isStageEmpty(stage);
-              const isCollapsed = isEmpty && collapseEmpty;
+        {/* Simplified: always render horizontal (Kanban) view */}
+        <div className="flex space-x-4 overflow-x-auto pb-4">
+          {visibleStages.map(stage => {
+            const isCollapsed = isStageCollapsed(stage.value);
 
-              return (
-                <div
-                  key={stage.value}
-                  className={`flex-shrink-0 transition-all duration-300 ${
-                    isCollapsed ? 'w-16' : 'w-80'
-                  }`}
-                  onDragOver={handleDragOver}
-                  onDrop={(e) => handleDrop(e, stage.value)}
-                >
-                  {isCollapsed ? (
-                    /* Collapsed Empty Stage - Vertical Bar */
-                    <div className={`h-full min-h-[400px] bg-${stage.color}-100 border-2 border-${stage.color}-300 rounded-lg p-2 flex flex-col items-center justify-start cursor-pointer hover:bg-${stage.color}-200 transition-colors`}
-                      onClick={() => setCollapseEmpty(false)}
-                      title={`${stage.label} (vazio) - Clique para expandir`}
-                    >
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium bg-${stage.color}-200 text-${stage.color}-800 mb-3`}>
-                        0
-                      </span>
-                      <div className="writing-mode-vertical text-sm font-semibold text-gray-700 transform rotate-180">
-                        {stage.label}
-                      </div>
-                    </div>
-                  ) : (
-                    /* Normal Stage Display */
-                    <>
-                      <div className={`bg-${stage.color}-100 border-2 border-${stage.color}-300 rounded-lg p-3 mb-3`}>
-                        <div className="flex items-center justify-between">
-                          <h3 className="font-semibold text-gray-900">{stage.label}</h3>
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium bg-${stage.color}-200 text-${stage.color}-800`}>
-                            {dealsByStage[stage.value]?.length || 0}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="space-y-3 min-h-[200px]">
-                        {dealsByStage[stage.value]?.map(deal => (
-                          <DealCard
-                            key={deal.id}
-                            deal={deal}
-                            onDragStart={handleDragStart}
-                            onClick={() => handleViewDealDetails(deal)}
-                            onSchedule={() => handleScheduleViewing(deal)}
-                            onRecord={() => handleRecordViewing(deal)}
-                            urgencyColor={getUrgencyColor(deal)}
-                          />
-                        ))}
-                      </div>
-                    </>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          /* Vertical List View */
-          <div className="space-y-4">
-            {visibleStages.map(stage => (
+            return (
               <div
                 key={stage.value}
-                className="bg-white rounded-lg border-2 border-gray-200 overflow-hidden"
+                className={`flex-shrink-0 transition-all duration-300 ${
+                  isCollapsed ? 'w-16' : 'w-80'
+                }`}
                 onDragOver={handleDragOver}
                 onDrop={(e) => handleDrop(e, stage.value)}
               >
-                <div className={`bg-${stage.color}-100 border-b-2 border-${stage.color}-300 px-6 py-3`}>
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-semibold text-gray-900 text-lg">{stage.label}</h3>
-                    <span className={`px-3 py-1 rounded-full text-sm font-medium bg-${stage.color}-200 text-${stage.color}-800`}>
-                      {dealsByStage[stage.value]?.length || 0} {dealsByStage[stage.value]?.length === 1 ? 'negócio' : 'negócios'}
+                {isCollapsed ? (
+                  <div 
+                    className={`h-full min-h-[400px] bg-${stage.color}-100 border-2 border-${stage.color}-300 rounded-lg p-2 flex flex-col items-center justify-start cursor-pointer hover:bg-${stage.color}-200 transition-colors`}
+                    onClick={() => toggleStageCollapse(stage.value)}
+                    title={`${stage.label} - Clique para expandir`}
+                  >
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleStageCollapse(stage.value);
+                      }}
+                      className={`p-1 rounded hover:bg-${stage.color}-300 transition-colors mb-2`}
+                    >
+                      <ChevronRightIcon className="w-4 h-4 text-gray-700" />
+                    </button>
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium bg-${stage.color}-200 text-${stage.color}-800 mb-3`}>
+                      {dealsByStage[stage.value]?.length || 0}
                     </span>
-                  </div>
-                </div>
-
-                {dealsByStage[stage.value]?.length > 0 ? (
-                  <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                    {dealsByStage[stage.value].map(deal => (
-                      <DealCard
-                        key={deal.id}
-                        deal={deal}
-                        onDragStart={handleDragStart}
-                        onClick={() => handleViewDealDetails(deal)}
-                        onSchedule={() => handleScheduleViewing(deal)}
-                        onRecord={() => handleRecordViewing(deal)}
-                        urgencyColor={getUrgencyColor(deal)}
-                      />
-                    ))}
+                    <div 
+                      className="text-sm font-semibold text-gray-700"
+                      style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}
+                    >
+                      {stage.label}
+                    </div>
                   </div>
                 ) : (
-                  <div className="p-8 text-center text-gray-500">
-                    <p className="text-sm">Nenhum negócio nesta etapa</p>
-                  </div>
+                  <>
+                    <div className={`bg-${stage.color}-100 border-2 border-${stage.color}-300 rounded-lg p-3 mb-3`}>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => toggleStageCollapse(stage.value)}
+                            className={`p-1 rounded hover:bg-${stage.color}-300 transition-colors`}
+                            title="Colapsar coluna"
+                          >
+                            <ChevronLeftIcon className="w-4 h-4 text-gray-700" />
+                          </button>
+                          <h3 className="font-semibold text-gray-900">{stage.label}</h3>
+                        </div>
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium bg-${stage.color}-200 text-${stage.color}-800`}>
+                          {dealsByStage[stage.value]?.length || 0}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3 min-h-[200px]">
+                      {dealsByStage[stage.value]?.map(deal => (
+                        <DealCard
+                          key={deal.id}
+                          deal={deal}
+                          onDragStart={handleDragStart}
+                          onClick={() => handleViewDealDetails(deal)}
+                          onSchedule={() => handleScheduleViewing(deal)}
+                          onRecord={() => handleRecordViewing(deal)}
+                          urgencyColor={getUrgencyColor(deal)}
+                        />
+                      ))}
+                    </div>
+                  </>
                 )}
               </div>
-            ))}
-          </div>
-        )}
+            );
+          })}
+        </div>
 
-        {/* Modals - same as before */}
         {selectedDeal && (
           <DealDetailsModal
             deal={selectedDeal}
@@ -473,6 +435,8 @@ const DealBoard = () => {
               setViewingDeal(selectedDeal);
               setShowViewingModal(true);
             }}
+            onScheduleViewing={() => handleScheduleViewing(selectedDeal)}
+            onRecordViewing={() => handleRecordViewing(selectedDeal)}
             onEditViewing={(viewing) => handleEditViewing(selectedDeal, viewing)}
             onCompleteViewing={(viewing) => handleCompleteViewing(selectedDeal, viewing)}
             onUpdate={async () => {
@@ -539,7 +503,6 @@ const DealBoard = () => {
   );
 };
 
-// DealCard Component - same as before
 const DealCard = ({ deal, onDragStart, onClick, onSchedule, onRecord, urgencyColor }) => {
   const interestLevel = INTEREST_LEVELS.find(l => l.value === deal.scoring?.buyerInterestLevel);
   const viewingCount = deal.viewings?.length || 0;
@@ -594,10 +557,26 @@ const DealCard = ({ deal, onDragStart, onClick, onSchedule, onRecord, urgencyCol
           {deal.pricing?.askingPrice?.toLocaleString('pt-PT') || '0'}
         </div>
 
-        <div className="flex items-center text-sm text-gray-600 space-x-3 mb-2">
-          <span>{deal.property?.bedrooms || 0} 🛏️</span>
-          <span>{deal.property?.bathrooms || 0} 🚿</span>
-          <span>{deal.property?.area || 0}m²</span>
+        {/* Replaced emoji stats with Heroicons + inline SVGs */}
+        <div className="flex items-center text-xs text-gray-500 space-x-3 mb-3 bg-gray-50 rounded-lg p-2">
+          <div className="flex items-center gap-1">
+            <HomeModernIcon className="w-4 h-4 text-gray-400" />
+            <span className="font-medium">{deal.property?.bedrooms || 0}</span>
+          </div>
+          <div className="w-px h-4 bg-gray-300"></div>
+          <div className="flex items-center gap-1">
+            <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23-.693L5 14.5m14.8.8l1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0112 21c-2.773 0-5.491-.235-8.135-.687-1.718-.293-2.3-2.379-1.067-3.61L5 14.5" />
+            </svg>
+            <span className="font-medium">{deal.property?.bathrooms || 0}</span>
+          </div>
+          <div className="w-px h-4 bg-gray-300"></div>
+          <div className="flex items-center gap-1">
+            <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z" />
+            </svg>
+            <span className="font-medium">{deal.property?.area || 0}m²</span>
+          </div>
         </div>
 
         <div className="flex flex-wrap gap-2 mb-2">
@@ -647,7 +626,7 @@ const DealCard = ({ deal, onDragStart, onClick, onSchedule, onRecord, urgencyCol
           className="flex-1 inline-flex items-center justify-center px-3 py-2 border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors text-sm font-medium"
         >
           <CalendarIcon className="w-4 h-4 mr-1" />
-          Agendar
+          Agendar Visita
         </button>
 
         <button
@@ -658,15 +637,26 @@ const DealCard = ({ deal, onDragStart, onClick, onSchedule, onRecord, urgencyCol
           className="flex-1 inline-flex items-center justify-center px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium"
         >
           <CheckCircleIcon className="w-4 h-4 mr-1" />
-          Registar
+          Registar Visita
         </button>
       </div>
     </div>
   );
 };
 
-// DealDetailsModal - Keep the same from your original file
-const DealDetailsModal = ({ deal, client, opportunity, onClose, onAddViewing, onEditViewing, onCompleteViewing, onUpdate, footer }) => {
+const DealDetailsModal = ({
+  deal,
+  client,
+  opportunity,
+  onClose,
+  onAddViewing,
+  onScheduleViewing,
+  onRecordViewing,
+  onEditViewing,
+  onCompleteViewing,
+  onUpdate,
+  footer
+}) => {
   const [activeTab, setActiveTab] = useState('overview');
   const [showMakeOfferModal, setShowMakeOfferModal] = useState(false);
   const [showRespondOfferModal, setShowRespondOfferModal] = useState(false);
@@ -825,13 +815,22 @@ const DealDetailsModal = ({ deal, client, opportunity, onClose, onAddViewing, on
               <div>
                 <div className="flex justify-between items-center mb-4">
                   <h3 className="text-lg font-semibold">Histórico de Visitas</h3>
-                  <button
-                    onClick={onAddViewing}
-                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 flex items-center"
-                  >
-                    <PlusIcon className="w-4 h-4 mr-2" />
-                    Adicionar Visita
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={onScheduleViewing}
+                      className="inline-flex items-center px-4 py-2 border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors text-sm font-medium"
+                    >
+                      <CalendarIcon className="w-4 h-4 mr-2" />
+                      Agendar Visita
+                    </button>
+                    <button
+                      onClick={onRecordViewing || onAddViewing}
+                      className="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium"
+                    >
+                      <CheckCircleIcon className="w-4 h-4 mr-2" />
+                      Registar Visita
+                    </button>
+                  </div>
                 </div>
                 <ViewingHistory
                   viewings={deal.viewings || []}

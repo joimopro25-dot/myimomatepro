@@ -9,13 +9,10 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useOpportunities } from '../contexts/OpportunityContext';
 import { useClients } from '../contexts/ClientContext';
 import { useDeal } from '../contexts/DealContext';
+import Layout from '../components/Layout'; // ADD THIS LINE
 import DealFormModal from '../components/DealFormModal';
-import {
-  formatDealSummary,
-  isDealActionNeeded,
-  BUYER_DEAL_STAGES
-} from '../models/buyerDealModel';
-import Layout from '../components/Layout';
+import DealDetailsModal from '../components/DealDetailsModal';
+import ViewingFormModal from '../components/ViewingFormModal';
 import {
   ArrowLeftIcon,
   PencilIcon,
@@ -37,7 +34,8 @@ import {
   HomeModernIcon,
   ArrowRightIcon,
   PlusIcon,
-  StarIcon
+  StarIcon,
+  EyeIcon
 } from '@heroicons/react/24/outline';
 import {
   formatPrice,
@@ -52,6 +50,11 @@ import {
   CURRENT_SITUATION,
   PROPERTY_FEATURES
 } from '../models/opportunityModel';
+import {
+  formatDealSummary,
+  isDealActionNeeded,
+  BUYER_DEAL_STAGES
+} from '../models/buyerDealModel'; // ADD THIS LINE TOO
 
 const OpportunityView = () => {
   const { clientId, opportunityId } = useParams();
@@ -61,11 +64,12 @@ const OpportunityView = () => {
   const {
     loadDeals,
     createPropertyDeal,
-    updatePropertyDeal, // ADD THIS
+    updatePropertyDeal,
     moveDealStage,
     deals,
     agents,
-    loadAgents
+    loadAgents,
+    loadDealViewings // ADD THIS
   } = useDeal();
   
   const [opportunity, setOpportunity] = useState(null);
@@ -75,6 +79,9 @@ const OpportunityView = () => {
   const [isDealModalOpen, setIsDealModalOpen] = useState(false);
   const [selectedDeal, setSelectedDeal] = useState(null);
   const [opportunityDeals, setOpportunityDeals] = useState([]);
+  const [selectedDealForView, setSelectedDealForView] = useState(null);
+  const [showViewingModal, setShowViewingModal] = useState(false);
+  const [viewingDeal, setViewingDeal] = useState(null);
 
   // Load data
   useEffect(() => {
@@ -177,6 +184,23 @@ const OpportunityView = () => {
   const handleEditDeal = (deal) => {
     setSelectedDeal(deal);
     setIsDealModalOpen(true);
+  };
+
+  const handleViewDeal = async (deal) => {
+    // Load full deal data including viewings
+    try {
+      const viewings = await loadDealViewings(clientId, opportunityId, deal.id);
+      setSelectedDealForView({
+        ...deal,
+        viewings: viewings || []
+      });
+    } catch (e) {
+      console.error('Erro ao carregar visitas do negócio:', e);
+      setSelectedDealForView({
+        ...deal,
+        viewings: deal.viewings || []
+      });
+    }
   };
 
   // Move deal stage
@@ -675,8 +699,7 @@ const OpportunityView = () => {
                     return (
                       <div 
                         key={deal.id} 
-                        className="border rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer"
-                        onClick={() => handleEditDeal(deal)}
+                        className="border rounded-lg p-4 hover:shadow-md transition-shadow"
                       >
                         <div className="flex justify-between items-start">
                           <div className="flex-1">
@@ -730,22 +753,24 @@ const OpportunityView = () => {
                             </div>
                           </div>
 
-                          <div className="ml-4">
-                            <select
-                              onClick={(e) => e.stopPropagation()}
-                              onChange={(e) => {
-                                e.stopPropagation();
-                                handleMoveDealStage(deal.id, e.target.value);
-                              }}
-                              value={deal.stage}
-                              className="text-sm border rounded px-2 py-1"
+                          <div className="ml-4 flex flex-col gap-2">
+                            <button
+                              onClick={() => navigate(`/clients/${clientId}/opportunities/${opportunityId}/deals`, {
+                                state: { openDealId: deal.id }
+                              })}
+                              className="inline-flex items-center px-3 py-2 border border-indigo-600 text-indigo-600 rounded-lg hover:bg-indigo-50 transition-colors text-sm font-medium whitespace-nowrap"
                             >
-                              {BUYER_DEAL_STAGES.map(s => (
-                                <option key={s.value} value={s.value}>
-                                  {s.label}
-                                </option>
-                              ))}
-                            </select>
+                              <EyeIcon className="w-4 h-4 mr-1" />
+                              Ver Negócio
+                            </button>
+                            
+                            <button
+                              onClick={() => handleEditDeal(deal)}
+                              className="inline-flex items-center px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium whitespace-nowrap"
+                            >
+                              <PencilIcon className="w-4 h-4 mr-1" />
+                              Editar Negócio
+                            </button>
                           </div>
                         </div>
 
@@ -929,11 +954,54 @@ const OpportunityView = () => {
               setIsDealModalOpen(false);
               setSelectedDeal(null);
             }}
-            onSave={handleSaveDeal} // Updated handler
+            onSave={handleSaveDeal}
             opportunity={opportunity}
             client={client}
             agents={agents}
             existingDeal={selectedDeal}
+          />
+        )}
+
+        {/* View Deal Modal */}
+        {selectedDealForView && (
+          <DealDetailsModal
+            deal={selectedDealForView}
+            client={client}
+            opportunity={opportunity}
+            onClose={() => setSelectedDealForView(null)}
+            onAddViewing={() => {
+              setViewingDeal(selectedDealForView);
+              setShowViewingModal(true);
+            }}
+            onEditViewing={(viewing) => {
+              setViewingDeal(selectedDealForView);
+              setShowViewingModal(true);
+            }}
+            onCompleteViewing={(viewing) => {
+              setViewingDeal(selectedDealForView);
+              setShowViewingModal(true);
+            }}
+            onUpdate={async () => {
+              await loadData();
+              if (selectedDealForView) {
+                const viewings = await loadDealViewings(clientId, opportunityId, selectedDealForView.id);
+                setSelectedDealForView(prev => ({
+                  ...prev,
+                  viewings
+                }));
+              }
+            }}
+            footer={
+              <div className="flex space-x-2">
+                <button
+                  onClick={() => handleEditDeal(selectedDealForView)}
+                  className="inline-flex items-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white hover:bg-indigo-500"
+                >
+                  <PencilIcon className="h-4 w-4 mr-1" />
+                  Editar
+                </button>
+              </div>
+            }
           />
         )}
       </div>
