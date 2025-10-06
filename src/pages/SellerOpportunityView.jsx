@@ -113,7 +113,7 @@ export default function SellerOpportunityView() {
   // ========== VISITS (VIEWINGS) HANDLERS ==========
   const handleScheduleVisit = async (visitData) => {
     try {
-      await addViewing(consultantId, clientId, opportunityId, visitData);
+      await addViewing(db, consultantId, clientId, opportunityId, visitData);
       await fetchOpportunity();
       setShowScheduleVisitModal(false);
     } catch (error) {
@@ -122,6 +122,7 @@ export default function SellerOpportunityView() {
     }
   };
 
+  // THIS FUNCTION WAS MISSING - Opens the complete visit modal
   const handleCompleteVisit = (visitId) => {
     const visit = opportunity?.viewings?.find(v => v.id === visitId);
     if (!visit) return;
@@ -132,9 +133,15 @@ export default function SellerOpportunityView() {
   const handleCancelVisit = async (visitId) => {
     if (!window.confirm('Tem certeza que deseja cancelar esta visita?')) return;
     try {
-      await updateViewingStatus(consultantId, clientId, opportunityId, visitId, {
-        status: 'cancelled'
-      });
+      await updateViewingStatus(
+        db,
+        consultantId,
+        clientId,
+        opportunityId,
+        visitId,
+        'cancelled',
+        {}
+      );
       await fetchOpportunity();
     } catch (error) {
       console.error('Error cancelling visit:', error);
@@ -142,9 +149,17 @@ export default function SellerOpportunityView() {
     }
   };
 
-  const handleSaveCompleteVisit = async (visitId, feedbackData) => {
+  const handleSaveCompleteVisit = async (visitId, status, feedbackData) => {
     try {
-      await updateViewingStatus(consultantId, clientId, opportunityId, visitId, feedbackData);
+      await updateViewingStatus(
+        db,
+        consultantId,
+        clientId,
+        opportunityId,
+        visitId,
+        status,
+        feedbackData
+      );
       await fetchOpportunity();
       setShowCompleteVisitModal(false);
       setSelectedVisit(null);
@@ -157,7 +172,7 @@ export default function SellerOpportunityView() {
   // ========== OFFERS HANDLERS ==========
   const handleAddOffer = async (offerData) => {
     try {
-      await addOffer(consultantId, clientId, opportunityId, offerData);
+      await addOffer(db, consultantId, clientId, opportunityId, offerData);
       await fetchOpportunity();
       setShowAddOfferModal(false);
     } catch (error) {
@@ -188,10 +203,15 @@ export default function SellerOpportunityView() {
         newStatus = 'countered';
       }
 
-      await updateOfferStatus(consultantId, clientId, opportunityId, offerId, {
-        status: newStatus,
-        ...data
-      });
+      await updateOfferStatus(
+        db,
+        consultantId,
+        clientId,
+        opportunityId,
+        offerId,
+        newStatus,
+        data
+      );
 
       await fetchOpportunity();
       setShowRespondOfferModal(false);
@@ -410,7 +430,7 @@ export default function SellerOpportunityView() {
               </div>
             </div>
 
-            {/* Visits Section (REPLACED) */}
+            {/* Visits Section */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold text-gray-900">Visitas</h2>
@@ -428,7 +448,7 @@ export default function SellerOpportunityView() {
               />
             </div>
 
-            {/* Offers Section (REPLACED) */}
+            {/* Offers Section */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold text-gray-900">Propostas</h2>
@@ -449,7 +469,7 @@ export default function SellerOpportunityView() {
 
           {/* Sidebar */}
           <div className="space-y-6">
-            {/* Stats Card (optionally keep original) */}
+            {/* Stats Card */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">Estatísticas</h2>
               <div className="space-y-3">
@@ -468,7 +488,7 @@ export default function SellerOpportunityView() {
               </div>
             </div>
 
-            {/* Motivation (unchanged) */}
+            {/* Motivation */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <div className="flex items-center gap-2 mb-4">
                 <CalendarIcon className="w-5 h-5 text-blue-600" />
