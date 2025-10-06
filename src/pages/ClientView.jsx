@@ -367,7 +367,11 @@ export default function ClientView() {
                         </div>
 
                         <Link
-                          to={`/clients/${clientId}/${opportunity.type === 'buyer' ? 'opportunities' : 'seller-opportunities'}/${opportunity.id}`}
+                          to={
+                            opportunity.type === 'buyer'
+                              ? `/clients/${clientId}/opportunities/${opportunity.id}`
+                              : `/clients/${clientId}/seller-opportunities/${opportunity.id}`
+                          }
                           className="mt-3 w-full inline-flex justify-center items-center px-3 py-1.5 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm"
                         >
                           Ver Detalhes

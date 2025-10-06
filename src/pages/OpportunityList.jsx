@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { collection, getDocs } from 'firebase/firestore';
 import { db, auth } from '../firebase/config';
 import Layout from '../components/Layout';
@@ -341,6 +341,20 @@ const OpportunityList = () => {
           <div className="flex items-center space-x-4">
             <span>{opp.stats?.totalDeals || 0} negócios</span>
           </div>
+        </div>
+
+        {/* Details Link */}
+        <div className="mt-4">
+          <Link
+            to={
+              opp.type === 'seller'
+                ? `/clients/${opp.clientId}/seller-opportunities/${opp.id}`
+                : `/clients/${opp.clientId}/opportunities/${opp.id}`
+            }
+            className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+          >
+            Ver Detalhes
+          </Link>
         </div>
       </div>
     );
