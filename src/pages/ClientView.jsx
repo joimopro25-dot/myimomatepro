@@ -8,8 +8,10 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useClients } from '../contexts/ClientContext';
 import { useOpportunities } from '../contexts/OpportunityContext';
+import { useAuth } from '../contexts/AuthContext'; // ADD
 import Layout from '../components/Layout';
 import BuyerOpportunityForm from './BuyerOpportunityForm';
+import SellerQualificationForm from "../components/SellerQualificationForm";
 import {
   ArrowLeftIcon,
   PencilIcon,
@@ -32,6 +34,8 @@ import {
   PlusIcon
 } from '@heroicons/react/24/outline';
 import { formatPhone, calculateAge, ACTIVITY_TYPES } from '../models/clientModel';
+import { createSellerOpportunity } from '../utils/sellerOpportunityFirebase'; // ADD THIS
+import { db } from '../firebase/config'; // ADD THIS
 
 export default function ClientView() {
   const { clientId } = useParams();
@@ -50,6 +54,9 @@ export default function ClientView() {
     loading: oppLoading
   } = useOpportunities();
 
+  const { currentUser } = useAuth();              // ADD
+  const consultantId = currentUser?.uid;          // ADD
+
   const [client, setClient] = useState(null);
   const [activities, setActivities] = useState([]);
   const [opportunities, setOpportunities] = useState([]);
@@ -58,6 +65,7 @@ export default function ClientView() {
   const [selectedActivityType, setSelectedActivityType] = useState('note');
   const [showActivityForm, setShowActivityForm] = useState(false);
   const [showBuyerOpportunityForm, setShowBuyerOpportunityForm] = useState(false);
+  const [showSellerOpportunityForm, setShowSellerOpportunityForm] = useState(false); // ADD THIS
 
   // Load client data
   useEffect(() => {
@@ -257,28 +265,36 @@ export default function ClientView() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Main Information */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Opportunities Section - UPDATED */}
+            {/* Opportunities Section - UPDATED FOR BUYER + SELLER */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold text-gray-900 flex items-center">
                   <BriefcaseIcon className="w-5 h-5 mr-2 text-purple-600" />
                   Oportunidades ({opportunities.length})
                 </h2>
-                <button
-                  onClick={() => setShowBuyerOpportunityForm(true)}
-                  className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center space-x-2"
-                >
-                  <PlusIcon className="w-4 h-4" />
-                  <span>Nova Oportunidade</span>
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setShowBuyerOpportunityForm(true)}
+                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center space-x-2"
+                  >
+                    <ShoppingCartIcon className="w-4 h-4" />
+                    <span>Comprador</span>
+                  </button>
+                  <button
+                    onClick={() => setShowSellerOpportunityForm(true)}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center space-x-2"
+                  >
+                    <HomeModernIcon className="w-4 h-4" />
+                    <span>Vendedor</span>
+                  </button>
+                </div>
               </div>
-              
-              {/* List all opportunities */}
+
               {opportunities.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {opportunities.map((opportunity) => (
                     <div key={opportunity.id} className={`border-2 ${
-                      opportunity.type === 'buyer' 
+                      opportunity.type === 'buyer'
                         ? 'border-green-200 bg-green-50'
                         : 'border-blue-200 bg-blue-50'
                     } rounded-lg p-4 transition-all`}>
@@ -291,7 +307,7 @@ export default function ClientView() {
                           )}
                           <div className="flex-1">
                             <h4 className="font-semibold text-gray-900 text-sm">
-                              {opportunity.title || `${opportunity.type === 'buyer' ? 'Comprador' : 'Vendedor'}`}
+                              {opportunity.type === 'buyer' ? 'Comprador' : 'Vendedor'}
                             </h4>
                             <p className="text-xs text-gray-600">
                               {opportunity.type === 'buyer' ? 'Procura imóvel' : 'Vende imóvel'}
@@ -299,36 +315,59 @@ export default function ClientView() {
                           </div>
                         </div>
                       </div>
-                      
+
                       <div className="space-y-2">
+                        {opportunity.type === 'buyer' && (
+                          <>
+                            {opportunity.buyerScore && (
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="text-gray-600">Score:</span>
+                                <span className="font-medium">{opportunity.buyerScore}</span>
+                              </div>
+                            )}
+                            {opportunity.qualification?.budget?.maxPrice && (
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="text-gray-600">Orçamento:</span>
+                                <span className="font-medium">
+                                  até €{opportunity.qualification.budget.maxPrice.toLocaleString()}
+                                </span>
+                              </div>
+                            )}
+                          </>
+                        )}
+
+                        {opportunity.type === 'seller' && (
+                          <>
+                            {opportunity.property?.address && (
+                              <div className="text-xs">
+                                <span className="text-gray-600">Imóvel:</span>
+                                <p className="font-medium">{opportunity.property.address}</p>
+                              </div>
+                            )}
+                            {opportunity.pricing?.askingPrice && (
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="text-gray-600">Preço:</span>
+                                <span className="font-medium">
+                                  €{opportunity.pricing.askingPrice.toLocaleString()}
+                                </span>
+                              </div>
+                            )}
+                            {opportunity.sellerScore && (
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="text-gray-600">Score:</span>
+                                <span className="font-medium">{opportunity.sellerScore}/10</span>
+                              </div>
+                            )}
+                          </>
+                        )}
+
                         <div className="flex items-center justify-between text-xs">
-                          <span className="text-gray-600">Status:</span>
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            opportunity.status === 'active' 
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-gray-100 text-gray-800'
-                          }`}>
-                            {opportunity.status}
-                          </span>
+                          <span className="text-gray-600">Stage:</span>
+                          <span className="font-medium">{opportunity.stage}</span>
                         </div>
-                        {opportunity.buyerScore && (
-                          <div className="flex items-center justify-between text-xs">
-                            <span className="text-gray-600">Score:</span>
-                            <span className="font-medium">
-                              {opportunity.buyerScore}
-                            </span>
-                          </div>
-                        )}
-                        {opportunity.qualification?.budget?.maxPrice && (
-                          <div className="flex items-center justify-between text-xs">
-                            <span className="text-gray-600">Orçamento:</span>
-                            <span className="font-medium">
-                              até €{opportunity.qualification.budget.maxPrice.toLocaleString()}
-                            </span>
-                          </div>
-                        )}
+
                         <Link
-                          to={`/clients/${clientId}/opportunities/${opportunity.id}`}
+                          to={`/clients/${clientId}/${opportunity.type === 'buyer' ? 'opportunities' : 'seller-opportunities'}/${opportunity.id}`}
                           className="mt-3 w-full inline-flex justify-center items-center px-3 py-1.5 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm"
                         >
                           Ver Detalhes
@@ -341,13 +380,22 @@ export default function ClientView() {
                 <div className="text-center py-8">
                   <BriefcaseIcon className="w-12 h-12 text-gray-300 mx-auto mb-3" />
                   <p className="text-gray-500">Nenhuma oportunidade criada</p>
-                  <button
-                    onClick={() => setShowBuyerOpportunityForm(true)}
-                    className="mt-3 inline-flex items-center px-4 py-2 border-2 border-dashed border-gray-300 text-gray-700 rounded-lg hover:border-purple-500 hover:text-purple-600 transition-colors"
-                  >
-                    <PlusIcon className="w-4 h-4 mr-2" />
-                    Criar Primeira Oportunidade
-                  </button>
+                  <div className="mt-3 flex gap-2 justify-center">
+                    <button
+                      onClick={() => setShowBuyerOpportunityForm(true)}
+                      className="inline-flex items-center px-4 py-2 border-2 border-dashed border-green-300 text-green-700 rounded-lg hover:border-green-500 transition-colors"
+                    >
+                      <ShoppingCartIcon className="w-4 h-4 mr-2" />
+                      Comprador
+                    </button>
+                    <button
+                      onClick={() => setShowSellerOpportunityForm(true)}
+                      className="inline-flex items-center px-4 py-2 border-2 border-dashed border-blue-300 text-blue-700 rounded-lg hover:border-blue-500 transition-colors"
+                    >
+                      <HomeModernIcon className="w-4 h-4 mr-2" />
+                      Vendedor
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -711,6 +759,28 @@ export default function ClientView() {
                 clientName={client.name}
                 onComplete={handleOpportunityCreated}
                 onCancel={() => setShowBuyerOpportunityForm(false)}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Seller Opportunity Form Modal */}
+        {showSellerOpportunityForm && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg max-w-5xl w-full max-h-[90vh] overflow-y-auto">
+              <SellerQualificationForm
+                clientId={clientId}
+                clientName={client.name}
+                onSubmit={async (data) => {
+                  if (!consultantId) {
+                    console.error('Consultant not authenticated');
+                    return;
+                  }
+                  await createSellerOpportunity(db, consultantId, clientId, data);
+                  setShowSellerOpportunityForm(false);
+                  loadClientData();
+                }}
+                onCancel={() => setShowSellerOpportunityForm(false)}
               />
             </div>
           </div>
