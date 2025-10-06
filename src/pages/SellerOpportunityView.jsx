@@ -10,7 +10,11 @@ import Layout from '../components/Layout';
 import { 
   getSellerOpportunity,
   updateSellerOpportunity,
-  updateSellerStage 
+  updateSellerStage,
+  addViewing,
+  updateViewingStatus,
+  addOffer,
+  updateOfferStatus
 } from '../utils/sellerOpportunityFirebase';
 import { db } from '../firebase/config';
 import {
@@ -30,6 +34,14 @@ import {
   getQualificationColor 
 } from '../models/sellerOpportunity';
 
+// Add new component imports
+import ScheduleVisitModal from '../components/ScheduleVisitModal';
+import VisitsList from '../components/VisitsList';
+import CompleteVisitModal from '../components/CompleteVisitModal';
+import AddOfferModal from '../components/AddOfferModal';
+import OffersView from '../components/OffersView';
+import RespondOfferModal from '../components/RespondOfferModal';
+
 export default function SellerOpportunityView() {
   const { clientId, opportunityId } = useParams();
   const navigate = useNavigate();
@@ -40,12 +52,25 @@ export default function SellerOpportunityView() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // NEW STATE (visits & offers)
+  const [showScheduleVisitModal, setShowScheduleVisitModal] = useState(false);
+  const [showCompleteVisitModal, setShowCompleteVisitModal] = useState(false);
+  const [selectedVisit, setSelectedVisit] = useState(null);
+
+  const [showAddOfferModal, setShowAddOfferModal] = useState(false);
+  const [showRespondOfferModal, setShowRespondOfferModal] = useState(false);
+  const [selectedOffer, setSelectedOffer] = useState(null);
+  const [offerAction, setOfferAction] = useState(null);
+
   // Load opportunity data
   useEffect(() => {
-    loadOpportunityData();
-  }, [opportunityId]);
+    fetchOpportunity();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [opportunityId, consultantId]);
 
-  const loadOpportunityData = async () => {
+  // Renamed loader to fetchOpportunity (used by handlers)
+  const fetchOpportunity = async () => {
+    if (!consultantId) return;
     try {
       setLoading(true);
       const oppData = await getSellerOpportunity(db, consultantId, clientId, opportunityId);
@@ -83,6 +108,99 @@ export default function SellerOpportunityView() {
     if (!date) return 'N/A';
     const d = typeof date === 'string' ? new Date(date) : date;
     return d.toLocaleDateString('pt-PT');
+  };
+
+  // ========== VISITS (VIEWINGS) HANDLERS ==========
+  const handleScheduleVisit = async (visitData) => {
+    try {
+      await addViewing(consultantId, clientId, opportunityId, visitData);
+      await fetchOpportunity();
+      setShowScheduleVisitModal(false);
+    } catch (error) {
+      console.error('Error scheduling visit:', error);
+      alert('Erro ao agendar visita');
+    }
+  };
+
+  const handleCompleteVisit = (visitId) => {
+    const visit = opportunity?.viewings?.find(v => v.id === visitId);
+    if (!visit) return;
+    setSelectedVisit(visit);
+    setShowCompleteVisitModal(true);
+  };
+
+  const handleCancelVisit = async (visitId) => {
+    if (!window.confirm('Tem certeza que deseja cancelar esta visita?')) return;
+    try {
+      await updateViewingStatus(consultantId, clientId, opportunityId, visitId, {
+        status: 'cancelled'
+      });
+      await fetchOpportunity();
+    } catch (error) {
+      console.error('Error cancelling visit:', error);
+      alert('Erro ao cancelar visita');
+    }
+  };
+
+  const handleSaveCompleteVisit = async (visitId, feedbackData) => {
+    try {
+      await updateViewingStatus(consultantId, clientId, opportunityId, visitId, feedbackData);
+      await fetchOpportunity();
+      setShowCompleteVisitModal(false);
+      setSelectedVisit(null);
+    } catch (error) {
+      console.error('Error completing visit:', error);
+      alert('Erro ao concluir visita');
+    }
+  };
+
+  // ========== OFFERS HANDLERS ==========
+  const handleAddOffer = async (offerData) => {
+    try {
+      await addOffer(consultantId, clientId, opportunityId, offerData);
+      await fetchOpportunity();
+      setShowAddOfferModal(false);
+    } catch (error) {
+      console.error('Error adding offer:', error);
+      alert('Erro ao adicionar proposta');
+    }
+  };
+
+  const handleRespondOffer = (offerId, action) => {
+    const offer = opportunity?.offers?.find(o => o.id === offerId);
+    if (!offer) return;
+    setSelectedOffer(offer);
+    setOfferAction(action);
+    setShowRespondOfferModal(true);
+  };
+
+  const handleSaveOfferResponse = async (responseData) => {
+    try {
+      const { action, offerId, ...data } = responseData;
+      let newStatus = 'pending';
+
+      if (action === 'accept') {
+        newStatus = 'accepted';
+        await updateSellerStage(db, consultantId, clientId, opportunityId, 'proposta_aceite');
+      } else if (action === 'reject') {
+        newStatus = 'rejected';
+      } else if (action === 'counter') {
+        newStatus = 'countered';
+      }
+
+      await updateOfferStatus(consultantId, clientId, opportunityId, offerId, {
+        status: newStatus,
+        ...data
+      });
+
+      await fetchOpportunity();
+      setShowRespondOfferModal(false);
+      setSelectedOffer(null);
+      setOfferAction(null);
+    } catch (error) {
+      console.error('Error responding to offer:', error);
+      alert('Erro ao responder proposta');
+    }
   };
 
   if (loading) {
@@ -292,62 +410,65 @@ export default function SellerOpportunityView() {
               </div>
             </div>
 
-            {/* Viewings Section - Placeholder */}
+            {/* Visits Section (REPLACED) */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <EyeIcon className="w-5 h-5 text-purple-600" />
-                  <h2 className="text-lg font-semibold text-gray-900">Visitas</h2>
-                </div>
-                <button className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700">
+                <h2 className="text-lg font-semibold text-gray-900">Visitas</h2>
+                <button
+                  onClick={() => setShowScheduleVisitModal(true)}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
                   + Agendar Visita
                 </button>
               </div>
-              <p className="text-gray-500 text-sm">
-                {opportunity.stats.viewingsScheduled} visitas agendadas, {opportunity.stats.viewingsCompleted} realizadas
-              </p>
+              <VisitsList
+                viewings={opportunity.viewings || []}
+                onComplete={handleCompleteVisit}
+                onCancel={handleCancelVisit}
+              />
             </div>
 
-            {/* Offers Section - Placeholder */}
+            {/* Offers Section (REPLACED) */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <DocumentTextIcon className="w-5 h-5 text-orange-600" />
-                  <h2 className="text-lg font-semibold text-gray-900">Propostas</h2>
-                </div>
+                <h2 className="text-lg font-semibold text-gray-900">Propostas</h2>
+                <button
+                  onClick={() => setShowAddOfferModal(true)}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  + Adicionar Proposta
+                </button>
               </div>
-              <p className="text-gray-500 text-sm">
-                {opportunity.stats.offersReceived} propostas recebidas
-              </p>
+              <OffersView
+                offers={opportunity.offers || []}
+                askingPrice={opportunity.pricing?.askingPrice}
+                onRespond={handleRespondOffer}
+              />
             </div>
           </div>
 
           {/* Sidebar */}
           <div className="space-y-6">
-            {/* Stats Card */}
+            {/* Stats Card (optionally keep original) */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">Estatísticas</h2>
               <div className="space-y-3">
                 <div className="flex justify-between">
                   <span className="text-gray-600">Dias no Mercado</span>
-                  <span className="font-semibold">{opportunity.stats.daysOnMarket}</span>
+                  <span className="font-semibold">{opportunity.stats?.daysOnMarket ?? 0}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Visitas Agendadas</span>
-                  <span className="font-semibold">{opportunity.stats.viewingsScheduled}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Visitas Realizadas</span>
-                  <span className="font-semibold">{opportunity.stats.viewingsCompleted}</span>
+                  <span className="font-semibold">{(opportunity.viewings || []).length}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Propostas Recebidas</span>
-                  <span className="font-semibold">{opportunity.stats.offersReceived}</span>
+                  <span className="font-semibold">{(opportunity.offers || []).length}</span>
                 </div>
               </div>
             </div>
 
-            {/* Motivation */}
+            {/* Motivation (unchanged) */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <div className="flex items-center gap-2 mb-4">
                 <CalendarIcon className="w-5 h-5 text-blue-600" />
@@ -385,6 +506,41 @@ export default function SellerOpportunityView() {
           </div>
         </div>
       </div>
+
+      {/* ===== MODALS ===== */}
+      <ScheduleVisitModal
+        isOpen={showScheduleVisitModal}
+        onClose={() => setShowScheduleVisitModal(false)}
+        onSave={handleScheduleVisit}
+      />
+
+      <CompleteVisitModal
+        isOpen={showCompleteVisitModal}
+        onClose={() => {
+          setShowCompleteVisitModal(false);
+          setSelectedVisit(null);
+        }}
+        onSave={handleSaveCompleteVisit}
+        visit={selectedVisit}
+      />
+
+      <AddOfferModal
+        isOpen={showAddOfferModal}
+        onClose={() => setShowAddOfferModal(false)}
+        onSave={handleAddOffer}
+      />
+
+      <RespondOfferModal
+        isOpen={showRespondOfferModal}
+        onClose={() => {
+          setShowRespondOfferModal(false);
+          setSelectedOffer(null);
+          setOfferAction(null);
+        }}
+        onSave={handleSaveOfferResponse}
+        offer={selectedOffer}
+        action={offerAction}
+      />
     </Layout>
   );
 }

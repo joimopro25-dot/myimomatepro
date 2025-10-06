@@ -1,3 +1,8 @@
+/**
+ * APP.JSX - MyImoMatePro
+ * Main application with all routes and providers
+ */
+
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -5,35 +10,59 @@ import { SubscriptionProvider } from './contexts/SubscriptionContext';
 import { ClientProvider } from './contexts/ClientContext';
 import { OpportunityProvider } from './contexts/OpportunityContext';
 import { DealProvider } from './contexts/DealContext';
+
+// Public Pages
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
+
+// Protected Pages - Dashboard
 import Dashboard from './pages/Dashboard';
 import AccountSettings from './pages/AccountSettings';
+
+// Protected Pages - Clients
 import ClientList from './pages/ClientList';
 import ClientForm from './pages/ClientForm';
 import ClientView from './pages/ClientView';
+
+// Protected Pages - Buyer Opportunities
 import OpportunityList from './pages/OpportunityList';
 import OpportunityView from './pages/OpportunityView';
-import DealList from './pages/DealList';
-import DealBoard from './pages/DealBoard';
 import BuyerOpportunityForm from './pages/BuyerOpportunityForm';
+
+// Protected Pages - Seller Opportunities
 import SellerOpportunitiesBoard from './pages/SellerOpportunities/SellerOpportunitiesBoard';
 import NewSellerOpportunity from './pages/SellerOpportunities/NewSellerOpportunity';
-import SellerOpportunityView from './pages/SellerOpportunityView'; // ADD
+import SellerOpportunityView from './pages/SellerOpportunityView';
+
+// Protected Pages - Deals
+import DealList from './pages/DealList';
+import DealBoard from './pages/DealBoard';
+
+// Styles
 import './index.css';
 
-// Component to protect authenticated routes
+/**
+ * Protected Route Component
+ * Redirects to login if user is not authenticated
+ */
 function ProtectedRoute({ children }) {
   const { currentUser } = useAuth();
   return currentUser ? children : <Navigate to="/login" />;
 }
 
-// Component to redirect already authenticated users
+/**
+ * Public Route Component
+ * Redirects to dashboard if user is already authenticated
+ */
 function PublicRoute({ children }) {
   const { currentUser } = useAuth();
   return !currentUser ? children : <Navigate to="/dashboard" />;
 }
 
+/**
+ * App Routes Component
+ * Defines all application routes
+ */
 function AppRoutes() {
   return (
     <Router>
@@ -89,24 +118,54 @@ function AppRoutes() {
           </ProtectedRoute>
         } />
 
-        {/* ===== PROTECTED ROUTES - OPPORTUNITY SYSTEM ===== */}
+        {/* ===== PROTECTED ROUTES - BUYER OPPORTUNITY SYSTEM ===== */}
+        
+        {/* All opportunities list (buyers + sellers) */}
         <Route path="/opportunities" element={
           <ProtectedRoute>
             <OpportunityList />
           </ProtectedRoute>
         } />
+
+        {/* Buyer opportunity detail view */}
         <Route path="/clients/:clientId/opportunities/:opportunityId" element={
           <ProtectedRoute>
             <OpportunityView />
           </ProtectedRoute>
         } />
+
+        {/* Buyer opportunity edit form */}
         <Route path="/clients/:clientId/opportunities/:opportunityId/edit" element={
           <ProtectedRoute>
             <BuyerOpportunityForm />
           </ProtectedRoute>
         } />
 
+        {/* ===== PROTECTED ROUTES - SELLER OPPORTUNITY SYSTEM ===== */}
+        
+        {/* Seller opportunities board */}
+        <Route path="/seller-opportunities" element={
+          <ProtectedRoute>
+            <SellerOpportunitiesBoard />
+          </ProtectedRoute>
+        } />
+
+        {/* New seller opportunity form */}
+        <Route path="/clients/:clientId/seller-opportunities/new" element={
+          <ProtectedRoute>
+            <NewSellerOpportunity />
+          </ProtectedRoute>
+        } />
+
+        {/* Seller opportunity detail view */}
+        <Route path="/clients/:clientId/seller-opportunities/:opportunityId" element={
+          <ProtectedRoute>
+            <SellerOpportunityView />
+          </ProtectedRoute>
+        } />
+
         {/* ===== PROTECTED ROUTES - DEALS SYSTEM ===== */}
+        
         {/* All deals overview */}
         <Route path="/deals" element={
           <ProtectedRoute>
@@ -114,37 +173,24 @@ function AppRoutes() {
           </ProtectedRoute>
         } />
 
-        {/* Deal board for specific opportunity */}
+        {/* Deal board for specific buyer opportunity */}
         <Route path="/clients/:clientId/opportunities/:opportunityId/deals" element={
           <ProtectedRoute>
             <DealBoard />
           </ProtectedRoute>
         } />
 
-        {/* ===== PROTECTED ROUTES - SELLER OPPORTUNITIES ===== */}
-        <Route path="/seller-opportunities" element={
-          <ProtectedRoute>
-            <SellerOpportunitiesBoard />
-          </ProtectedRoute>
-        } />
-        <Route path="/clients/:clientId/seller-opportunities/new" element={
-          <ProtectedRoute>
-            <NewSellerOpportunity />
-          </ProtectedRoute>
-        } />
-        <Route path="/clients/:clientId/seller-opportunities/:opportunityId" element={
-          <ProtectedRoute>
-            <SellerOpportunityView />
-          </ProtectedRoute>
-        } />
-
-        {/* ===== FALLBACK ROUTE - MUST BE LAST ===== */}
-        <Route path="*" element={<Navigate to="/" />} />
+        {/* ===== FALLBACK ROUTE - 404 ===== */}
+        <Route path="*" element={<Navigate to="/dashboard" />} />
       </Routes>
     </Router>
   );
 }
 
+/**
+ * Main App Component
+ * Wraps the application with all necessary providers
+ */
 function App() {
   return (
     <AuthProvider>
