@@ -1,6 +1,6 @@
 /**
  * OPPORTUNITY LIST - MyImoMatePro
- * FIXED: Using nested Firestore structure like DealList
+ * FIXED: Routing to correct view based on opportunity type
  */
 
 import React, { useState, useEffect } from 'react';
@@ -203,8 +203,13 @@ const OpportunityList = () => {
     urgent: filteredOpportunities.filter(o => o.qualification?.timeline?.urgency === 'immediate').length
   };
 
+  // ✅ FIXED: Route to correct view based on opportunity type
   const handleOpportunityClick = (opp) => {
-    navigate(`/clients/${opp.clientId}/opportunities/${opp.id}`);
+    if (opp.type === 'seller') {
+      navigate(`/clients/${opp.clientId}/seller-opportunities/${opp.id}`);
+    } else {
+      navigate(`/clients/${opp.clientId}/opportunities/${opp.id}`);
+    }
   };
 
   const renderOpportunityCard = (opp) => {
@@ -352,6 +357,7 @@ const OpportunityList = () => {
                 : `/clients/${opp.clientId}/opportunities/${opp.id}`
             }
             className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+            onClick={(e) => e.stopPropagation()} // Prevent card click handler
           >
             Ver Detalhes
           </Link>
