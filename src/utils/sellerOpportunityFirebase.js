@@ -149,6 +149,25 @@ export const updateViewingStatus = async (db, consultantId, clientId, opportunit
   });
 };
 
+export const updateViewing = async (db, consultantId, clientId, opportunityId, viewingId, updates) => {
+  const viewingsRef = collection(
+    db,
+    'consultants',
+    consultantId,
+    'clients',
+    clientId,
+    'sellerOpportunities',
+    opportunityId,
+    'viewings'
+  );
+  const viewingRef = doc(viewingsRef, viewingId);
+  await updateDoc(viewingRef, {
+    ...updates,
+    updatedAt: new Date().toISOString()
+  });
+  return { id: viewingId, ...updates };
+};
+
 // ============================================================================
 // OFFERS
 // ============================================================================

@@ -14,7 +14,8 @@ import {
   addViewing,
   updateViewingStatus,
   addOffer,
-  updateOfferStatus
+  updateOfferStatus,
+  updateViewing // Added
 } from '../utils/sellerOpportunityFirebase';
 import { db } from '../firebase/config';
 import {
@@ -42,6 +43,7 @@ import AddOfferModal from '../components/AddOfferModal';
 import OffersView from '../components/OffersView';
 import RespondOfferModal from '../components/RespondOfferModal';
 import PropertyMatching from '../components/PropertyMatching';
+import ViewVisitModal from '../components/ViewVisitModal'; // Added
 
 export default function SellerOpportunityView() {
   const { clientId, opportunityId } = useParams();
@@ -57,11 +59,15 @@ export default function SellerOpportunityView() {
   const [showScheduleVisitModal, setShowScheduleVisitModal] = useState(false);
   const [showCompleteVisitModal, setShowCompleteVisitModal] = useState(false);
   const [selectedVisit, setSelectedVisit] = useState(null);
+  const [editingVisit, setEditingVisit] = useState(null); // Added
+  const [isEditMode, setIsEditMode] = useState(false);    // Added
 
   const [showAddOfferModal, setShowAddOfferModal] = useState(false);
   const [showRespondOfferModal, setShowRespondOfferModal] = useState(false);
   const [selectedOffer, setSelectedOffer] = useState(null);
   const [offerAction, setOfferAction] = useState(null);
+  const [showViewVisitModal, setShowViewVisitModal] = useState(false); // Added
+  const [selectedViewVisit, setSelectedViewVisit] = useState(null);     // Added
 
   // Load opportunity data
   useEffect(() => {
@@ -112,14 +118,32 @@ export default function SellerOpportunityView() {
   };
 
   // ========== VISITS (VIEWINGS) HANDLERS ==========
-  const handleScheduleVisit = async (visitData) => {
+  const handleScheduleVisit = async (visitData) => { // Updated
     try {
-      await addViewing(db, consultantId, clientId, opportunityId, visitData);
+      if (editingVisit) {
+        await updateViewing(
+          db,
+          consultantId,
+          clientId,
+          opportunityId,
+          editingVisit.id,
+            visitData
+        );
+      } else {
+        await addViewing(
+          db,
+          consultantId,
+          clientId,
+          opportunityId,
+          visitData
+        );
+      }
       await fetchOpportunity();
       setShowScheduleVisitModal(false);
+      setEditingVisit(null);
     } catch (error) {
-      console.error('Error scheduling visit:', error);
-      alert('Erro ao agendar visita');
+      console.error('Error saving visit:', error);
+      alert(editingVisit ? 'Erro ao atualizar visita' : 'Erro ao agendar visita');
     }
   };
 
@@ -168,6 +192,18 @@ export default function SellerOpportunityView() {
       console.error('Error completing visit:', error);
       alert('Erro ao concluir visita');
     }
+  };
+
+  const handleViewVisitDetails = (visit) => { // Added
+    setSelectedViewVisit(visit);
+    setShowViewVisitModal(true);
+  };
+
+  const handleEditVisit = (visit) => { // Updated
+    console.log('Editing visit:', visit);
+    setEditingVisit(visit);
+    setIsEditMode(true);
+    setShowScheduleVisitModal(true);
   };
 
   // ========== OFFERS HANDLERS ==========
@@ -436,7 +472,11 @@ export default function SellerOpportunityView() {
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold text-gray-900">Visitas</h2>
                 <button
-                  onClick={() => setShowScheduleVisitModal(true)}
+                  onClick={() => {
+                    setEditingVisit(null);
+                    setIsEditMode(false);
+                    setShowScheduleVisitModal(true);
+                  }}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                 >
                   + Agendar Visita
@@ -446,6 +486,8 @@ export default function SellerOpportunityView() {
                 viewings={opportunity.viewings || []}
                 onComplete={handleCompleteVisit}
                 onCancel={handleCancelVisit}
+                onViewDetails={handleViewVisitDetails}
+                onEditVisit={handleEditVisit} // Added
               />
             </div>
 
@@ -542,8 +584,15 @@ export default function SellerOpportunityView() {
       {/* ===== MODALS ===== */}
       <ScheduleVisitModal
         isOpen={showScheduleVisitModal}
-        onClose={() => setShowScheduleVisitModal(false)}
+        onClose={() => {
+          setShowScheduleVisitModal(false);
+          setEditingVisit(null);
+          setIsEditMode(false);
+        }}
         onSave={handleScheduleVisit}
+        opportunity={opportunity}
+        existingVisit={editingVisit}
+        isEditMode={isEditMode}
       />
 
       <CompleteVisitModal
@@ -554,6 +603,15 @@ export default function SellerOpportunityView() {
         }}
         onSave={handleSaveCompleteVisit}
         visit={selectedVisit}
+      />
+
+      <ViewVisitModal
+        isOpen={showViewVisitModal}
+        onClose={() => {
+          setShowViewVisitModal(false);
+          setSelectedViewVisit(null);
+        }}
+        visit={selectedViewVisit}
       />
 
       <AddOfferModal
