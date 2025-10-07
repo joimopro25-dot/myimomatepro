@@ -1,6 +1,6 @@
 /**
  * SIDEBAR COMPONENT - MyImoMatePro
- * FIXED: Added Negócios/Deals to navigation
+ * FIXED: Full height sidebar from top to bottom
  */
 
 import React, { useState } from 'react';
@@ -18,7 +18,7 @@ import {
     ChevronLeftIcon,
     ChevronRightIcon,
     SparklesIcon,
-    CurrencyEuroIcon        // Added
+    CurrencyEuroIcon
 } from '@heroicons/react/24/outline';
 import {
     HomeIcon as HomeIconSolid,
@@ -26,7 +26,7 @@ import {
     BriefcaseIcon as BriefcaseIconSolid,
     ShoppingBagIcon as ShoppingBagIconSolid,
     CogIcon as CogIconSolid,
-    CurrencyEuroIcon as CurrencyEuroIconSolid   // Added
+    CurrencyEuroIcon as CurrencyEuroIconSolid
 } from '@heroicons/react/24/solid';
 
 const Sidebar = ({ isCollapsed = false, onToggleCollapse }) => {
@@ -45,7 +45,6 @@ const Sidebar = ({ isCollapsed = false, onToggleCollapse }) => {
         }
     };
 
-    // Navigation items - FIXED: Added Deals
     const navigationItems = [
         {
             name: 'Dashboard',
@@ -88,19 +87,15 @@ const Sidebar = ({ isCollapsed = false, onToggleCollapse }) => {
     ];
 
     const isActiveRoute = (href) => {
-        // Exact match for dashboard
         if (href === '/dashboard') {
             return location.pathname === '/dashboard';
         }
         
-        // Special case: Deal board routes should highlight "Negócios"
         if (href === '/deals') {
             return location.pathname === '/deals' || 
                    location.pathname.includes('/deals');
         }
         
-        // For other routes, check if path starts with href
-        // But exclude deal board routes from matching /clients
         if (href === '/clients') {
             return location.pathname.startsWith('/clients') && 
                    !location.pathname.includes('/deals');
@@ -110,11 +105,11 @@ const Sidebar = ({ isCollapsed = false, onToggleCollapse }) => {
     };
 
     return (
-        <div className={`bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 text-white transition-all duration-300 flex flex-col ${
+        <div className={`h-screen bg-gradient-to-b from-slate-900 via-slate-800 to-slate-900 text-white transition-all duration-300 flex flex-col ${
             isCollapsed ? 'w-16' : 'w-64'
         }`}>
             {/* Sidebar Header */}
-            <div className="p-4 border-b border-slate-700/50">
+            <div className="p-4 border-b border-slate-700/50 flex-shrink-0">
                 <div className="flex items-center justify-between">
                     {!isCollapsed && (
                         <div className="flex items-center space-x-3">
@@ -130,7 +125,6 @@ const Sidebar = ({ isCollapsed = false, onToggleCollapse }) => {
                         </div>
                     )}
 
-                    {/* Toggle Button */}
                     <button
                         onClick={onToggleCollapse}
                         className="p-1.5 rounded-lg hover:bg-slate-700/50 transition-colors"
@@ -145,8 +139,8 @@ const Sidebar = ({ isCollapsed = false, onToggleCollapse }) => {
                 </div>
             </div>
 
-            {/* Main Navigation */}
-            <nav className="flex-1 p-4 space-y-2">
+            {/* Main Navigation - Scrollable if needed */}
+            <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
                 {navigationItems.map((item) => {
                     const isActive = isActiveRoute(item.href);
                     const Icon = isActive ? item.iconSolid : item.icon;
@@ -201,7 +195,6 @@ const Sidebar = ({ isCollapsed = false, onToggleCollapse }) => {
                     );
                 })}
 
-                {/* Coming Soon Section */}
                 {!isCollapsed && (
                     <div className="mt-8 pt-6 border-t border-slate-700/50">
                         <p className="text-xs text-slate-500 uppercase tracking-wider mb-3">Em breve</p>
@@ -229,9 +222,8 @@ const Sidebar = ({ isCollapsed = false, onToggleCollapse }) => {
                 )}
             </nav>
 
-            {/* User Section at Bottom */}
-            <div className="border-t border-slate-700/50 p-4">
-                {/* Subscription Status */}
+            {/* User Section at Bottom - Fixed */}
+            <div className="border-t border-slate-700/50 p-4 flex-shrink-0">
                 {!isCollapsed && subscription && (
                     <div className="mb-4 px-3 py-2 bg-slate-800/50 rounded-lg">
                         <div className="flex items-center justify-between">
@@ -252,7 +244,6 @@ const Sidebar = ({ isCollapsed = false, onToggleCollapse }) => {
                     </div>
                 )}
 
-                {/* User Profile */}
                 <div className="relative">
                     <button
                         onClick={() => setShowUserMenu(!showUserMenu)}
@@ -275,7 +266,6 @@ const Sidebar = ({ isCollapsed = false, onToggleCollapse }) => {
                         )}
                     </button>
 
-                    {/* User Dropdown Menu */}
                     {showUserMenu && (
                         <div className="absolute bottom-full left-0 right-0 mb-2 bg-slate-800 rounded-lg shadow-xl border border-slate-700 overflow-hidden">
                             <Link

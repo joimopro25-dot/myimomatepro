@@ -1,6 +1,7 @@
 /**
  * SELLER OPPORTUNITY VIEW - MyImoMatePro
  * Detail view for seller opportunities
+ * FIXED: RespondOfferModal now receives clientId and opportunityId
  */
 
 import React, { useState, useEffect } from 'react';
@@ -15,7 +16,7 @@ import {
   updateViewingStatus,
   addOffer,
   updateOfferStatus,
-  updateViewing // Added
+  updateViewing
 } from '../utils/sellerOpportunityFirebase';
 import { db } from '../firebase/config';
 import {
@@ -29,13 +30,11 @@ import {
   PencilIcon
 } from '@heroicons/react/24/outline';
 
-// Import your seller models
 import { 
   SELLER_PIPELINE_STAGES,
   getQualificationColor 
 } from '../models/sellerOpportunity';
 
-// Add new component imports
 import ScheduleVisitModal from '../components/ScheduleVisitModal';
 import VisitsList from '../components/VisitsList';
 import CompleteVisitModal from '../components/CompleteVisitModal';
@@ -43,7 +42,7 @@ import AddOfferModal from '../components/AddOfferModal';
 import OffersView from '../components/OffersView';
 import RespondOfferModal from '../components/RespondOfferModal';
 import PropertyMatching from '../components/PropertyMatching';
-import ViewVisitModal from '../components/ViewVisitModal'; // Added
+import ViewVisitModal from '../components/ViewVisitModal';
 
 export default function SellerOpportunityView() {
   const { clientId, opportunityId } = useParams();
@@ -55,27 +54,23 @@ export default function SellerOpportunityView() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // NEW STATE (visits & offers)
   const [showScheduleVisitModal, setShowScheduleVisitModal] = useState(false);
   const [showCompleteVisitModal, setShowCompleteVisitModal] = useState(false);
   const [selectedVisit, setSelectedVisit] = useState(null);
-  const [editingVisit, setEditingVisit] = useState(null); // Added
-  const [isEditMode, setIsEditMode] = useState(false);    // Added
+  const [editingVisit, setEditingVisit] = useState(null);
+  const [isEditMode, setIsEditMode] = useState(false);
 
   const [showAddOfferModal, setShowAddOfferModal] = useState(false);
   const [showRespondOfferModal, setShowRespondOfferModal] = useState(false);
   const [selectedOffer, setSelectedOffer] = useState(null);
   const [offerAction, setOfferAction] = useState(null);
-  const [showViewVisitModal, setShowViewVisitModal] = useState(false); // Added
-  const [selectedViewVisit, setSelectedViewVisit] = useState(null);     // Added
+  const [showViewVisitModal, setShowViewVisitModal] = useState(false);
+  const [selectedViewVisit, setSelectedViewVisit] = useState(null);
 
-  // Load opportunity data
   useEffect(() => {
     fetchOpportunity();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [opportunityId, consultantId]);
 
-  // Renamed loader to fetchOpportunity (used by handlers)
   const fetchOpportunity = async () => {
     if (!consultantId) return;
     try {
@@ -90,7 +85,6 @@ export default function SellerOpportunityView() {
     }
   };
 
-  // Handle stage change
   const handleStageChange = async (newStage) => {
     try {
       await updateSellerStage(db, consultantId, clientId, opportunityId, newStage);
@@ -101,7 +95,6 @@ export default function SellerOpportunityView() {
     }
   };
 
-  // Format currency
   const formatCurrency = (value) => {
     return new Intl.NumberFormat('pt-PT', {
       style: 'currency',
@@ -110,15 +103,13 @@ export default function SellerOpportunityView() {
     }).format(value);
   };
 
-  // Format date
   const formatDate = (date) => {
     if (!date) return 'N/A';
     const d = typeof date === 'string' ? new Date(date) : date;
     return d.toLocaleDateString('pt-PT');
   };
 
-  // ========== VISITS (VIEWINGS) HANDLERS ==========
-  const handleScheduleVisit = async (visitData) => { // Updated
+  const handleScheduleVisit = async (visitData) => {
     try {
       if (editingVisit) {
         await updateViewing(
@@ -147,7 +138,6 @@ export default function SellerOpportunityView() {
     }
   };
 
-  // THIS FUNCTION WAS MISSING - Opens the complete visit modal
   const handleCompleteVisit = (visitId) => {
     const visit = opportunity?.viewings?.find(v => v.id === visitId);
     if (!visit) return;
@@ -194,19 +184,18 @@ export default function SellerOpportunityView() {
     }
   };
 
-  const handleViewVisitDetails = (visit) => { // Added
+  const handleViewVisitDetails = (visit) => {
     setSelectedViewVisit(visit);
     setShowViewVisitModal(true);
   };
 
-  const handleEditVisit = (visit) => { // Updated
+  const handleEditVisit = (visit) => {
     console.log('Editing visit:', visit);
     setEditingVisit(visit);
     setIsEditMode(true);
     setShowScheduleVisitModal(true);
   };
 
-  // ========== OFFERS HANDLERS ==========
   const handleAddOffer = async (offerData) => {
     try {
       await addOffer(db, consultantId, clientId, opportunityId, offerData);
@@ -224,40 +213,6 @@ export default function SellerOpportunityView() {
     setSelectedOffer(offer);
     setOfferAction(action);
     setShowRespondOfferModal(true);
-  };
-
-  const handleSaveOfferResponse = async (responseData) => {
-    try {
-      const { action, offerId, ...data } = responseData;
-      let newStatus = 'pending';
-
-      if (action === 'accept') {
-        newStatus = 'accepted';
-        await updateSellerStage(db, consultantId, clientId, opportunityId, 'proposta_aceite');
-      } else if (action === 'reject') {
-        newStatus = 'rejected';
-      } else if (action === 'counter') {
-        newStatus = 'countered';
-      }
-
-      await updateOfferStatus(
-        db,
-        consultantId,
-        clientId,
-        opportunityId,
-        offerId,
-        newStatus,
-        data
-      );
-
-      await fetchOpportunity();
-      setShowRespondOfferModal(false);
-      setSelectedOffer(null);
-      setOfferAction(null);
-    } catch (error) {
-      console.error('Error responding to offer:', error);
-      alert('Erro ao responder proposta');
-    }
   };
 
   if (loading) {
@@ -296,7 +251,6 @@ export default function SellerOpportunityView() {
   return (
     <Layout>
       <div className="p-6">
-        {/* Header */}
         <div className="mb-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
@@ -333,7 +287,6 @@ export default function SellerOpportunityView() {
           </div>
         </div>
 
-        {/* Stage Pipeline */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Pipeline</h2>
           <div className="flex items-center space-x-2 overflow-x-auto pb-2">
@@ -361,9 +314,7 @@ export default function SellerOpportunityView() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Main Content */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Property Details */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <div className="flex items-center gap-2 mb-4">
                 <HomeIcon className="w-5 h-5 text-blue-600" />
@@ -437,7 +388,6 @@ export default function SellerOpportunityView() {
               </div>
             </div>
 
-            {/* Pricing */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <div className="flex items-center gap-2 mb-4">
                 <CurrencyEuroIcon className="w-5 h-5 text-green-600" />
@@ -467,7 +417,6 @@ export default function SellerOpportunityView() {
               </div>
             </div>
 
-            {/* Visits Section */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold text-gray-900">Visitas</h2>
@@ -487,11 +436,10 @@ export default function SellerOpportunityView() {
                 onComplete={handleCompleteVisit}
                 onCancel={handleCancelVisit}
                 onViewDetails={handleViewVisitDetails}
-                onEditVisit={handleEditVisit} // Added
+                onEditVisit={handleEditVisit}
               />
             </div>
 
-            {/* Offers Section */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold text-gray-900">Propostas</h2>
@@ -509,7 +457,6 @@ export default function SellerOpportunityView() {
               />
             </div>
 
-            {/* Property Matching */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <PropertyMatching 
                 mode="seller"
@@ -521,9 +468,7 @@ export default function SellerOpportunityView() {
             </div>
           </div>
 
-          {/* Sidebar */}
           <div className="space-y-6">
-            {/* Stats Card */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">Estatísticas</h2>
               <div className="space-y-3">
@@ -542,7 +487,6 @@ export default function SellerOpportunityView() {
               </div>
             </div>
 
-            {/* Motivation */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <div className="flex items-center gap-2 mb-4">
                 <CalendarIcon className="w-5 h-5 text-blue-600" />
@@ -581,7 +525,6 @@ export default function SellerOpportunityView() {
         </div>
       </div>
 
-      {/* ===== MODALS ===== */}
       <ScheduleVisitModal
         isOpen={showScheduleVisitModal}
         onClose={() => {
@@ -627,7 +570,9 @@ export default function SellerOpportunityView() {
           setSelectedOffer(null);
           setOfferAction(null);
         }}
-        onSave={handleSaveOfferResponse}
+        clientId={clientId}              
+        opportunityId={opportunityId}    
+        onSuccess={fetchOpportunity}     
         offer={selectedOffer}
         action={offerAction}
       />

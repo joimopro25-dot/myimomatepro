@@ -1,11 +1,13 @@
 /**
  * COMMISSION DASHBOARD - MyImoMatePro
  * Track commissions from both buyer and seller sides
+ * FIXED: Added Layout wrapper for sidebar navigation
  */
 
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { db } from '../firebase/config';
+import Layout from './Layout';  // ✅ FIXED PATH
 import {
   collection,
   query,
@@ -13,12 +15,12 @@ import {
   getDocs,
   doc,
   updateDoc,
-  getDoc            // Added
+  getDoc
 } from 'firebase/firestore';
 import {
   CurrencyEuroIcon,
   ChartBarIcon,
-  ArrowTrendingUpIcon, // Renamed from TrendingUpIcon
+  ArrowTrendingUpIcon,
   CalendarIcon,
   HomeIcon,
   UserIcon,
@@ -236,214 +238,218 @@ export default function CommissionDashboard() {
 
   if (loading) {
     return (
-      <div className="p-6">
-        <div className="animate-pulse">
-          <div className="h-32 bg-gray-100 rounded-lg mb-6"></div>
-          <div className="h-64 bg-gray-100 rounded-lg"></div>
+      <Layout>
+        <div className="p-6">
+          <div className="animate-pulse">
+            <div className="h-32 bg-gray-100 rounded-lg mb-6"></div>
+            <div className="h-64 bg-gray-100 rounded-lg"></div>
+          </div>
         </div>
-      </div>
+      </Layout>
     );
   }
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard de Comissões</h1>
-        <p className="text-gray-600 mt-1">Acompanhe suas comissões e projeções</p>
-      </div>
+    <Layout>
+      <div className="p-6 space-y-6">
+        {/* Header */}
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Dashboard de Comissões</h1>
+          <p className="text-gray-600 mt-1">Acompanhe suas comissões e projeções</p>
+        </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Ganhos Totais</p>
-              <p className="text-2xl font-bold text-green-600">
-                {formatCurrency(stats.totalEarned)}
-              </p>
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600">Ganhos Totais</p>
+                <p className="text-2xl font-bold text-green-600">
+                  {formatCurrency(stats.totalEarned)}
+                </p>
+              </div>
+              <CheckCircleIcon className="w-8 h-8 text-green-200" />
             </div>
-            <CheckCircleIcon className="w-8 h-8 text-green-200" />
+          </div>
+
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600">Pendente</p>
+                <p className="text-2xl font-bold text-yellow-600">
+                  {formatCurrency(stats.totalPending)}
+                </p>
+              </div>
+              <ClockIcon className="w-8 h-8 text-yellow-200" />
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600">Projetado</p>
+                <p className="text-2xl font-bold text-blue-600">
+                  {formatCurrency(stats.totalProjected)}
+                </p>
+              </div>
+              <ArrowTrendingUpIcon className="w-8 h-8 text-blue-200" />
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600">Média/Negócio</p>
+                <p className="text-2xl font-bold text-purple-600">
+                  {formatCurrency(stats.averageCommission)}
+                </p>
+              </div>
+              <ChartBarIcon className="w-8 h-8 text-purple-200" />
+            </div>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Pendente</p>
-              <p className="text-2xl font-bold text-yellow-600">
-                {formatCurrency(stats.totalPending)}
-              </p>
+        {/* Commission Tables */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Buyer Deals */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <UserIcon className="w-5 h-5 text-blue-600" />
+              <h2 className="text-lg font-semibold text-gray-900">Comissões Comprador</h2>
             </div>
-            <ClockIcon className="w-8 h-8 text-yellow-200" />
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Projetado</p>
-              <p className="text-2xl font-bold text-blue-600">
-                {formatCurrency(stats.totalProjected)}
-              </p>
-            </div>
-            <ArrowTrendingUpIcon className="w-8 h-8 text-blue-200" />
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Média/Negócio</p>
-              <p className="text-2xl font-bold text-purple-600">
-                {formatCurrency(stats.averageCommission)}
-              </p>
-            </div>
-            <ChartBarIcon className="w-8 h-8 text-purple-200" />
-          </div>
-        </div>
-      </div>
-
-      {/* Commission Tables */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Buyer Deals */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <UserIcon className="w-5 h-5 text-blue-600" />
-            <h2 className="text-lg font-semibold text-gray-900">Comissões Comprador</h2>
-          </div>
-          
-          <div className="space-y-3 max-h-96 overflow-y-auto">
-            {deals.filter(d => d.price).map(deal => {
-              const commission = calculateDealCommission(deal);
-              return (
-                <div key={`${deal.clientId}_${deal.id}`} className="border rounded-lg p-3">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <p className="font-medium text-gray-900">{deal.clientName}</p>
-                      <p className="text-sm text-gray-600">{deal.propertyAddress}</p>
-                      <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium mt-1 ${getStageColor(deal.stage)}`}>
-                        {deal.stage}
-                      </span>
+            
+            <div className="space-y-3 max-h-96 overflow-y-auto">
+              {deals.filter(d => d.price).map(deal => {
+                const commission = calculateDealCommission(deal);
+                return (
+                  <div key={`${deal.clientId}_${deal.id}`} className="border rounded-lg p-3">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="font-medium text-gray-900">{deal.clientName}</p>
+                        <p className="text-sm text-gray-600">{deal.propertyAddress}</p>
+                        <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium mt-1 ${getStageColor(deal.stage)}`}>
+                          {deal.stage}
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-semibold text-gray-900">
+                          {formatCurrency(commission.total)}
+                        </p>
+                        <button
+                          onClick={() => {
+                            setEditingCommission(`deal_${deal.id}`);
+                            setCustomPercentage(deal.commission?.buyerSide?.percentage || 2.5);
+                          }}
+                          className="text-xs text-blue-600 hover:underline"
+                        >
+                          {deal.commission?.buyerSide?.percentage || 2.5}%
+                        </button>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <p className="font-semibold text-gray-900">
-                        {formatCurrency(commission.total)}
-                      </p>
-                      <button
-                        onClick={() => {
-                          setEditingCommission(`deal_${deal.id}`);
-                          setCustomPercentage(deal.commission?.buyerSide?.percentage || 2.5);
-                        }}
-                        className="text-xs text-blue-600 hover:underline"
-                      >
-                        {deal.commission?.buyerSide?.percentage || 2.5}%
-                      </button>
-                    </div>
+                    
+                    {editingCommission === `deal_${deal.id}` && (
+                      <div className="mt-3 pt-3 border-t flex items-center gap-2">
+                        <input
+                          type="number"
+                          step="0.1"
+                          value={customPercentage}
+                          onChange={(e) => setCustomPercentage(e.target.value)}
+                          className="flex-1 px-2 py-1 border rounded text-sm"
+                          placeholder="%"
+                        />
+                        <button
+                          onClick={() => handleUpdateCommission(deal, 'deal')}
+                          className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
+                        >
+                          Guardar
+                        </button>
+                        <button
+                          onClick={() => {
+                            setEditingCommission(null);
+                            setCustomPercentage('');
+                          }}
+                          className="px-3 py-1 border text-gray-600 text-sm rounded hover:bg-gray-50"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    )}
                   </div>
-                  
-                  {editingCommission === `deal_${deal.id}` && (
-                    <div className="mt-3 pt-3 border-t flex items-center gap-2">
-                      <input
-                        type="number"
-                        step="0.1"
-                        value={customPercentage}
-                        onChange={(e) => setCustomPercentage(e.target.value)}
-                        className="flex-1 px-2 py-1 border rounded text-sm"
-                        placeholder="%"
-                      />
-                      <button
-                        onClick={() => handleUpdateCommission(deal, 'deal')}
-                        className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
-                      >
-                        Guardar
-                      </button>
-                      <button
-                        onClick={() => {
-                          setEditingCommission(null);
-                          setCustomPercentage('');
-                        }}
-                        className="px-3 py-1 border text-gray-600 text-sm rounded hover:bg-gray-50"
-                      >
-                        Cancelar
-                      </button>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
-        </div>
 
-        {/* Seller Opportunities */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <HomeIcon className="w-5 h-5 text-green-600" />
-            <h2 className="text-lg font-semibold text-gray-900">Comissões Vendedor</h2>
-          </div>
-          
-          <div className="space-y-3 max-h-96 overflow-y-auto">
-            {opportunities.filter(o => o.pricing?.askingPrice).map(opp => {
-              const commission = calculateSellerCommission(opp);
-              return (
-                <div key={`${opp.clientId}_${opp.id}`} className="border rounded-lg p-3">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <p className="font-medium text-gray-900">{opp.clientName}</p>
-                      <p className="text-sm text-gray-600">{opp.property?.address}</p>
-                      <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium mt-1 ${getStageColor(opp.stage)}`}>
-                        {opp.stage}
-                      </span>
+          {/* Seller Opportunities */}
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <HomeIcon className="w-5 h-5 text-green-600" />
+              <h2 className="text-lg font-semibold text-gray-900">Comissões Vendedor</h2>
+            </div>
+            
+            <div className="space-y-3 max-h-96 overflow-y-auto">
+              {opportunities.filter(o => o.pricing?.askingPrice).map(opp => {
+                const commission = calculateSellerCommission(opp);
+                return (
+                  <div key={`${opp.clientId}_${opp.id}`} className="border rounded-lg p-3">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="font-medium text-gray-900">{opp.clientName}</p>
+                        <p className="text-sm text-gray-600">{opp.property?.address}</p>
+                        <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium mt-1 ${getStageColor(opp.stage)}`}>
+                          {opp.stage}
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-semibold text-gray-900">
+                          {formatCurrency(commission)}
+                        </p>
+                        <button
+                          onClick={() => {
+                            setEditingCommission(`opp_${opp.id}`);
+                            setCustomPercentage(opp.commission?.percentage || 5);
+                          }}
+                          className="text-xs text-blue-600 hover:underline"
+                        >
+                          {opp.commission?.percentage || 5}%
+                        </button>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <p className="font-semibold text-gray-900">
-                        {formatCurrency(commission)}
-                      </p>
-                      <button
-                        onClick={() => {
-                          setEditingCommission(`opp_${opp.id}`);
-                          setCustomPercentage(opp.commission?.percentage || 5);
-                        }}
-                        className="text-xs text-blue-600 hover:underline"
-                      >
-                        {opp.commission?.percentage || 5}%
-                      </button>
-                    </div>
+                    
+                    {editingCommission === `opp_${opp.id}` && (
+                      <div className="mt-3 pt-3 border-t flex items-center gap-2">
+                        <input
+                          type="number"
+                          step="0.1"
+                          value={customPercentage}
+                          onChange={(e) => setCustomPercentage(e.target.value)}
+                          className="flex-1 px-2 py-1 border rounded text-sm"
+                          placeholder="%"
+                        />
+                        <button
+                          onClick={() => handleUpdateCommission(opp, 'opportunity')}
+                          className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
+                        >
+                          Guardar
+                        </button>
+                        <button
+                          onClick={() => {
+                            setEditingCommission(null);
+                            setCustomPercentage('');
+                          }}
+                          className="px-3 py-1 border text-gray-600 text-sm rounded hover:bg-gray-50"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    )}
                   </div>
-                  
-                  {editingCommission === `opp_${opp.id}` && (
-                    <div className="mt-3 pt-3 border-t flex items-center gap-2">
-                      <input
-                        type="number"
-                        step="0.1"
-                        value={customPercentage}
-                        onChange={(e) => setCustomPercentage(e.target.value)}
-                        className="flex-1 px-2 py-1 border rounded text-sm"
-                        placeholder="%"
-                      />
-                      <button
-                        onClick={() => handleUpdateCommission(opp, 'opportunity')}
-                        className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
-                      >
-                        Guardar
-                      </button>
-                      <button
-                        onClick={() => {
-                          setEditingCommission(null);
-                          setCustomPercentage('');
-                        }}
-                        className="px-3 py-1 border text-gray-600 text-sm rounded hover:bg-gray-50"
-                      >
-                        Cancelar
-                      </button>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </Layout>
   );
 }

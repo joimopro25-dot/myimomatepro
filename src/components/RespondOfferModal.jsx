@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { X, CheckCircle, XCircle, ArrowLeftRight, AlertCircle } from 'lucide-react';
 import { updateOfferStatus, updateSellerStage } from '../utils/sellerOpportunityFirebase';
+import { db } from '../firebase/config';  // ✅ CRITICAL: Add this import
 import { useAuth } from '../contexts/AuthContext';
 
 const RespondSellerOfferModal = ({ 
@@ -80,17 +81,37 @@ const RespondSellerOfferModal = ({
     try {
       setLoading(true);
 
-      let updateData = {};
+      // ✅ DEBUG: Log all parameters
+      console.log('🔍 Debug - Parameters:', {
+        db: db ? 'exists' : 'MISSING',
+        consultantId: currentUser?.uid || 'MISSING',
+        clientId: clientId || 'MISSING',
+        opportunityId: opportunityId || 'MISSING',
+        offerId: offer?.id || 'MISSING',
+        action: action
+      });
+
+      let status = '';
+      let extraData = {};
 
       switch (action) {
         case 'accept':
-          updateData = {
-            status: 'accepted',
+          status = 'accepted';
+          extraData = {
             acceptedAt: new Date().toISOString(),
             notes: responseData.notes
           };
-          // Move opportunity to "proposta_aceite" stage
+          
+          console.log('🔍 Calling updateSellerStage with:', {
+            db: db ? 'exists' : 'MISSING',
+            consultantId: currentUser.uid,
+            clientId,
+            opportunityId,
+            newStage: 'proposta_aceite'
+          });
+          
           await updateSellerStage(
+            db,
             currentUser.uid,
             clientId,
             opportunityId,
@@ -99,8 +120,8 @@ const RespondSellerOfferModal = ({
           break;
 
         case 'reject':
-          updateData = {
-            status: 'rejected',
+          status = 'rejected';
+          extraData = {
             rejectedAt: new Date().toISOString(),
             rejectReason: responseData.rejectReason,
             notes: responseData.notes
@@ -108,8 +129,8 @@ const RespondSellerOfferModal = ({
           break;
 
         case 'counter':
-          updateData = {
-            status: 'countered',
+          status = 'countered';
+          extraData = {
             counteredAt: new Date().toISOString(),
             counterAmount: parseFloat(responseData.counterAmount),
             counterConditions: responseData.counterConditions,
@@ -122,12 +143,24 @@ const RespondSellerOfferModal = ({
           return;
       }
 
+      console.log('🔍 Calling updateOfferStatus with:', {
+        db: db ? 'exists' : 'MISSING',
+        consultantId: currentUser.uid,
+        clientId,
+        opportunityId,
+        offerId: offer.id,
+        status,
+        extraData
+      });
+
       await updateOfferStatus(
+        db,
         currentUser.uid,
         clientId,
         opportunityId,
         offer.id,
-        updateData
+        status,
+        extraData
       );
 
       // Close modal first
@@ -139,179 +172,130 @@ const RespondSellerOfferModal = ({
       }
     } catch (error) {
       console.error('Error responding to offer:', error);
-      alert('Erro ao processar resposta. Tente novamente.');
+      console.error('Error details:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      });
+      alert(`Erro ao processar resposta: ${error.message || 'Erro desconhecido'}. Tente novamente.`);
+    } finally {
       setLoading(false);
     }
   };
 
-  const getModalConfig = () => {
-    switch (action) {
-      case 'accept':
-        return {
-          title: 'Aceitar Proposta',
-          icon: <CheckCircle className="w-6 h-6 text-green-600" />,
-          color: 'green',
-          bgColor: 'bg-green-600',
-          hoverColor: 'hover:bg-green-700',
-          description: `Aceitar proposta de ${formatCurrency(offer.amount)}`,
-          buttonText: 'Confirmar Aceitação'
-        };
-      case 'reject':
-        return {
-          title: 'Rejeitar Proposta',
-          icon: <XCircle className="w-6 h-6 text-red-600" />,
-          color: 'red',
-          bgColor: 'bg-red-600',
-          hoverColor: 'hover:bg-red-700',
-          description: `Rejeitar proposta de ${formatCurrency(offer.amount)}`,
-          buttonText: 'Confirmar Rejeição'
-        };
-      case 'counter':
-        return {
-          title: 'Contra-proposta',
-          icon: <ArrowLeftRight className="w-6 h-6 text-blue-600" />,
-          color: 'blue',
-          bgColor: 'bg-blue-600',
-          hoverColor: 'hover:bg-blue-700',
-          description: `Proposta atual: ${formatCurrency(offer.amount)}`,
-          buttonText: 'Enviar Contra-proposta'
-        };
-      default:
-        return {
-          title: 'Responder Proposta',
-          icon: null,
-          color: 'gray',
-          bgColor: 'bg-gray-600',
-          hoverColor: 'hover:bg-gray-700',
-          description: '',
-          buttonText: 'Confirmar'
-        };
+  // Configuration based on action
+  const config = {
+    accept: {
+      title: 'Aceitar Proposta',
+      icon: CheckCircle,
+      iconColor: 'text-green-600',
+      borderColor: 'border-green-200',
+      bgColor: 'bg-green-600',
+      hoverColor: 'hover:bg-green-700',
+      buttonText: 'Confirmar Aceitação'
+    },
+    reject: {
+      title: 'Rejeitar Proposta',
+      icon: XCircle,
+      iconColor: 'text-red-600',
+      borderColor: 'border-red-200',
+      bgColor: 'bg-red-600',
+      hoverColor: 'hover:bg-red-700',
+      buttonText: 'Confirmar Rejeição'
+    },
+    counter: {
+      title: 'Fazer Contra-Proposta',
+      icon: ArrowLeftRight,
+      iconColor: 'text-blue-600',
+      borderColor: 'border-blue-200',
+      bgColor: 'bg-blue-600',
+      hoverColor: 'hover:bg-blue-700',
+      buttonText: 'Enviar Contra-Proposta'
     }
-  };
+  }[action];
 
-  const config = getModalConfig();
+  const IconComponent = config.icon;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+        <div className={`flex items-center justify-between p-6 border-b ${config.borderColor}`}>
           <div className="flex items-center gap-3">
-            {config.icon}
-            <div>
-              <h2 className="text-xl font-semibold text-gray-900">{config.title}</h2>
-              <p className="text-sm text-gray-600 mt-1">
-                {offer.buyerName} - {formatCurrency(offer.amount)}
-              </p>
-            </div>
+            <IconComponent className={`w-6 h-6 ${config.iconColor}`} />
+            <h2 className="text-xl font-semibold text-gray-900">{config.title}</h2>
           </div>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
+            disabled={loading}
+            className="text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-50"
           >
             <X className="w-6 h-6" />
           </button>
         </div>
 
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto p-6">
-          <div className="space-y-6">
-            {/* Offer Summary */}
-            <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-              <h3 className="text-sm font-medium text-gray-700 mb-3">Resumo da Proposta</h3>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Comprador:</span>
-                  <span className="font-medium text-gray-900">{offer.buyerName}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Valor Proposto:</span>
-                  <span className="font-medium text-gray-900">{formatCurrency(offer.amount)}</span>
-                </div>
-                {offer.downPayment > 0 && (
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Entrada:</span>
-                    <span className="font-medium text-gray-900">{formatCurrency(offer.downPayment)}</span>
-                  </div>
-                )}
-                {offer.financingStatus && (
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Financiamento:</span>
-                    <span className="font-medium text-gray-900">
-                      {offer.financingStatus === 'cash' ? '💰 À Vista' : 
-                       offer.financingStatus === 'pre-approved' ? '✓ Pré-aprovado' : 
-                       '⏳ Pendente'}
-                    </span>
-                  </div>
-                )}
-                {offer.buyerScore && (
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Qualidade:</span>
-                    <span className="font-medium text-gray-900">
-                      {offer.buyerScore === 'high' ? '⭐ Alta' :
-                       offer.buyerScore === 'medium' ? '➖ Média' :
-                       '⬇️ Baixa'}
-                    </span>
-                  </div>
-                )}
-                {offer.conditions && offer.conditions.length > 0 && (
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Condições:</span>
-                    <span className="font-medium text-gray-900">{offer.conditions.length}</span>
-                  </div>
-                )}
+        {/* Content - Scrollable */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          {/* Offer Summary */}
+          <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+            <h3 className="text-sm font-medium text-gray-700 mb-3">Resumo da Proposta</h3>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <span className="text-gray-600">Comprador:</span>
+                <span className="ml-2 font-medium text-gray-900">{offer.buyerName || 'N/A'}</span>
               </div>
+              <div>
+                <span className="text-gray-600">Valor Proposto:</span>
+                <span className="ml-2 font-medium text-gray-900">{formatCurrency(offer.amount)}</span>
+              </div>
+              {offer.downPayment && (
+                <div>
+                  <span className="text-gray-600">Entrada:</span>
+                  <span className="ml-2 font-medium text-gray-900">{formatCurrency(offer.downPayment)}</span>
+                </div>
+              )}
+              {offer.conditions && offer.conditions.length > 0 && (
+                <div className="col-span-2">
+                  <span className="text-gray-600">Condições:</span>
+                  <ul className="ml-2 mt-1 space-y-1">
+                    {offer.conditions.map((cond, idx) => (
+                      <li key={idx} className="text-xs text-gray-700">• {cond}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
+          </div>
 
-            {/* Accept - Confirmation */}
-            {action === 'accept' && (
-              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                <p className="text-green-800 mb-2 font-medium">
-                  Ao aceitar esta proposta:
-                </p>
-                <ul className="list-disc list-inside space-y-1 text-sm text-green-700">
-                  <li>A oportunidade avançará para o estágio "Proposta Aceite"</li>
-                  <li>O vendedor será notificado da aceitação</li>
-                  <li>Outras propostas permanecerão visíveis mas esta será marcada como aceite</li>
-                </ul>
-              </div>
-            )}
-
-            {/* Counter - Form */}
+          {/* Action-specific inputs */}
+          <div className="space-y-4">
+            {/* Counter - Amount & Conditions */}
             {action === 'counter' && (
               <>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Valor da Contra-proposta <span className="text-red-500">*</span>
+                    Valor da Contra-Proposta <span className="text-red-500">*</span>
                   </label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">€</span>
-                    <input
-                      type="number"
-                      name="counterAmount"
-                      value={responseData.counterAmount}
-                      onChange={handleChange}
-                      className="w-full pl-8 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder="0.00"
-                      step="1000"
-                      min="0"
-                    />
-                  </div>
-                  <p className="mt-1 text-sm text-gray-500">
+                  <input
+                    type="number"
+                    name="counterAmount"
+                    value={responseData.counterAmount}
+                    onChange={handleChange}
+                    className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="€"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
                     Proposta original: {formatCurrency(offer.amount)}
                   </p>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-3">
-                    Condições da Contra-proposta
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Condições da Contra-Proposta
                   </label>
                   <div className="space-y-2">
-                    {conditionOptions.map(condition => (
-                      <label
-                        key={condition.value}
-                        className="flex items-center gap-3 p-3 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
-                      >
+                    {conditionOptions.map((condition) => (
+                      <label key={condition.value} className="flex items-center gap-2">
                         <input
                           type="checkbox"
                           checked={responseData.counterConditions.includes(condition.value)}
