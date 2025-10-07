@@ -12,7 +12,8 @@ import {
   where,
   getDocs,
   doc,
-  updateDoc
+  updateDoc,
+  getDoc            // Added
 } from 'firebase/firestore';
 import {
   CurrencyEuroIcon,
@@ -52,7 +53,21 @@ export default function CommissionDashboard() {
   const loadCommissions = async () => {
     try {
       setLoading(true);
-      
+
+      // DEBUG: Check auth and subscription
+      console.log('🔐 Current User:', consultantId);
+      console.log('🔐 Email:', currentUser?.email);
+
+      if (!consultantId) {
+        throw new Error('Utilizador não autenticado');
+      }
+
+      // Check subscription
+      const subRef = doc(db, 'subscriptions', consultantId);
+      const subSnap = await getDoc(subRef);
+      console.log('💳 Subscription exists:', subSnap.exists());
+      console.log('💳 Subscription data:', subSnap.data());
+
       // Get all clients
       const clientsRef = collection(db, 'consultants', consultantId, 'clients');
       const clientsSnap = await getDocs(clientsRef);

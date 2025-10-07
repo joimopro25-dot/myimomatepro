@@ -2,7 +2,6 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Helper functions
     function isAuthenticated() {
       return request.auth != null;
     }
@@ -17,107 +16,89 @@ service cloud.firestore {
         get(/databases/$(database)/documents/subscriptions/$(request.auth.uid)).data.status in ['active', 'trial'];
     }
     
-    // ===== CONSULTANTS COLLECTION =====
-    // Each consultant can only read/update their own profile
+    // Consultants
     match /consultants/{consultantId} {
-      allow read: if isOwner(consultantId);
-      allow create: if isOwner(consultantId);
-      allow update: if isOwner(consultantId) && 
-        // Prevent changing critical fields
-        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['uid', 'createdAt']);
-      allow delete: if false; // Consultants cannot delete their profiles
+      allow read, create, update: if isOwner(consultantId);
+      allow delete: if false;
     }
     
-    // ===== SUBSCRIPTIONS COLLECTION =====
-    // Consultants can read their subscription but only system can modify
+    // Subscriptions
     match /subscriptions/{consultantId} {
       allow read: if isOwner(consultantId);
-      allow create: if isOwner(consultantId) && 
-        // Only during registration
-        !exists(/databases/$(database)/documents/subscriptions/$(consultantId));
-      allow update: if false; // Only backend/admin can update subscriptions
-      allow delete: if false; // Subscriptions cannot be deleted
+      allow create: if isOwner(consultantId);
+      allow update, delete: if false;
     }
     
-    // ===== CLIENTS COLLECTION (Multi-tenant) =====
-    // Each consultant can only access their own clients
-    match /consultants/{consultantId}/clients/{clientId} {
-      allow read: if isOwner(consultantId) && hasValidSubscription();
-      allow create: if isOwner(consultantId) && hasValidSubscription() &&
-        // Verify client data has consultantId field
-        request.resource.data.consultantId == consultantId;
-      allow update: if isOwner(consultantId) && hasValidSubscription() &&
-        // Cannot change ownership
-        request.resource.data.consultantId == resource.data.consultantId;
-      allow delete: if isOwner(consultantId) && hasValidSubscription();
+    // GLOBAL AGENTS COLLECTION
+    match /agents/{agentId} {
+      allow read: if isAuthenticated() && 
+        resource.data.consultantId == request.auth.uid;
+      allow create: if isAuthenticated() && 
+        hasValidSubscription() &&
+        request.resource.data.consultantId == request.auth.uid;
+      allow update: if isAuthenticated() && 
+        hasValidSubscription() &&
+        resource.data.consultantId == request.auth.uid;
+      allow delete: if isAuthenticated() &&
+        resource.data.consultantId == request.auth.uid;
     }
     
-    // ===== OPPORTUNITIES COLLECTION =====
-    // Nested under clients for proper isolation
-    match /consultants/{consultantId}/clients/{clientId}/opportunities/{opportunityId} {
-      allow read: if isOwner(consultantId) && hasValidSubscription();
-      allow create: if isOwner(consultantId) && hasValidSubscription() &&
-        request.resource.data.clientId == clientId;
-      allow update: if isOwner(consultantId) && hasValidSubscription();
-      allow delete: if isOwner(consultantId) && hasValidSubscription();
-    }
-    
-    // ===== DEALS COLLECTION =====
-    // Nested under opportunities
-    match /consultants/{consultantId}/clients/{clientId}/opportunities/{opportunityId}/deals/{dealId} {
-      allow read: if isOwner(consultantId) && hasValidSubscription();
-      allow create: if isOwner(consultantId) && hasValidSubscription();
-      allow update: if isOwner(consultantId) && hasValidSubscription();
-      allow delete: if isOwner(consultantId) && hasValidSubscription();
-    }
-    
-    // ===== VIEWINGS COLLECTION =====
-    // Nested under deals
-    match /consultants/{consultantId}/clients/{clientId}/opportunities/{opportunityId}/deals/{dealId}/viewings/{viewingId} {
-      allow read: if isOwner(consultantId) && hasValidSubscription();
-      allow create: if isOwner(consultantId) && hasValidSubscription();
-      allow update: if isOwner(consultantId) && hasValidSubscription();
-      allow delete: if isOwner(consultantId) && hasValidSubscription();
-    }
-    
-    // ===== OFFERS COLLECTION =====
-    // Nested under deals
-    match /consultants/{consultantId}/clients/{clientId}/opportunities/{opportunityId}/deals/{dealId}/offers/{offerId} {
-      allow read: if isOwner(consultantId) && hasValidSubscription();
-      allow create: if isOwner(consultantId) && hasValidSubscription();
-      allow update: if isOwner(consultantId) && hasValidSubscription();
-      allow delete: if isOwner(consultantId) && hasValidSubscription();
-    }
-    
-    // ===== AGENTS/PARTNERS COLLECTION =====
-    // Each consultant has their own agents/partners list
+    // NESTED AGENTS (consultant-specific view)
     match /consultants/{consultantId}/agents/{agentId} {
       allow read: if isOwner(consultantId);
-      allow create: if isOwner(consultantId) && hasValidSubscription();
-      allow update: if isOwner(consultantId) && hasValidSubscription();
-      allow delete: if isOwner(consultantId) && hasValidSubscription();
+      allow create, update, delete: if isOwner(consultantId) && hasValidSubscription();
     }
     
-    // ===== DOCUMENTS COLLECTION =====
-    // Documents linked to clients
+    // Agent relationships
+    match /consultants/{consultantId}/agent_relationships/{agentId} {
+      allow read, write: if isOwner(consultantId);
+    }
+    
+    // Clients
+    match /consultants/{consultantId}/clients/{clientId} {
+      allow read, write: if isOwner(consultantId) && hasValidSubscription();
+    }
+    
+    // Opportunities
+    match /consultants/{consultantId}/clients/{clientId}/opportunities/{opportunityId} {
+      allow read, write: if isOwner(consultantId) && hasValidSubscription();
+    }
+    
+    // Deals (direct under clients)
+    match /consultants/{consultantId}/clients/{clientId}/deals/{dealId} {
+      allow read, write: if isOwner(consultantId) && hasValidSubscription();
+    }
+    
+    // Deals (nested under opportunities)
+    match /consultants/{consultantId}/clients/{clientId}/opportunities/{opportunityId}/deals/{dealId} {
+      allow read, write: if isOwner(consultantId) && hasValidSubscription();
+      
+      match /activities/{activityId} {
+        allow read, create: if isOwner(consultantId);
+        allow update, delete: if false;
+      }
+      
+      match /viewings/{viewingId} {
+        allow read, write: if isOwner(consultantId) && hasValidSubscription();
+      }
+      
+      match /offers/{offerId} {
+        allow read, write: if isOwner(consultantId) && hasValidSubscription();
+      }
+    }
+    
+    // Documents
     match /consultants/{consultantId}/clients/{clientId}/documents/{documentId} {
-      allow read: if isOwner(consultantId);
-      allow create: if isOwner(consultantId) && hasValidSubscription();
-      allow update: if isOwner(consultantId) && hasValidSubscription();
-      allow delete: if isOwner(consultantId) && hasValidSubscription();
+      allow read, write: if isOwner(consultantId) && hasValidSubscription();
     }
     
-    // ===== ACTIVITIES/LOGS COLLECTION =====
-    // Activity logs for clients
+    // Activities
     match /consultants/{consultantId}/clients/{clientId}/activities/{activityId} {
-      allow read: if isOwner(consultantId);
-      allow create: if isOwner(consultantId);
-      allow update: if false; // Activities cannot be edited
-      allow delete: if false; // Activities cannot be deleted
+      allow read, create: if isOwner(consultantId);
+      allow update, delete: if false;
     }
     
-    // ===== PUBLIC COLLECTIONS =====
-    // These can be read by anyone but not modified
+    // Public
     match /app_config/{document} {
       allow read: if true;
       allow write: if false;

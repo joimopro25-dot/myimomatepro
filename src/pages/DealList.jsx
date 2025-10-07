@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db, auth } from '../firebase/config';
 import Layout from '../components/Layout';
 import {
@@ -49,9 +49,19 @@ const DealList = () => {
       setLoading(true);
       setError(null);
 
+      // DEBUG: Check auth and subscription
+      console.log('🔐 Current User:', auth.currentUser?.uid);
+      console.log('🔐 Email:', auth.currentUser?.email);
+      
       if (!auth.currentUser) {
         throw new Error('Utilizador não autenticado');
       }
+
+      // Check subscription
+      const subRef = doc(db, 'subscriptions', auth.currentUser.uid);
+      const subSnap = await getDoc(subRef);
+      console.log('💳 Subscription exists:', subSnap.exists());
+      console.log('💳 Subscription data:', subSnap.data());
 
       const allDeals = [];
 

@@ -8,7 +8,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import Layout from '../components/Layout';
 import { db } from '../firebase/config';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, collection, getDocs } from 'firebase/firestore';
 import PropertyMatching from '../components/PropertyMatching';
 import {
   ArrowLeftIcon,
@@ -41,12 +41,47 @@ export default function DealView() {
     try {
       setLoading(true);
       
-      // Get deal data
-      const dealRef = doc(db, 'consultants', consultantId, 'clients', clientId, 'deals', dealId);
-      const dealSnap = await getDoc(dealRef);
+      // Try new structure first (direct under clients)
+      let dealRef = doc(db, 'consultants', consultantId, 'clients', clientId, 'deals', dealId);
+      let dealSnap = await getDoc(dealRef);
+      
+      // If not found, search in old structure (under opportunities)
+      if (!dealSnap.exists()) {
+        console.log('Deal not found in new structure, checking old structure...');
+        
+        const opportunitiesRef = collection(
+          db,
+          'consultants',
+          consultantId,
+            'clients',
+          clientId,
+          'opportunities'
+        );
+        const opportunitiesSnap = await getDocs(opportunitiesRef);
+        
+        for (const oppDoc of opportunitiesSnap.docs) {
+          const oldDealRef = doc(
+            db,
+            'consultants', consultantId,
+            'clients', clientId,
+            'opportunities', oppDoc.id,
+            'deals', dealId
+          );
+          const oldDealSnap = await getDoc(oldDealRef);
+          
+          if (oldDealSnap.exists()) {
+            dealSnap = oldDealSnap;
+            dealRef = oldDealRef;
+            console.log('✅ Found deal in old structure under opportunity:', oppDoc.id);
+            break;
+          }
+        }
+      } else {
+        console.log('✅ Found deal in new structure');
+      }
       
       if (!dealSnap.exists()) {
-        throw new Error('Deal not found');
+        throw new Error('Deal not found in either structure');
       }
       
       const dealData = { id: dealSnap.id, ...dealSnap.data() };
@@ -55,11 +90,9 @@ export default function DealView() {
       // Get client data
       const clientRef = doc(db, 'consultants', consultantId, 'clients', clientId);
       const clientSnap = await getDoc(clientRef);
-      
       if (clientSnap.exists()) {
         setClient({ id: clientSnap.id, ...clientSnap.data() });
       }
-      
     } catch (error) {
       console.error('Error loading deal:', error);
     } finally {
@@ -77,8 +110,27 @@ export default function DealView() {
 
   const formatDate = (date) => {
     if (!date) return 'N/A';
-    const d = typeof date === 'string' ? new Date(date) : date;
-    return d.toLocaleDateString('pt-PT');
+    
+    // Firestore Timestamp (has seconds property)
+    if (date && typeof date === 'object' && 'seconds' in date) {
+      return new Date(date.seconds * 1000).toLocaleDateString('pt-PT');
+    }
+    
+    // ISO or other date string
+    if (typeof date === 'string') {
+      const parsed = new Date(date);
+      if (!isNaN(parsed.getTime())) {
+        return parsed.toLocaleDateString('pt-PT');
+      }
+      return 'N/A';
+    }
+    
+    // Native Date instance
+    if (date instanceof Date) {
+      return date.toLocaleDateString('pt-PT');
+    }
+    
+    return 'N/A';
   };
 
   const handleStageChange = async (newStage) => {
