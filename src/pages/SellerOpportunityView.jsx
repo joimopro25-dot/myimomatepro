@@ -41,6 +41,7 @@ import CompleteVisitModal from '../components/CompleteVisitModal';
 import AddOfferModal from '../components/AddOfferModal';
 import OffersView from '../components/OffersView';
 import RespondOfferModal from '../components/RespondOfferModal';
+import PropertyMatching from '../components/PropertyMatching';
 
 export default function SellerOpportunityView() {
   const { clientId, opportunityId } = useParams();
@@ -463,6 +464,17 @@ export default function SellerOpportunityView() {
                 offers={opportunity.offers || []}
                 askingPrice={opportunity.pricing?.askingPrice}
                 onRespond={handleRespondOffer}
+              />
+            </div>
+
+            {/* Property Matching */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <PropertyMatching 
+                mode="seller"
+                sourceData={opportunity}
+                clientId={clientId}
+                documentId={opportunityId}
+                onLink={(match) => fetchOpportunity()}
               />
             </div>
           </div>

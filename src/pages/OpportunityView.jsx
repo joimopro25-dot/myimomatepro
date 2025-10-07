@@ -11,7 +11,6 @@ import { useClients } from '../contexts/ClientContext';
 import { useDeal } from '../contexts/DealContext';
 import Layout from '../components/Layout'; // ADD THIS LINE
 import DealFormModal from '../components/DealFormModal';
-import DealDetailsModal from '../components/DealDetailsModal';
 import ViewingFormModal from '../components/ViewingFormModal';
 import {
   ArrowLeftIcon,

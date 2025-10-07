@@ -1,6 +1,6 @@
 /**
  * DEAL LIST PAGE - MyImoMatePro
- * Shows all deals across all opportunities and clients
+ * Updated with links to individual deal views
  */
 
 import React, { useState, useEffect } from 'react';
@@ -18,7 +18,9 @@ import {
   UserIcon,
   ArrowPathIcon,
   ExclamationCircleIcon,
-  StarIcon
+  StarIcon,
+  EyeIcon,
+  ArrowTopRightOnSquareIcon
 } from '@heroicons/react/24/outline';
 import { BUYER_DEAL_STAGES } from '../models/buyerDealModel';
 
@@ -57,10 +59,31 @@ const DealList = () => {
       const clientsRef = collection(db, 'consultants', auth.currentUser.uid, 'clients');
       const clientsSnapshot = await getDocs(clientsRef);
 
-      // For each client, get opportunities
+      // For each client, get all deals directly (new structure)
       for (const clientDoc of clientsSnapshot.docs) {
         const clientData = clientDoc.data();
         
+        // Direct path to deals collection
+        const dealsRef = collection(
+          db,
+          'consultants',
+          auth.currentUser.uid,
+          'clients',
+          clientDoc.id,
+          'deals'
+        );
+        const dealsSnapshot = await getDocs(dealsRef);
+
+        dealsSnapshot.docs.forEach(dealDoc => {
+          allDeals.push({
+            id: dealDoc.id,
+            clientId: clientDoc.id,
+            clientName: clientData.name,
+            ...dealDoc.data()
+          });
+        });
+
+        // Also check old structure for backward compatibility
         const opportunitiesRef = collection(
           db,
           'consultants',
@@ -71,11 +94,10 @@ const DealList = () => {
         );
         const opportunitiesSnapshot = await getDocs(opportunitiesRef);
 
-        // For each opportunity, get deals
         for (const oppDoc of opportunitiesSnapshot.docs) {
           const oppData = oppDoc.data();
           
-          const dealsRef = collection(
+          const oppDealsRef = collection(
             db,
             'consultants',
             auth.currentUser.uid,
@@ -85,9 +107,9 @@ const DealList = () => {
             oppDoc.id,
             'deals'
           );
-          const dealsSnapshot = await getDocs(dealsRef);
+          const oppDealsSnapshot = await getDocs(oppDealsRef);
 
-          dealsSnapshot.docs.forEach(dealDoc => {
+          oppDealsSnapshot.docs.forEach(dealDoc => {
             allDeals.push({
               id: dealDoc.id,
               clientId: clientDoc.id,
@@ -118,6 +140,7 @@ const DealList = () => {
     if (searchTerm) {
       filtered = filtered.filter(deal =>
         deal.property?.address?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        deal.propertyAddress?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         deal.clientName?.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
@@ -131,7 +154,17 @@ const DealList = () => {
   };
 
   const handleDealClick = (deal) => {
-    navigate(`/clients/${deal.clientId}/opportunities/${deal.opportunityId}/deals`);
+    // Navigate to individual deal view
+    navigate(`/clients/${deal.clientId}/deals/${deal.id}`);
+  };
+
+  const handleViewInBoard = (deal) => {
+    // Navigate to deal board with specific deal highlighted
+    if (deal.opportunityId) {
+      navigate(`/clients/${deal.clientId}/opportunities/${deal.opportunityId}/deals`, {
+        state: { openDealId: deal.id }
+      });
+    }
   };
 
   const getStageInfo = (stage) => {
@@ -146,7 +179,10 @@ const DealList = () => {
 
   const formatDate = (date) => {
     if (!date) return 'N/A';
-    const d = date instanceof Date ? date : new Date(date.seconds * 1000);
+    if (date.seconds) {
+      return new Date(date.seconds * 1000).toLocaleDateString('pt-PT');
+    }
+    const d = date instanceof Date ? date : new Date(date);
     return d.toLocaleDateString('pt-PT');
   };
 
@@ -297,26 +333,22 @@ const DealList = () => {
               
               return (
                 <div
-                  key={deal.id}
-                  onClick={() => handleDealClick(deal)}
-                  className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 hover:shadow-md transition-all cursor-pointer"
+                  key={`${deal.clientId}_${deal.id}`}
+                  className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 hover:shadow-md transition-all"
                 >
                   {/* Header */}
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex-1">
                       <h3 className="font-semibold text-gray-900 line-clamp-2">
-                        {deal.property?.address || 'Sem morada'}
+                        {deal.propertyAddress || deal.property?.address || 'Sem morada'}
                       </h3>
                       <p className="text-sm text-gray-500 mt-1">
                         {deal.property?.type || 'N/A'} • {deal.property?.bedrooms || 0}Q
                       </p>
                     </div>
-                    {deal.scoring?.propertyMatchScore && (
-                      <div className="ml-2 flex items-center">
-                        <StarIcon className="w-4 h-4 text-yellow-400 fill-yellow-400" />
-                        <span className="ml-1 text-sm font-medium">
-                          {deal.scoring.propertyMatchScore}/10
-                        </span>
+                    {deal.linkedProperty?.sellerOpportunityId && (
+                      <div className="ml-2 px-2 py-1 bg-green-100 rounded-full">
+                        <HomeIcon className="w-4 h-4 text-green-600" title="Conectado a vendedor" />
                       </div>
                     )}
                   </div>
@@ -328,17 +360,17 @@ const DealList = () => {
                   </div>
 
                   {/* Price */}
-                  {deal.pricing?.askingPrice > 0 && (
+                  {(deal.price || deal.pricing?.askingPrice) > 0 && (
                     <div className="mb-3">
                       <div className="flex items-center text-lg font-bold text-gray-900">
                         <CurrencyEuroIcon className="w-5 h-5 mr-1" />
-                        {formatPrice(deal.pricing.askingPrice)}
+                        {formatPrice(deal.price || deal.pricing?.askingPrice)}
                       </div>
                     </div>
                   )}
 
                   {/* Stage Badge */}
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between mb-3">
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-${stageInfo.color}-100 text-${stageInfo.color}-800`}>
                       {stageInfo.label}
                     </span>
@@ -349,6 +381,26 @@ const DealList = () => {
                         <CalendarIcon className="w-4 h-4 mr-1" />
                         {deal.viewings.length} visita{deal.viewings.length !== 1 ? 's' : ''}
                       </span>
+                    )}
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex gap-2 pt-3 border-t border-gray-100">
+                    <button
+                      onClick={() => handleDealClick(deal)}
+                      className="flex-1 px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center"
+                    >
+                      <EyeIcon className="w-4 h-4 mr-1" />
+                      Ver Detalhes
+                    </button>
+                    {deal.opportunityId && (
+                      <button
+                        onClick={() => handleViewInBoard(deal)}
+                        className="px-3 py-2 border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors"
+                        title="Ver no quadro"
+                      >
+                        <ArrowTopRightOnSquareIcon className="w-4 h-4" />
+                      </button>
                     )}
                   </div>
 
@@ -363,7 +415,6 @@ const DealList = () => {
             })}
           </div>
         )}
-
       </div>
     </Layout>
   );

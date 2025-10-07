@@ -38,6 +38,10 @@ import SellerOpportunityView from './pages/SellerOpportunityView';
 import DealList from './pages/DealList';
 import DealBoard from './pages/DealBoard';
 
+// Deal single view & Commissions (moved to components as requested)
+import DealView from './components/DealView';
+import CommissionDashboard from './components/CommissionDashboard';
+
 // Styles
 import './index.css';
 
@@ -165,18 +169,26 @@ function AppRoutes() {
         } />
 
         {/* ===== PROTECTED ROUTES - DEALS SYSTEM ===== */}
-        
-        {/* All deals overview */}
         <Route path="/deals" element={
           <ProtectedRoute>
             <DealList />
           </ProtectedRoute>
         } />
-
-        {/* Deal board for specific buyer opportunity */}
         <Route path="/clients/:clientId/opportunities/:opportunityId/deals" element={
+            <ProtectedRoute>
+              <DealBoard />
+            </ProtectedRoute>
+        } />
+        <Route path="/clients/:clientId/deals/:dealId" element={
           <ProtectedRoute>
-            <DealBoard />
+            <DealView />
+          </ProtectedRoute>
+        } />
+
+        {/* Commissions dashboard */}
+        <Route path="/commissions" element={
+          <ProtectedRoute>
+            <CommissionDashboard />
           </ProtectedRoute>
         } />
 

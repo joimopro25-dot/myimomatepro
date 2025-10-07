@@ -17,14 +17,16 @@ import {
     UserCircleIcon,
     ChevronLeftIcon,
     ChevronRightIcon,
-    SparklesIcon
+    SparklesIcon,
+    CurrencyEuroIcon        // Added
 } from '@heroicons/react/24/outline';
 import {
     HomeIcon as HomeIconSolid,
     UsersIcon as UsersIconSolid,
     BriefcaseIcon as BriefcaseIconSolid,
     ShoppingBagIcon as ShoppingBagIconSolid,
-    CogIcon as CogIconSolid
+    CogIcon as CogIconSolid,
+    CurrencyEuroIcon as CurrencyEuroIconSolid   // Added
 } from '@heroicons/react/24/solid';
 
 const Sidebar = ({ isCollapsed = false, onToggleCollapse }) => {
@@ -75,6 +77,13 @@ const Sidebar = ({ isCollapsed = false, onToggleCollapse }) => {
             iconSolid: ShoppingBagIconSolid,
             description: 'Pipeline de negócios',
             badge: stats?.totalDeals || 0
+        },
+        {
+            name: 'Comissões',
+            href: '/commissions',
+            icon: CurrencyEuroIcon,
+            iconSolid: CurrencyEuroIconSolid,
+            description: 'Dashboard de comissões'
         }
     ];
 
