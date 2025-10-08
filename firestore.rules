@@ -19,7 +19,7 @@ service cloud.firestore {
     // Consultants
     match /consultants/{consultantId} {
       allow read, create, update: if isOwner(consultantId);
-      allow delete: if false;
+      allow delete: if false; // Consultants cannot delete themselves
     }
     
     // Subscriptions
@@ -51,27 +51,31 @@ service cloud.firestore {
     
     // Agent relationships
     match /consultants/{consultantId}/agent_relationships/{agentId} {
-      allow read, write: if isOwner(consultantId);
+      allow read, write, delete: if isOwner(consultantId);
     }
     
-    // Clients
+    // Clients - ✅ FIXED: Added explicit delete permission
     match /consultants/{consultantId}/clients/{clientId} {
-      allow read, write: if isOwner(consultantId) && hasValidSubscription();
+      allow read, create, update: if isOwner(consultantId) && hasValidSubscription();
+      allow delete: if isOwner(consultantId) && hasValidSubscription();
     }
     
-    // Opportunities
+    // Opportunities - ✅ FIXED: Added explicit delete permission
     match /consultants/{consultantId}/clients/{clientId}/opportunities/{opportunityId} {
-      allow read, write: if isOwner(consultantId) && hasValidSubscription();
+      allow read, create, update: if isOwner(consultantId) && hasValidSubscription();
+      allow delete: if isOwner(consultantId) && hasValidSubscription();
     }
     
-    // Deals (direct under clients)
+    // Deals (direct under clients) - ✅ FIXED: Added explicit delete permission
     match /consultants/{consultantId}/clients/{clientId}/deals/{dealId} {
-      allow read, write: if isOwner(consultantId) && hasValidSubscription();
+      allow read, create, update: if isOwner(consultantId) && hasValidSubscription();
+      allow delete: if isOwner(consultantId) && hasValidSubscription();
     }
     
-    // Deals (nested under opportunities)
+    // Deals (nested under opportunities) - ✅ FIXED: Added explicit delete permission
     match /consultants/{consultantId}/clients/{clientId}/opportunities/{opportunityId}/deals/{dealId} {
-      allow read, write: if isOwner(consultantId) && hasValidSubscription();
+      allow read, create, update: if isOwner(consultantId) && hasValidSubscription();
+      allow delete: if isOwner(consultantId) && hasValidSubscription();
       
       match /activities/{activityId} {
         allow read, create: if isOwner(consultantId);
@@ -79,23 +83,26 @@ service cloud.firestore {
       }
       
       match /viewings/{viewingId} {
-        allow read, write: if isOwner(consultantId) && hasValidSubscription();
+        allow read, create, update: if isOwner(consultantId) && hasValidSubscription();
+        allow delete: if isOwner(consultantId) && hasValidSubscription();
       }
       
       match /offers/{offerId} {
-        allow read, write: if isOwner(consultantId) && hasValidSubscription();
+        allow read, create, update: if isOwner(consultantId) && hasValidSubscription();
+        allow delete: if isOwner(consultantId) && hasValidSubscription();
       }
     }
     
-    // Documents
+    // Documents - ✅ FIXED: Added explicit delete permission
     match /consultants/{consultantId}/clients/{clientId}/documents/{documentId} {
-      allow read, write: if isOwner(consultantId) && hasValidSubscription();
+      allow read, create, update: if isOwner(consultantId) && hasValidSubscription();
+      allow delete: if isOwner(consultantId) && hasValidSubscription();
     }
     
     // Activities
     match /consultants/{consultantId}/clients/{clientId}/activities/{activityId} {
       allow read, create: if isOwner(consultantId);
-      allow update, delete: if false;
+      allow update, delete: if false; // Activities are immutable after creation
     }
     
     // Public
