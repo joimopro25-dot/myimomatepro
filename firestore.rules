@@ -102,7 +102,9 @@ service cloud.firestore {
     // Activities
     match /consultants/{consultantId}/clients/{clientId}/activities/{activityId} {
       allow read, create: if isOwner(consultantId);
-      allow update, delete: if false; // Activities are immutable after creation
+      // Allow delete (still block updates to keep immutability)
+      allow delete: if isOwner(consultantId) && hasValidSubscription();
+      allow update: if false;
     }
     
     // Public

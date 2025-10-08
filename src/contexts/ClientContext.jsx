@@ -239,38 +239,55 @@ export function ClientProvider({ children }) {
     }
   };
 
-  // Delete client (with ownership check)
+  // Delete client (with ownership check) - IMPROVED
   const deleteClient = async (clientId) => {
     try {
       setError(null);
-      
-      // First verify ownership
+      setLoading(true);
+
+      if (!consultantId) {
+        throw new Error('No authenticated consultant');
+      }
+      if (!clientId) {
+        throw new Error('Missing client ID');
+      }
+
+      // Verify ownership
       const docRef = doc(db, 'consultants', consultantId, 'clients', clientId);
       const docSnap = await getDoc(docRef);
-      
+
       if (!docSnap.exists()) {
         throw new Error('Client not found');
       }
-      
+
       const clientData = docSnap.data();
       if (clientData.consultantId !== consultantId) {
         throw new Error('Unauthorized access');
       }
 
-      // Delete client and all activities
-      await deleteDoc(docRef);
-      
-      // Delete activities subcollection
+      // Delete activities subcollection first (optional order)
       const activitiesRef = collection(db, 'consultants', consultantId, 'clients', clientId, 'activities');
       const activitiesSnap = await getDocs(activitiesRef);
-      const deletePromises = activitiesSnap.docs.map(doc => deleteDoc(doc.ref));
-      await Promise.all(deletePromises);
-      
+      const activityDeletePromises = activitiesSnap.docs.map(a => deleteDoc(a.ref));
+      await Promise.all(activityDeletePromises);
+
+      // Delete client document
+      await deleteDoc(docRef);
+
+      // Update local state
+      setClients(prev => prev.filter(c => c.id !== clientId));
+      if (currentClient?.id === clientId) {
+        setCurrentClient(null);
+      }
+
+      console.log('Client deleted successfully:', clientId);
       return clientId;
     } catch (error) {
       console.error('Error deleting client:', error);
       setError(error.message);
       throw error;
+    } finally {
+      setLoading(false);
     }
   };
 

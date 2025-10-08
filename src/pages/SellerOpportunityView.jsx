@@ -1,7 +1,7 @@
 /**
  * SELLER OPPORTUNITY VIEW - MyImoMatePro
  * Detail view for seller opportunities
- * FIXED: RespondOfferModal now receives clientId and opportunityId
+ * UPDATED: Added "Create Offer from Visit" functionality (Option 1 & 2)
  */
 
 import React, { useState, useEffect } from 'react';
@@ -18,7 +18,7 @@ import {
   updateOfferStatus,
   updateViewing,
   updateSellerTransaction,
-  markOpportunityAsLost // ✅ Added
+  markOpportunityAsLost
 } from '../utils/sellerOpportunityFirebase';
 import { db } from '../firebase/config';
 import {
@@ -30,7 +30,7 @@ import {
   DocumentTextIcon,
   MapPinIcon,
   PencilIcon,
-  XCircleIcon // ✅ Added
+  XCircleIcon
 } from '@heroicons/react/24/outline';
 import { CheckCircle, TrendingUp } from 'lucide-react';
 
@@ -71,6 +71,9 @@ export default function SellerOpportunityView() {
   const [offerAction, setOfferAction] = useState(null);
   const [showViewVisitModal, setShowViewVisitModal] = useState(false);
   const [selectedViewVisit, setSelectedViewVisit] = useState(null);
+  
+  // NEW: State for pre-filled offer data from visit (Option 1)
+  const [offerFromVisit, setOfferFromVisit] = useState(null);
 
   useEffect(() => {
     fetchOpportunity();
@@ -81,7 +84,7 @@ export default function SellerOpportunityView() {
     try {
       setLoading(true);
       const oppData = await getSellerOpportunity(db, consultantId, clientId, opportunityId);
-      console.log('Opportunity data loaded:', oppData); // Debug log
+      console.log('Opportunity data loaded:', oppData);
       setOpportunity(oppData);
     } catch (err) {
       console.error('Error loading seller opportunity:', err);
@@ -124,7 +127,7 @@ export default function SellerOpportunityView() {
           clientId,
           opportunityId,
           editingVisit.id,
-            visitData
+          visitData
         );
       } else {
         await addViewing(
@@ -202,15 +205,62 @@ export default function SellerOpportunityView() {
     setShowScheduleVisitModal(true);
   };
 
+  // NEW: Handler for creating offer from visit (Option 1)
+  const handleCreateOfferFromVisit = (visit) => {
+    console.log('Creating offer from visit:', visit);
+    
+    // Pre-fill offer data from visit
+    const preFilledData = {
+      // Buyer information from visit
+      buyerName: visit.visitorName || '',
+      buyerPhone: visit.visitorPhone || '',
+      buyerEmail: visit.visitorEmail || '',
+      
+      // Buyer agent information if available
+      buyerConsultant: visit.buyerAgent?.name || '',
+      buyerConsultantPhone: visit.buyerAgent?.phone || '',
+      buyerConsultantEmail: visit.buyerAgent?.email || '',
+      
+      // Offer amount from feedback
+      amount: visit.feedback?.willingToPay || '',
+      
+      // Additional notes combining visit feedback
+      notes: [
+        visit.feedback?.feedback ? `Feedback da Visita: ${visit.feedback.feedback}` : '',
+        visit.feedback?.concerns ? `Preocupações: ${visit.feedback.concerns}` : '',
+        visit.feedback?.nextSteps ? `Próximos Passos: ${visit.feedback.nextSteps}` : '',
+        visit.notes ? `Notas da Visita: ${visit.notes}` : ''
+      ].filter(Boolean).join('\n\n'),
+      
+      // Interest level as buyer score
+      buyerScore: visit.feedback?.interestLevel || 'medium',
+      
+      // Visit reference
+      visitId: visit.id,
+      visitDate: visit.scheduledDate
+    };
+    
+    setOfferFromVisit(preFilledData);
+    setShowViewVisitModal(false);
+    setShowAddOfferModal(true);
+  };
+
   const handleAddOffer = async (offerData) => {
     try {
       await addOffer(db, consultantId, clientId, opportunityId, offerData);
       await fetchOpportunity();
       setShowAddOfferModal(false);
+      setOfferFromVisit(null); // Clear pre-filled data
     } catch (error) {
       console.error('Error adding offer:', error);
       alert('Erro ao adicionar proposta');
     }
+  };
+
+  // NEW: Updated close handler to clear pre-filled data
+  const handleCloseAddOfferModal = () => {
+    setShowAddOfferModal(false);
+    setOfferFromVisit(null); // Clear pre-filled data when closing
   };
 
   const handleRespondOffer = (offerId, action) => {
@@ -221,7 +271,6 @@ export default function SellerOpportunityView() {
     setShowRespondOfferModal(true);
   };
 
-  // ✅ Added: Abandon (mark as lost) handler
   const handleAbandonSale = async () => {
     const reason = window.prompt(
       'Motivo da desistência da venda:\n\n( Opcional, mas recomendado para análise futura )',
@@ -289,7 +338,6 @@ export default function SellerOpportunityView() {
   return (
     <Layout>
       <div className="p-6">
-        {/* ✅ Updated Header with Abandon button */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center space-x-4">
             <Link
@@ -308,7 +356,6 @@ export default function SellerOpportunityView() {
             </div>
           </div>
 
-          {/* Action Buttons */}
           <div className="flex items-center gap-3">
             {opportunity.stage !== 'perdido' && opportunity.stage !== 'vendido' && (
               <button
@@ -329,7 +376,6 @@ export default function SellerOpportunityView() {
           </div>
         </div>
 
-        {/* ✅ Lost banner */}
         {opportunity.stage === 'perdido' && (
           <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
             <div className="flex items-start gap-3">
@@ -521,7 +567,6 @@ export default function SellerOpportunityView() {
               />
             </div>
 
-            {/* TRANSACTION SECTION - Added after Offers */}
             {opportunity.acceptedOffer && (
               <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
                 <div className="flex items-center justify-between mb-4">
@@ -681,6 +726,7 @@ export default function SellerOpportunityView() {
         </div>
       </div>
 
+      {/* Modals */}
       <ScheduleVisitModal
         isOpen={showScheduleVisitModal}
         onClose={() => {
@@ -704,6 +750,7 @@ export default function SellerOpportunityView() {
         visit={selectedVisit}
       />
 
+      {/* UPDATED: ViewVisitModal with onCreateOffer prop */}
       <ViewVisitModal
         isOpen={showViewVisitModal}
         onClose={() => {
@@ -711,12 +758,16 @@ export default function SellerOpportunityView() {
           setSelectedViewVisit(null);
         }}
         visit={selectedViewVisit}
+        onCreateOffer={handleCreateOfferFromVisit}
       />
 
+      {/* UPDATED: AddOfferModal with fromVisitData and allVisits props */}
       <AddOfferModal
         isOpen={showAddOfferModal}
-        onClose={() => setShowAddOfferModal(false)}
+        onClose={handleCloseAddOfferModal}
         onSave={handleAddOffer}
+        fromVisitData={offerFromVisit}
+        allVisits={opportunity?.viewings || []}
       />
 
       <RespondOfferModal

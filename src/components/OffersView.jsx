@@ -6,7 +6,8 @@ import {
   CheckCircleIcon,
   XCircleIcon,
   ArrowPathIcon,
-  BanknotesIcon
+  BanknotesIcon,
+  ClockIcon
 } from '@heroicons/react/24/outline';
 
 export default function OffersView({ offers = [], askingPrice, onRespond }) {
@@ -95,14 +96,22 @@ export default function OffersView({ offers = [], askingPrice, onRespond }) {
   const getOfferBadges = (offer) => {
     const badges = [];
     
+    // Use counter amount if exists, otherwise use original amount
+    const effectiveAmount = offer.status === 'countered' && offer.counterAmount 
+      ? offer.counterAmount 
+      : offer.amount;
+    
     // Best overall (highest price + best conditions)
-    const highestOffer = Math.max(...offers.map(o => o.amount));
-    if (offer.amount === highestOffer && offer.buyerScore === 'high') {
+    const highestOffer = Math.max(...offers.map(o => {
+      return o.status === 'countered' && o.counterAmount ? o.counterAmount : o.amount;
+    }));
+    
+    if (effectiveAmount === highestOffer && offer.buyerScore === 'high') {
       badges.push({ label: '🏆 Melhor Geral', color: 'bg-purple-100 text-purple-800' });
     }
     
     // Highest price
-    if (offer.amount === highestOffer) {
+    if (effectiveAmount === highestOffer) {
       badges.push({ label: '💎 Maior Valor', color: 'bg-blue-100 text-blue-800' });
     }
     
@@ -126,17 +135,24 @@ export default function OffersView({ offers = [], askingPrice, onRespond }) {
     appraisal_contingency: 'Sujeito a Avaliação'
   };
 
+  // Check if offer needs response
+  const canRespond = (offer) => {
+    return offer.status === 'pending' || offer.status === 'countered';
+  };
+
   // Card View
   const CardView = () => (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       {offers.map(offer => {
         const badges = getOfferBadges(offer);
+        const showActions = canRespond(offer);
         
         return (
           <div
             key={offer.id}
             className={`bg-white rounded-lg shadow-sm border-2 p-5 transition-all hover:shadow-md ${
               offer.status === 'accepted' ? 'border-green-500 bg-green-50' :
+              offer.status === 'countered' ? 'border-blue-500 bg-blue-50' :
               offer.status === 'pending' ? 'border-yellow-500' : 'border-gray-200'
             }`}
           >
@@ -151,18 +167,79 @@ export default function OffersView({ offers = [], askingPrice, onRespond }) {
               {getStatusBadge(offer.status)}
             </div>
 
-            {/* Amount */}
-            <div className="mb-4">
-              <div className="flex items-center gap-2 mb-1">
-                <CurrencyEuroIcon className="w-5 h-5 text-gray-400" />
-                <span className="text-2xl font-bold text-gray-900">
-                  {formatCurrency(offer.amount)}
-                </span>
-              </div>
-              {askingPrice && (
-                <div className="text-sm text-gray-600">
-                  {((offer.amount / askingPrice) * 100).toFixed(1)}% do preço pedido
+            {/* Counter-offer warning banner */}
+            {offer.status === 'countered' && (
+              <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-start gap-2">
+                <ClockIcon className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                <div className="text-sm">
+                  <p className="font-medium text-blue-900">Aguardando Resposta do Comprador</p>
+                  <p className="text-blue-700 text-xs mt-1">
+                    O vendedor fez uma contra-proposta. Aguardando resposta do comprador.
+                  </p>
                 </div>
+              </div>
+            )}
+
+            {/* Amount - UPDATED TO SHOW COUNTER-OFFERS */}
+            <div className="mb-4">
+              {offer.status === 'countered' && offer.counterAmount ? (
+                <div className="space-y-3">
+                  {/* Original Buyer Offer */}
+                  <div className="pb-3 border-b border-gray-200">
+                    <div className="flex items-center gap-2 mb-1">
+                      <CurrencyEuroIcon className="w-4 h-4 text-gray-400" />
+                      <span className="text-sm font-medium text-gray-600">Proposta Original (Comprador):</span>
+                    </div>
+                    <div className="text-xl font-semibold text-gray-700 line-through">
+                      {formatCurrency(offer.amount)}
+                    </div>
+                  </div>
+                  
+                  {/* Seller Counter-Offer */}
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <ArrowPathIcon className="w-4 h-4 text-blue-600" />
+                      <span className="text-sm font-medium text-blue-900">Contra-proposta (Vendedor):</span>
+                    </div>
+                    <div className="text-2xl font-bold text-blue-900">
+                      {formatCurrency(offer.counterAmount)}
+                    </div>
+                    {askingPrice && (
+                      <div className="text-sm text-gray-600 mt-1">
+                        {((offer.counterAmount / askingPrice) * 100).toFixed(1)}% do preço pedido
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Counter Conditions */}
+                  {offer.counterConditions && offer.counterConditions.length > 0 && (
+                    <div className="pt-3 border-t border-gray-200">
+                      <p className="text-xs font-medium text-gray-700 mb-2">Condições da Contra-proposta:</p>
+                      <div className="flex flex-wrap gap-1">
+                        {offer.counterConditions.map(condition => (
+                          <span key={condition} className="text-xs bg-blue-50 border border-blue-200 rounded px-2 py-1 text-blue-800">
+                            {conditionLabels[condition]}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                /* Regular offer display (not countered) */
+                <>
+                  <div className="flex items-center gap-2 mb-1">
+                    <CurrencyEuroIcon className="w-5 h-5 text-gray-400" />
+                    <span className="text-2xl font-bold text-gray-900">
+                      {formatCurrency(offer.amount)}
+                    </span>
+                  </div>
+                  {askingPrice && (
+                    <div className="text-sm text-gray-600">
+                      {((offer.amount / askingPrice) * 100).toFixed(1)}% do preço pedido
+                    </div>
+                  )}
+                </>
               )}
             </div>
 
@@ -209,10 +286,10 @@ export default function OffersView({ offers = [], askingPrice, onRespond }) {
               )}
             </div>
 
-            {/* Conditions */}
+            {/* Conditions (Original Buyer Conditions) */}
             {offer.conditions && offer.conditions.length > 0 && (
               <div className="mb-4 p-3 bg-gray-50 rounded-lg">
-                <p className="text-xs font-medium text-gray-700 mb-2">Condições:</p>
+                <p className="text-xs font-medium text-gray-700 mb-2">Condições (Comprador):</p>
                 <div className="flex flex-wrap gap-1">
                   {offer.conditions.map(condition => (
                     <span key={condition} className="text-xs bg-white border border-gray-200 rounded px-2 py-1 text-gray-700">
@@ -232,7 +309,7 @@ export default function OffersView({ offers = [], askingPrice, onRespond }) {
             )}
 
             {/* Actions */}
-            {offer.status === 'pending' && (
+            {showActions && (
               <div className="flex gap-2 pt-4 border-t border-gray-200">
                 <button
                   onClick={() => onRespond(offer.id, 'accept')}
@@ -246,7 +323,7 @@ export default function OffersView({ offers = [], askingPrice, onRespond }) {
                   className="flex-1 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium flex items-center justify-center gap-2"
                 >
                   <ArrowPathIcon className="w-4 h-4" />
-                  Contra-propor
+                  {offer.status === 'countered' ? 'Nova Contra-proposta' : 'Contra-propor'}
                 </button>
                 <button
                   onClick={() => onRespond(offer.id, 'reject')}
@@ -276,26 +353,53 @@ export default function OffersView({ offers = [], askingPrice, onRespond }) {
             <th className="px-4 py-3 text-center text-xs font-medium text-gray-700 uppercase">Condições</th>
             <th className="px-4 py-3 text-center text-xs font-medium text-gray-700 uppercase">Qualidade</th>
             <th className="px-4 py-3 text-center text-xs font-medium text-gray-700 uppercase">Estado</th>
-            {offers.some(o => o.status === 'pending') && (
+            {offers.some(o => canRespond(o)) && (
               <th className="px-4 py-3 text-center text-xs font-medium text-gray-700 uppercase">Ações</th>
             )}
           </tr>
         </thead>
         <tbody className="bg-white divide-y divide-gray-200">
           {offers.map(offer => (
-            <tr key={offer.id} className="hover:bg-gray-50">
+            <tr key={offer.id} className={`hover:bg-gray-50 ${
+              offer.status === 'countered' ? 'bg-blue-50' : ''
+            }`}>
               <td className="px-4 py-4">
                 <div className="font-medium text-gray-900">{offer.buyerName}</div>
                 {offer.buyerConsultant && (
                   <div className="text-sm text-gray-600">{offer.buyerConsultant}</div>
                 )}
+                {offer.status === 'countered' && (
+                  <div className="text-xs text-blue-600 mt-1 flex items-center gap-1">
+                    <ClockIcon className="w-3 h-3" />
+                    Aguarda resposta
+                  </div>
+                )}
               </td>
               <td className="px-4 py-4 text-right">
-                <div className="font-semibold text-gray-900">{formatCurrency(offer.amount)}</div>
-                {askingPrice && (
-                  <div className="text-xs text-gray-600">
-                    {((offer.amount / askingPrice) * 100).toFixed(1)}%
+                {offer.status === 'countered' && offer.counterAmount ? (
+                  <div>
+                    <div className="text-xs text-gray-500 line-through">
+                      {formatCurrency(offer.amount)}
+                    </div>
+                    <div className="font-semibold text-blue-900 flex items-center justify-end gap-1">
+                      <ArrowPathIcon className="w-3 h-3" />
+                      {formatCurrency(offer.counterAmount)}
+                    </div>
+                    {askingPrice && (
+                      <div className="text-xs text-gray-600">
+                        {((offer.counterAmount / askingPrice) * 100).toFixed(1)}%
+                      </div>
+                    )}
                   </div>
+                ) : (
+                  <>
+                    <div className="font-semibold text-gray-900">{formatCurrency(offer.amount)}</div>
+                    {askingPrice && (
+                      <div className="text-xs text-gray-600">
+                        {((offer.amount / askingPrice) * 100).toFixed(1)}%
+                      </div>
+                    )}
+                  </>
                 )}
               </td>
               <td className="px-4 py-4 text-right text-gray-900">
@@ -315,9 +419,9 @@ export default function OffersView({ offers = [], askingPrice, onRespond }) {
               <td className="px-4 py-4 text-center">
                 {getStatusBadge(offer.status)}
               </td>
-              {offers.some(o => o.status === 'pending') && (
+              {offers.some(o => canRespond(o)) && (
                 <td className="px-4 py-4">
-                  {offer.status === 'pending' ? (
+                  {canRespond(offer) ? (
                     <div className="flex gap-1 justify-center">
                       <button
                         onClick={() => onRespond(offer.id, 'accept')}
@@ -329,7 +433,7 @@ export default function OffersView({ offers = [], askingPrice, onRespond }) {
                       <button
                         onClick={() => onRespond(offer.id, 'counter')}
                         className="p-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-                        title="Contra-propor"
+                        title={offer.status === 'countered' ? 'Nova Contra-proposta' : 'Contra-propor'}
                       >
                         <ArrowPathIcon className="w-4 h-4" />
                       </button>
