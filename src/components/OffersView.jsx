@@ -7,11 +7,15 @@ import {
   XCircleIcon,
   ArrowPathIcon,
   BanknotesIcon,
-  ClockIcon
+  ClockIcon,
+  EyeIcon
 } from '@heroicons/react/24/outline';
+import ViewOfferDetailsModal from './ViewOfferDetailsModal';
 
 export default function OffersView({ offers = [], askingPrice, onRespond }) {
   const [viewMode, setViewMode] = useState('cards'); // 'cards' or 'table'
+  const [selectedOffer, setSelectedOffer] = useState(null);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('pt-PT', {
@@ -140,6 +144,18 @@ export default function OffersView({ offers = [], askingPrice, onRespond }) {
     return offer.status === 'pending' || offer.status === 'countered';
   };
 
+  // Open detail modal
+  const handleViewDetails = (offer) => {
+    setSelectedOffer(offer);
+    setIsDetailModalOpen(true);
+  };
+
+  // Close detail modal
+  const handleCloseDetailModal = () => {
+    setIsDetailModalOpen(false);
+    setSelectedOffer(null);
+  };
+
   // Card View
   const CardView = () => (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -150,7 +166,7 @@ export default function OffersView({ offers = [], askingPrice, onRespond }) {
         return (
           <div
             key={offer.id}
-            className={`bg-white rounded-lg shadow-sm border-2 p-5 transition-all hover:shadow-md ${
+            className={`bg-white rounded-lg shadow-sm border-2 p-5 transition-all hover:shadow-md cursor-pointer ${
               offer.status === 'accepted' ? 'border-green-500 bg-green-50' :
               offer.status === 'countered' ? 'border-blue-500 bg-blue-50' :
               offer.status === 'pending' ? 'border-yellow-500' : 'border-gray-200'
@@ -158,13 +174,25 @@ export default function OffersView({ offers = [], askingPrice, onRespond }) {
           >
             {/* Header */}
             <div className="flex items-start justify-between mb-4">
-              <div>
+              <div className="flex-1">
                 <h3 className="text-lg font-semibold text-gray-900">{offer.buyerName}</h3>
                 {offer.buyerConsultant && (
                   <p className="text-sm text-gray-600">Consultor: {offer.buyerConsultant}</p>
                 )}
               </div>
-              {getStatusBadge(offer.status)}
+              <div className="flex items-center gap-2">
+                {getStatusBadge(offer.status)}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleViewDetails(offer);
+                  }}
+                  className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                  title="Ver Detalhes Completos"
+                >
+                  <EyeIcon className="w-5 h-5" />
+                </button>
+              </div>
             </div>
 
             {/* Counter-offer warning banner */}
@@ -180,7 +208,7 @@ export default function OffersView({ offers = [], askingPrice, onRespond }) {
               </div>
             )}
 
-            {/* Amount - UPDATED TO SHOW COUNTER-OFFERS */}
+            {/* Amount */}
             <div className="mb-4">
               {offer.status === 'countered' && offer.counterAmount ? (
                 <div className="space-y-3">
@@ -211,16 +239,21 @@ export default function OffersView({ offers = [], askingPrice, onRespond }) {
                     )}
                   </div>
                   
-                  {/* Counter Conditions */}
+                  {/* Counter Conditions - Compact Preview */}
                   {offer.counterConditions && offer.counterConditions.length > 0 && (
                     <div className="pt-3 border-t border-gray-200">
                       <p className="text-xs font-medium text-gray-700 mb-2">Condições da Contra-proposta:</p>
                       <div className="flex flex-wrap gap-1">
-                        {offer.counterConditions.map(condition => (
+                        {offer.counterConditions.slice(0, 2).map(condition => (
                           <span key={condition} className="text-xs bg-blue-50 border border-blue-200 rounded px-2 py-1 text-blue-800">
                             {conditionLabels[condition]}
                           </span>
                         ))}
+                        {offer.counterConditions.length > 2 && (
+                          <span className="text-xs text-blue-600">
+                            +{offer.counterConditions.length - 2} mais
+                          </span>
+                        )}
                       </div>
                     </div>
                   )}
@@ -291,42 +324,79 @@ export default function OffersView({ offers = [], askingPrice, onRespond }) {
               <div className="mb-4 p-3 bg-gray-50 rounded-lg">
                 <p className="text-xs font-medium text-gray-700 mb-2">Condições (Comprador):</p>
                 <div className="flex flex-wrap gap-1">
-                  {offer.conditions.map(condition => (
+                  {offer.conditions.slice(0, 2).map(condition => (
                     <span key={condition} className="text-xs bg-white border border-gray-200 rounded px-2 py-1 text-gray-700">
                       {conditionLabels[condition]}
                     </span>
                   ))}
+                  {offer.conditions.length > 2 && (
+                    <span className="text-xs text-gray-600">
+                      +{offer.conditions.length - 2} mais
+                    </span>
+                  )}
                 </div>
               </div>
             )}
 
-            {/* Notes */}
+            {/* Notes Preview */}
             {offer.notes && (
               <div className="mb-4 p-3 bg-blue-50 rounded-lg">
                 <p className="text-xs font-medium text-gray-700 mb-1">Notas:</p>
-                <p className="text-sm text-gray-700">{offer.notes}</p>
+                <p className="text-sm text-gray-700 line-clamp-2">{offer.notes}</p>
+                {offer.notes.length > 100 && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleViewDetails(offer);
+                    }}
+                    className="text-xs text-blue-600 hover:text-blue-700 mt-1"
+                  >
+                    Ver mais...
+                  </button>
+                )}
               </div>
             )}
+
+            {/* View Details Button */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleViewDetails(offer);
+              }}
+              className="w-full mb-3 px-3 py-2 text-blue-600 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors text-sm font-medium flex items-center justify-center gap-2"
+            >
+              <EyeIcon className="w-4 h-4" />
+              Ver Detalhes Completos
+            </button>
 
             {/* Actions */}
             {showActions && (
               <div className="flex gap-2 pt-4 border-t border-gray-200">
                 <button
-                  onClick={() => onRespond(offer.id, 'accept')}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRespond(offer.id, 'accept');
+                  }}
                   className="flex-1 px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium flex items-center justify-center gap-2"
                 >
                   <CheckCircleIcon className="w-4 h-4" />
                   Aceitar
                 </button>
                 <button
-                  onClick={() => onRespond(offer.id, 'counter')}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRespond(offer.id, 'counter');
+                  }}
                   className="flex-1 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium flex items-center justify-center gap-2"
                 >
                   <ArrowPathIcon className="w-4 h-4" />
                   {offer.status === 'countered' ? 'Nova Contra-proposta' : 'Contra-propor'}
                 </button>
                 <button
-                  onClick={() => onRespond(offer.id, 'reject')}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRespond(offer.id, 'reject');
+                  }}
                   className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium flex items-center justify-center gap-2"
                 >
                   <XCircleIcon className="w-4 h-4" />
@@ -353,16 +423,18 @@ export default function OffersView({ offers = [], askingPrice, onRespond }) {
             <th className="px-4 py-3 text-center text-xs font-medium text-gray-700 uppercase">Condições</th>
             <th className="px-4 py-3 text-center text-xs font-medium text-gray-700 uppercase">Qualidade</th>
             <th className="px-4 py-3 text-center text-xs font-medium text-gray-700 uppercase">Estado</th>
-            {offers.some(o => canRespond(o)) && (
-              <th className="px-4 py-3 text-center text-xs font-medium text-gray-700 uppercase">Ações</th>
-            )}
+            <th className="px-4 py-3 text-center text-xs font-medium text-gray-700 uppercase">Ações</th>
           </tr>
         </thead>
         <tbody className="bg-white divide-y divide-gray-200">
           {offers.map(offer => (
-            <tr key={offer.id} className={`hover:bg-gray-50 ${
-              offer.status === 'countered' ? 'bg-blue-50' : ''
-            }`}>
+            <tr 
+              key={offer.id} 
+              className={`hover:bg-gray-50 cursor-pointer ${
+                offer.status === 'countered' ? 'bg-blue-50' : ''
+              }`}
+              onClick={() => handleViewDetails(offer)}
+            >
               <td className="px-4 py-4">
                 <div className="font-medium text-gray-900">{offer.buyerName}</div>
                 {offer.buyerConsultant && (
@@ -419,37 +491,54 @@ export default function OffersView({ offers = [], askingPrice, onRespond }) {
               <td className="px-4 py-4 text-center">
                 {getStatusBadge(offer.status)}
               </td>
-              {offers.some(o => canRespond(o)) && (
-                <td className="px-4 py-4">
-                  {canRespond(offer) ? (
-                    <div className="flex gap-1 justify-center">
+              <td className="px-4 py-4">
+                <div className="flex gap-1 justify-center">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleViewDetails(offer);
+                    }}
+                    className="p-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                    title="Ver Detalhes"
+                  >
+                    <EyeIcon className="w-4 h-4" />
+                  </button>
+                  {canRespond(offer) && (
+                    <>
                       <button
-                        onClick={() => onRespond(offer.id, 'accept')}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onRespond(offer.id, 'accept');
+                        }}
                         className="p-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
                         title="Aceitar"
                       >
                         <CheckCircleIcon className="w-4 h-4" />
                       </button>
                       <button
-                        onClick={() => onRespond(offer.id, 'counter')}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onRespond(offer.id, 'counter');
+                        }}
                         className="p-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
                         title={offer.status === 'countered' ? 'Nova Contra-proposta' : 'Contra-propor'}
                       >
                         <ArrowPathIcon className="w-4 h-4" />
                       </button>
                       <button
-                        onClick={() => onRespond(offer.id, 'reject')}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onRespond(offer.id, 'reject');
+                        }}
                         className="p-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
                         title="Rejeitar"
                       >
                         <XCircleIcon className="w-4 h-4" />
                       </button>
-                    </div>
-                  ) : (
-                    <span className="text-gray-400">-</span>
+                    </>
                   )}
-                </td>
-              )}
+                </div>
+              </td>
             </tr>
           ))}
         </tbody>
@@ -470,40 +559,51 @@ export default function OffersView({ offers = [], askingPrice, onRespond }) {
   }
 
   return (
-    <div className="space-y-4">
-      {/* View Toggle */}
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-gray-900">
-          Propostas Recebidas ({offers.length})
-        </h3>
-        <div className="flex gap-2">
-          <button
-            onClick={() => setViewMode('cards')}
-            className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
-              viewMode === 'cards'
-                ? 'bg-blue-600 text-white'
-                : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-            }`}
-          >
-            <Squares2X2Icon className="w-5 h-5" />
-            Cartões
-          </button>
-          <button
-            onClick={() => setViewMode('table')}
-            className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
-              viewMode === 'table'
-                ? 'bg-blue-600 text-white'
-                : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-            }`}
-          >
-            <ViewColumnsIcon className="w-5 h-5" />
-            Tabela
-          </button>
+    <>
+      <div className="space-y-4">
+        {/* View Toggle */}
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-gray-900">
+            Propostas Recebidas ({offers.length})
+          </h3>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setViewMode('cards')}
+              className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
+                viewMode === 'cards'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              <Squares2X2Icon className="w-5 h-5" />
+              Cartões
+            </button>
+            <button
+              onClick={() => setViewMode('table')}
+              className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
+                viewMode === 'table'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              <ViewColumnsIcon className="w-5 h-5" />
+              Tabela
+            </button>
+          </div>
         </div>
+
+        {/* Content */}
+        {viewMode === 'cards' ? <CardView /> : <TableView />}
       </div>
 
-      {/* Content */}
-      {viewMode === 'cards' ? <CardView /> : <TableView />}
-    </div>
+      {/* Detail Modal */}
+      <ViewOfferDetailsModal
+        isOpen={isDetailModalOpen}
+        onClose={handleCloseDetailModal}
+        offer={selectedOffer}
+        askingPrice={askingPrice}
+        onRespond={onRespond}
+      />
+    </>
   );
 }
