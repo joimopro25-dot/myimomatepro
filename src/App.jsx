@@ -41,6 +41,7 @@ import DealBoard from './pages/DealBoard';
 // Deal single view & Commissions (moved to components as requested)
 import DealView from './components/DealView';
 import CommissionDashboard from './components/CommissionDashboard';
+import SellerDealBoard from './components/SellerDealBoard'; // Added
 
 // Styles
 import './index.css';
@@ -167,6 +168,20 @@ function AppRoutes() {
             <SellerOpportunityView />
           </ProtectedRoute>
         } />
+
+        {/* ===== PROTECTED ROUTES - SELLER DEAL BOARD (NEW) ===== */}
+        <Route
+          path="/seller-deals"
+          element={
+            <ProtectedRoute>
+              <SellerDealBoard
+                onUpdateDeal={(deal) => console.log('Deal updated:', deal)}
+                onDeleteDeal={(dealId) => console.log('Deal deleted:', dealId)}
+                onAddDeal={() => console.log('Add new deal')}
+              />
+            </ProtectedRoute>
+          }
+        />
 
         {/* ===== PROTECTED ROUTES - DEALS SYSTEM ===== */}
         <Route path="/deals" element={

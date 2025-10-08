@@ -5,6 +5,8 @@
 
 // Add this import at the top of DealBoard.jsx:
 import PropertyMatching from '../components/PropertyMatching';
+import SellerTransactionManager from './SellerTransactionManager'; // Added
+import { TrendingUp } from 'lucide-react'; // Added icon for transaction tab
 
 // Update the DealDetailsModal component in your DealBoard.jsx:
 const DealDetailsModal = ({
@@ -17,6 +19,7 @@ const DealDetailsModal = ({
   onRecordViewing,
   onEditViewing,
   onCompleteViewing,
+  onCancelViewing,
   onUpdate,
   footer
 }) => {
@@ -51,6 +54,16 @@ const DealDetailsModal = ({
     // Update the deal with linked property info
     console.log('Property linked:', match);
     if (onUpdate) onUpdate();
+  };
+
+  const handleUpdateDeal = async (updated) => {
+    // Pass-through to parent if provided
+    if (onUpdate) await onUpdate(updated);
+  };
+
+  const handleStageChange = async (newStage) => {
+    // Simple local optimistic update; parent refresh will overwrite if needed
+    if (onUpdate) await onUpdate({ stage: newStage });
   };
 
   return (
@@ -123,6 +136,18 @@ const DealDetailsModal = ({
                 <DocumentTextIcon className="w-4 h-4 mr-1" />
                 Propostas ({deal.offerCount || 0})
               </button>
+              {/* NEW: Transação Tab */}
+              <button
+                onClick={() => setActiveTab('transacao')}
+                className={`py-3 border-b-2 font-medium text-sm flex items-center whitespace-nowrap ${
+                  activeTab === 'transacao'
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                <TrendingUp className="w-4 h-4 mr-1" />
+                Transação
+              </button>
               <button
                 onClick={() => setActiveTab('commission')}
                 className={`py-3 border-b-2 font-medium text-sm flex items-center whitespace-nowrap ${
@@ -144,18 +169,6 @@ const DealDetailsModal = ({
               >
                 Notas
               </button>
-              {deal.transaction && (
-                <button
-                  onClick={() => setActiveTab('transaction')}
-                  className={`py-3 border-b-2 font-medium text-sm whitespace-nowrap ${
-                    activeTab === 'transaction'
-                      ? 'border-blue-600 text-blue-600'
-                      : 'border-transparent text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  Transação
-                </button>
-              )}
             </div>
           </div>
 
@@ -303,6 +316,23 @@ const DealDetailsModal = ({
                 onMakeOffer={handleMakeOffer}
                 onRespondOffer={handleRespondOffer}
               />
+            )}
+
+            {activeTab === 'transacao' && (
+              <div className="p-4">
+                <SellerTransactionManager
+                  deal={{
+                    ...deal,
+                    acceptedOffer: deal.acceptedOffer || {
+                      amount: deal.latestOfferAmount || deal.price || deal.pricing?.askingPrice || 0,
+                      buyer: { name: client?.name || 'Comprador' },
+                      date: deal.acceptedOffer?.date || deal.updatedAt || new Date().toISOString()
+                    }
+                  }}
+                  onUpdateDeal={handleUpdateDeal}
+                  onStageChange={handleStageChange}
+                />
+              </div>
             )}
 
             {activeTab === 'commission' && (

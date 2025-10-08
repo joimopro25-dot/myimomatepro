@@ -16,6 +16,7 @@ import {
   where,
   serverTimestamp
 } from 'firebase/firestore';
+import { createTransactionData } from '../models/transactionModel'; // Added
 
 // ============================================================================
 // PATH HELPERS
@@ -189,12 +190,53 @@ export const addOffer = async (db, consultantId, clientId, opportunityId, offerD
   });
 };
 
+// UPDATED updateOfferStatus (replaces old implementation)
 export const updateOfferStatus = async (db, consultantId, clientId, opportunityId, offerId, status, extra = {}) => {
   const opp = await getSellerOpportunity(db, consultantId, clientId, opportunityId);
+
+  const offer = opp.offers?.find(o => o.id === offerId);
+
   const updatedOffers = (opp.offers || []).map(o =>
     o.id === offerId ? { ...o, status, ...extra, updatedAt: new Date().toISOString() } : o
   );
-  await updateSellerOpportunity(db, consultantId, clientId, opportunityId, { offers: updatedOffers });
+
+  const updates = { offers: updatedOffers };
+
+  if (status === 'accepted' && offer) {
+    updates.acceptedOffer = {
+      ...offer,
+      status: 'accepted',
+      ...extra
+    };
+
+    updates.transaction = createTransactionData({
+      id: offer.id,
+      amount: offer.amount || offer.offerAmount,
+      buyer: offer.buyer || { name: offer.buyerName || 'Comprador' }
+    });
+
+    updates.stage = 'proposta_aceite';
+  }
+
+  await updateSellerOpportunity(db, consultantId, clientId, opportunityId, updates);
+};
+
+// NEW: updateSellerTransaction
+export const updateSellerTransaction = async (db, consultantId, clientId, opportunityId, transactionData) => {
+  const updates = {
+    transaction: transactionData,
+    updatedAt: serverTimestamp()
+  };
+
+  if (transactionData.stage === 'cpcv_signed') {
+    updates.stage = 'cpcv_assinado';
+  } else if (transactionData.stage === 'escritura_scheduled') {
+    updates.stage = 'escritura_agendada';
+  } else if (transactionData.stage === 'completed') {
+    updates.stage = 'concluido';
+  }
+
+  await updateSellerOpportunity(db, consultantId, clientId, opportunityId, updates);
 };
 
 // ============================================================================

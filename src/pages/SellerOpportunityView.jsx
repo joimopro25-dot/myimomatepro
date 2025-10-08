@@ -16,7 +16,8 @@ import {
   updateViewingStatus,
   addOffer,
   updateOfferStatus,
-  updateViewing
+  updateViewing,
+  updateSellerTransaction
 } from '../utils/sellerOpportunityFirebase';
 import { db } from '../firebase/config';
 import {
@@ -29,6 +30,7 @@ import {
   MapPinIcon,
   PencilIcon
 } from '@heroicons/react/24/outline';
+import { CheckCircle, TrendingUp } from 'lucide-react';
 
 import { 
   SELLER_PIPELINE_STAGES,
@@ -43,6 +45,7 @@ import OffersView from '../components/OffersView';
 import RespondOfferModal from '../components/RespondOfferModal';
 import PropertyMatching from '../components/PropertyMatching';
 import ViewVisitModal from '../components/ViewVisitModal';
+import TransactionTimeline from '../components/TransactionTimeline';
 
 export default function SellerOpportunityView() {
   const { clientId, opportunityId } = useParams();
@@ -76,6 +79,7 @@ export default function SellerOpportunityView() {
     try {
       setLoading(true);
       const oppData = await getSellerOpportunity(db, consultantId, clientId, opportunityId);
+      console.log('Opportunity data loaded:', oppData); // Debug log
       setOpportunity(oppData);
     } catch (err) {
       console.error('Error loading seller opportunity:', err);
@@ -456,6 +460,98 @@ export default function SellerOpportunityView() {
                 onRespond={handleRespondOffer}
               />
             </div>
+
+            {/* TRANSACTION SECTION - Added after Offers */}
+            {opportunity.acceptedOffer && (
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-semibold text-gray-900">Processo de Transação</h2>
+                  <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-medium">
+                    Proposta Aceite
+                  </span>
+                </div>
+
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+                  <div className="flex items-start gap-3">
+                    <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-medium text-green-900">
+                        Proposta de {opportunity.acceptedOffer.buyer?.name || opportunity.acceptedOffer.buyerName || 'Comprador'} aceite!
+                      </p>
+                      <p className="text-green-700 mt-1">
+                        Valor: €{(opportunity.acceptedOffer.amount || opportunity.acceptedOffer.offerAmount || 0).toLocaleString('pt-PT')}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {opportunity.transaction ? (
+                  <TransactionTimeline
+                    transaction={opportunity.transaction}
+                    onUpdateTransaction={async (updatedTransaction) => {
+                      await updateSellerTransaction(
+                        db,
+                        consultantId,
+                        clientId,
+                        opportunityId,
+                        updatedTransaction
+                      );
+                      fetchOpportunity();
+                    }}
+                  />
+                ) : (
+                  <button
+                    onClick={async () => {
+                      const transactionData = {
+                        stage: 'offer_accepted',
+                        acceptedOffer: {
+                          amount: opportunity.acceptedOffer.amount || opportunity.acceptedOffer.offerAmount,
+                          id: opportunity.acceptedOffer.id
+                        },
+                        cpcv: {
+                          status: 'pending',
+                          scheduledDate: null,
+                          signalAmount: 0,
+                          location: '',
+                          notes: '',
+                          documentsChecklist: []
+                        },
+                        escritura: {
+                          status: 'pending',
+                          scheduledDate: null,
+                          completedDate: null,
+                          notaryName: '',
+                          notaryLocation: '',
+                          finalAmount: opportunity.acceptedOffer.amount || opportunity.acceptedOffer.offerAmount,
+                          registrationNumber: '',
+                          notes: ''
+                        },
+                        financing: {
+                          required: false,
+                          bankName: '',
+                          approvalAmount: 0,
+                          milestones: {}
+                        },
+                        createdAt: new Date().toISOString(),
+                        updatedAt: new Date().toISOString()
+                      };
+                      await updateSellerTransaction(
+                        db,
+                        consultantId,
+                        clientId,
+                        opportunityId,
+                        transactionData
+                      );
+                      fetchOpportunity();
+                    }}
+                    className="w-full bg-purple-600 text-white py-3 px-4 rounded-lg hover:bg-purple-700 transition-colors font-medium flex items-center justify-center gap-2"
+                  >
+                    <TrendingUp className="w-5 h-5" />
+                    Iniciar Processo de Transação (CPCV → Escritura)
+                  </button>
+                )}
+              </div>
+            )}
 
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <PropertyMatching 
