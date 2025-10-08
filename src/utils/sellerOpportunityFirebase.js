@@ -170,7 +170,7 @@ export const updateViewing = async (db, consultantId, clientId, opportunityId, v
 };
 
 // ============================================================================
-// OFFERS
+// OFFERS SECTION - WITH FIXES APPLIED
 // ============================================================================
 export const addOffer = async (db, consultantId, clientId, opportunityId, offerData) => {
   const opp = await getSellerOpportunity(db, consultantId, clientId, opportunityId);
@@ -190,10 +190,9 @@ export const addOffer = async (db, consultantId, clientId, opportunityId, offerD
   });
 };
 
-// UPDATED updateOfferStatus (replaces old implementation)
+// ✅ FIXED - updateOfferStatus with correct stage mapping
 export const updateOfferStatus = async (db, consultantId, clientId, opportunityId, offerId, status, extra = {}) => {
   const opp = await getSellerOpportunity(db, consultantId, clientId, opportunityId);
-
   const offer = opp.offers?.find(o => o.id === offerId);
 
   const updatedOffers = (opp.offers || []).map(o =>
@@ -215,28 +214,39 @@ export const updateOfferStatus = async (db, consultantId, clientId, opportunityI
       buyer: offer.buyer || { name: offer.buyerName || 'Comprador' }
     });
 
-    updates.stage = 'proposta_aceite';
+    // ✅ FIX: Changed from 'proposta_aceite' to 'com_proposta'
+    updates.stage = 'com_proposta';
   }
 
   await updateSellerOpportunity(db, consultantId, clientId, opportunityId, updates);
 };
 
-// NEW: updateSellerTransaction
+// ✅ FIXED - updateSellerTransaction with correct stage mappings
 export const updateSellerTransaction = async (db, consultantId, clientId, opportunityId, transactionData) => {
   const updates = {
     transaction: transactionData,
     updatedAt: serverTimestamp()
   };
 
+  // ✅ FIX: Map transaction stages to correct pipeline stages
   if (transactionData.stage === 'cpcv_signed') {
-    updates.stage = 'cpcv_assinado';
+    updates.stage = 'reservado';
   } else if (transactionData.stage === 'escritura_scheduled') {
-    updates.stage = 'escritura_agendada';
+    // stays 'reservado'
   } else if (transactionData.stage === 'completed') {
-    updates.stage = 'concluido';
+    updates.stage = 'vendido';
   }
 
   await updateSellerOpportunity(db, consultantId, clientId, opportunityId, updates);
+};
+
+// ✅ NEW FUNCTION - Mark opportunity as lost/abandoned
+export const markOpportunityAsLost = async (db, consultantId, clientId, opportunityId, reason = '') => {
+  await updateSellerOpportunity(db, consultantId, clientId, opportunityId, {
+    stage: 'perdido',
+    lostReason: reason,
+    lostAt: new Date().toISOString()
+  });
 };
 
 // ============================================================================

@@ -17,7 +17,8 @@ import {
   addOffer,
   updateOfferStatus,
   updateViewing,
-  updateSellerTransaction
+  updateSellerTransaction,
+  markOpportunityAsLost // ✅ Added
 } from '../utils/sellerOpportunityFirebase';
 import { db } from '../firebase/config';
 import {
@@ -28,7 +29,8 @@ import {
   EyeIcon,
   DocumentTextIcon,
   MapPinIcon,
-  PencilIcon
+  PencilIcon,
+  XCircleIcon // ✅ Added
 } from '@heroicons/react/24/outline';
 import { CheckCircle, TrendingUp } from 'lucide-react';
 
@@ -219,6 +221,38 @@ export default function SellerOpportunityView() {
     setShowRespondOfferModal(true);
   };
 
+  // ✅ Added: Abandon (mark as lost) handler
+  const handleAbandonSale = async () => {
+    const reason = window.prompt(
+      'Motivo da desistência da venda:\n\n( Opcional, mas recomendado para análise futura )',
+      ''
+    );
+    if (reason === null) return;
+    const confirmed = window.confirm(
+      '⚠️ Tem certeza que deseja marcar esta oportunidade como PERDIDA?\n\n' +
+      'Esta ação irá:\n' +
+      '• Mover a oportunidade para o estágio "Perdido"\n' +
+      '• Parar o acompanhamento ativo\n' +
+      '• Registar a data de desistência\n\n' +
+      'Confirmar?'
+    );
+    if (!confirmed) return;
+    try {
+      await markOpportunityAsLost(
+        db,
+        consultantId,
+        clientId,
+        opportunityId,
+        reason.trim()
+      );
+      await fetchOpportunity();
+      alert('✅ Oportunidade marcada como perdida');
+    } catch (error) {
+      console.error('Error marking opportunity as lost:', error);
+      alert('❌ Erro ao marcar oportunidade como perdida');
+    }
+  };
+
   if (loading) {
     return (
       <Layout>
@@ -255,41 +289,67 @@ export default function SellerOpportunityView() {
   return (
     <Layout>
       <div className="p-6">
-        <div className="mb-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <Link
-                to={`/clients/${clientId}`}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                <ArrowLeftIcon className="w-5 h-5 text-gray-600" />
-              </Link>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">
-                  Oportunidade de Venda
-                </h1>
-                <div className="flex items-center space-x-3 mt-1">
-                  <span className="text-gray-600">
-                    ID: {opportunity.propertyId}
-                  </span>
-                  <span className={`px-3 py-1 rounded-full text-sm font-semibold ${getQualificationColor(opportunity.sellerQualification)}`}>
-                    Score: {opportunity.sellerScore}/10
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center space-x-3">
-              <button
-                onClick={() => navigate(`/clients/${clientId}/seller-opportunities/${opportunityId}/edit`)}
-                className="px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center space-x-2"
-              >
-                <PencilIcon className="w-4 h-4" />
-                <span>Editar</span>
-              </button>
+        {/* ✅ Updated Header with Abandon button */}
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center space-x-4">
+            <Link
+              to={`/clients/${clientId}`}
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <ArrowLeftIcon className="w-5 h-5 text-gray-600" />
+            </Link>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">
+                Oportunidade de Venda
+              </h1>
+              <p className="text-sm text-gray-600 mt-1">
+                ID: {opportunity.customPropertyId || opportunity.propertyId}
+              </p>
             </div>
           </div>
+
+          {/* Action Buttons */}
+          <div className="flex items-center gap-3">
+            {opportunity.stage !== 'perdido' && opportunity.stage !== 'vendido' && (
+              <button
+                onClick={handleAbandonSale}
+                className="flex items-center gap-2 px-4 py-2 border border-red-300 text-red-700 rounded-lg hover:bg-red-50 transition-colors"
+              >
+                <XCircleIcon className="w-5 h-5" />
+                Desistir da Venda
+              </button>
+            )}
+            <Link
+              to={`/clients/${clientId}/seller-opportunities/${opportunityId}/edit`}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              <PencilIcon className="w-5 h-5" />
+              Editar
+            </Link>
+          </div>
         </div>
+
+        {/* ✅ Lost banner */}
+        {opportunity.stage === 'perdido' && (
+          <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
+            <div className="flex items-start gap-3">
+              <XCircleIcon className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="font-medium text-red-900">Oportunidade Perdida</p>
+                {opportunity.lostReason && (
+                  <p className="text-sm text-red-700 mt-1">
+                    Motivo: {opportunity.lostReason}
+                  </p>
+                )}
+                {opportunity.lostAt && (
+                  <p className="text-xs text-red-600 mt-1">
+                    Data: {new Date(opportunity.lostAt).toLocaleDateString('pt-PT')}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Pipeline</h2>

@@ -90,17 +90,18 @@ const Sidebar = ({ isCollapsed = false, onToggleCollapse }) => {
         if (href === '/dashboard') {
             return location.pathname === '/dashboard';
         }
-        
         if (href === '/deals') {
-            return location.pathname === '/deals' || 
+            return location.pathname === '/deals' ||
                    location.pathname.includes('/deals');
         }
-        
         if (href === '/clients') {
-            return location.pathname.startsWith('/clients') && 
-                   !location.pathname.includes('/deals');
+            return location.pathname.startsWith('/clients') &&
+                   !location.pathname.includes('/deals') &&
+                   !location.pathname.includes('/seller-opportunities');
         }
-        
+        if (href === '/seller-opportunities') { // ✅ Updated matcher
+            return location.pathname.startsWith('/seller-opportunities');
+        }
         return location.pathname.startsWith(href);
     };
 
