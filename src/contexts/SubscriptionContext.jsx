@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { doc, setDoc, onSnapshot } from 'firebase/firestore';
+import { doc, setDoc, onSnapshot, collection, getDocs, query, where, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { useAuth } from './AuthContext';
 
@@ -88,20 +88,121 @@ export function SubscriptionProvider({ children }) {
         }, { merge: true });
     }
 
-    // Load stats (now just resets / future: fetch deals)
+    // Load statistics
     async function loadStats() {
-        if (!currentUser) return;
-        try {
-            setStats({
-                totalDeals: 0,
-                businessVolume: 0
+      if (!currentUser) return;
+      
+      try {
+        console.log('📊 Loading statistics...');
+        
+        // Get all clients (we'll filter isDeleted in memory to handle missing field)
+        const clientsRef = collection(db, 'consultants', currentUser.uid, 'clients');
+        const clientsSnapshot = await getDocs(clientsRef);
+        
+        // Filter out deleted clients in memory (handles missing isDeleted field)
+        const activeClients = clientsSnapshot.docs.filter(doc => {
+          const data = doc.data();
+          return data.isDeleted !== true; // Only exclude if explicitly true
+        });
+        
+        const totalClients = activeClients.length;
+        
+        console.log(`✅ Found ${totalClients} clients`);
+
+        // Count opportunities and deals across all clients
+        let totalOpportunities = 0;
+        let totalDeals = 0;
+        let businessVolume = 0;
+
+        // Iterate through each active client to count their opportunities and deals
+        for (const clientDoc of activeClients) {
+          // Count opportunities for this client
+          const opportunitiesRef = collection(
+            db,
+            'consultants',
+            currentUser.uid,
+            'clients',
+            clientDoc.id,
+            'opportunities'
+          );
+          const opportunitiesSnapshot = await getDocs(opportunitiesRef);
+          
+          // Filter out deleted opportunities
+          const activeOpportunities = opportunitiesSnapshot.docs.filter(doc => {
+            const data = doc.data();
+            return data.isDeleted !== true;
+          });
+          
+          totalOpportunities += activeOpportunities.length;
+
+          // Count deals for each opportunity of this client
+          for (const oppDoc of activeOpportunities) {
+            const dealsRef = collection(
+              db,
+              'consultants',
+              currentUser.uid,
+              'clients',
+              clientDoc.id,
+              'opportunities',
+              oppDoc.id,
+              'deals'
+            );
+            const dealsSnapshot = await getDocs(dealsRef);
+            
+            // Filter out deleted deals
+            const activeDeals = dealsSnapshot.docs.filter(doc => {
+              const data = doc.data();
+              return data.isDeleted !== true;
             });
-        } catch {
-            setStats({
-                totalDeals: 0,
-                businessVolume: 0
+            
+            totalDeals += activeDeals.length;
+
+            // Calculate business volume from deals
+            activeDeals.forEach(dealDoc => {
+              const dealData = dealDoc.data();
+              if (dealData.value && typeof dealData.value === 'number') {
+                businessVolume += dealData.value;
+              }
             });
+          }
         }
+
+        console.log(`✅ Statistics loaded:`, {
+          totalClients,
+          totalOpportunities,
+          totalDeals,
+          businessVolume
+        });
+
+        const newStats = {
+          totalClients,
+          totalOpportunities,
+          totalDeals,
+          businessVolume
+        };
+
+        setStats(newStats);
+
+        // Update usage in subscription document
+        if (subscription) {
+          await updateDoc(doc(db, 'subscriptions', currentUser.uid), {
+            'currentUsage.clients': totalClients,
+            'currentUsage.deals': totalDeals,
+            'currentUsage.volume': businessVolume,
+            updatedAt: new Date()
+          });
+        }
+
+        return newStats;
+      } catch (error) {
+        console.error('❌ Error loading stats:', error);
+        setStats({
+          totalClients: 0,
+          totalOpportunities: 0,
+          totalDeals: 0,
+          businessVolume: 0
+        });
+      }
     }
 
     function isVolumeLimitReached() {
