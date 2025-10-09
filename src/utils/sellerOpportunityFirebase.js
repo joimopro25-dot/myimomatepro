@@ -157,7 +157,7 @@ export const updateViewing = async (db, consultantId, clientId, opportunityId, v
     consultantId,
     'clients',
     clientId,
-    'sellerOpportunities',
+    'opportunities',
     opportunityId,
     'viewings'
   );
@@ -276,6 +276,190 @@ export const updateDaysOnMarket = async (db, consultantId, clientId, opportunity
   const opp = await getSellerOpportunity(db, consultantId, clientId, opportunityId);
   const days = calculateDaysOnMarket(opp);
   await updateSellerOpportunity(db, consultantId, clientId, opportunityId, { 'stats.daysOnMarket': days });
+};
+
+// ============================================================================
+// COMMISSION FUNCTIONS - NEW FUNCTIONS ADDED
+// ============================================================================
+
+/**
+ * Save commission data when offer is accepted
+ * Stores commission in subcollection: opportunities/{opportunityId}/commission/data
+ */
+export const saveCommissionData = async (
+  db,
+  consultantId,
+  clientId,
+  opportunityId,
+  commissionData
+) => {
+  try {
+    const commissionRef = doc(
+      db,
+      'consultants',
+      consultantId,
+      'clients',
+      clientId,
+      'opportunities',
+      opportunityId,
+      'commission',
+      'data'
+    );
+
+    await setDoc(commissionRef, {
+      ...commissionData,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    });
+
+    console.log('✅ Commission data saved successfully');
+    return { success: true };
+  } catch (error) {
+    console.error('❌ Error saving commission data:', error);
+    throw error;
+  }
+};
+
+/**
+ * Update commission tracking (after escritura)
+ * Updates payment status, amount received, dates, notes
+ */
+export const updateCommissionTracking = async (
+  db,
+  consultantId,
+  clientId,
+  opportunityId,
+  trackingData
+) => {
+  try {
+    const commissionRef = doc(
+      db,
+      'consultants',
+      consultantId,
+      'clients',
+      clientId,
+      'opportunities',
+      opportunityId,
+      'commission',
+      'data'
+    );
+
+    await updateDoc(commissionRef, {
+      ...trackingData,
+      updatedAt: new Date().toISOString()
+    });
+
+    console.log('✅ Commission tracking updated');
+    return { success: true };
+  } catch (error) {
+    console.error('❌ Error updating commission tracking:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get commission data for a specific opportunity
+ * Returns commission object or null if not found
+ */
+export const getCommissionData = async (
+  db,
+  consultantId,
+  clientId,
+  opportunityId
+) => {
+  try {
+    const commissionRef = doc(
+      db,
+      'consultants',
+      consultantId,
+      'clients',
+      clientId,
+      'opportunities',
+      opportunityId,
+      'commission',
+      'data'
+    );
+
+    const commissionDoc = await getDoc(commissionRef);
+    
+    if (commissionDoc.exists()) {
+      return { id: commissionDoc.id, ...commissionDoc.data() };
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('❌ Error getting commission data:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get all commissions for a consultant (for dashboard)
+ * Queries all clients and their seller opportunities for commission data
+ */
+export const getAllCommissions = async (db, consultantId) => {
+  try {
+    const commissions = [];
+    
+    // Get all clients
+    const clientsRef = collection(db, 'consultants', consultantId, 'clients');
+    const clientsSnapshot = await getDocs(clientsRef);
+    
+    // For each client, get their opportunities
+    for (const clientDoc of clientsSnapshot.docs) {
+      const clientId = clientDoc.id;
+      const clientData = clientDoc.data();
+      
+      const oppsRef = collection(
+        db,
+        'consultants',
+        consultantId,
+        'clients',
+        clientId,
+        'opportunities'
+      );
+      
+      // Query for seller opportunities only
+      const q = query(oppsRef, where('type', '==', 'seller'));
+      const oppsSnapshot = await getDocs(q);
+      
+      // For each opportunity, get commission data
+      for (const oppDoc of oppsSnapshot.docs) {
+        const oppId = oppDoc.id;
+        const oppData = oppDoc.data();
+        
+        const commissionRef = doc(
+          db,
+          'consultants',
+          consultantId,
+          'clients',
+          clientId,
+          'opportunities',
+          oppId,
+          'commission',
+          'data'
+        );
+        
+        const commissionDoc = await getDoc(commissionRef);
+        
+        if (commissionDoc.exists()) {
+          commissions.push({
+            id: commissionDoc.id,
+            opportunityId: oppId,
+            clientId: clientId,
+            clientName: clientData.name,
+            propertyAddress: oppData.propertyAddress,
+            ...commissionDoc.data()
+          });
+        }
+      }
+    }
+    
+    return commissions;
+  } catch (error) {
+    console.error('❌ Error getting all commissions:', error);
+    throw error;
+  }
 };
 
 // ============================================================================

@@ -18,7 +18,9 @@ import {
   updateOfferStatus,
   updateViewing,
   updateSellerTransaction,
-  markOpportunityAsLost
+  markOpportunityAsLost,
+  getCommissionData,
+  updateCommissionTracking
 } from '../utils/sellerOpportunityFirebase';
 import { db } from '../firebase/config';
 import {
@@ -48,6 +50,7 @@ import RespondOfferModal from '../components/RespondOfferModal';
 import PropertyMatching from '../components/PropertyMatching';
 import ViewVisitModal from '../components/ViewVisitModal';
 import TransactionTimeline from '../components/TransactionTimeline';
+import CommissionTrackingModal from '../components/CommissionTrackingModal';
 
 export default function SellerOpportunityView() {
   const { clientId, opportunityId } = useParams();
@@ -75,9 +78,34 @@ export default function SellerOpportunityView() {
   // NEW: State for pre-filled offer data from visit (Option 1)
   const [offerFromVisit, setOfferFromVisit] = useState(null);
 
+  // NEW: Commission tracking state
+  const [commissionData, setCommissionData] = useState(null);
+  const [isCommissionTrackingOpen, setIsCommissionTrackingOpen] = useState(false);
+
   useEffect(() => {
     fetchOpportunity();
   }, [opportunityId, consultantId]);
+
+  // NEW: Load commission data when opportunity/user are ready
+  useEffect(() => {
+    const loadCommissionData = async () => {
+      if (opportunity && currentUser) {
+        try {
+          const data = await getCommissionData(
+            db,
+            currentUser.uid,
+            clientId,
+            opportunityId
+          );
+          setCommissionData(data);
+        } catch (error) {
+          console.error('Error loading commission:', error);
+        }
+      }
+    };
+
+    loadCommissionData();
+  }, [opportunity, clientId, opportunityId, currentUser]);
 
   const fetchOpportunity = async () => {
     if (!consultantId) return;
@@ -302,6 +330,27 @@ export default function SellerOpportunityView() {
     }
   };
 
+  // NEW: Commission handlers
+  const handleOpenCommissionTracking = () => {
+    setIsCommissionTrackingOpen(true);
+  };
+
+  const handleSaveCommissionTracking = async (updatedData) => {
+    try {
+      await updateCommissionTracking(
+        db,
+        currentUser.uid,
+        clientId,
+        opportunityId,
+        updatedData
+      );
+      setCommissionData(prev => ({ ...(prev || {}), ...updatedData }));
+    } catch (error) {
+      console.error('Error updating commission:', error);
+      alert('Erro ao atualizar comissão');
+    }
+  };
+
   if (loading) {
     return (
       <Layout>
@@ -421,6 +470,20 @@ export default function SellerOpportunityView() {
               </React.Fragment>
             ))}
           </div>
+
+          {/* Commission Management Button */}
+          {(opportunity.stage === 'com_proposta' ||
+            opportunity.stage === 'reservado' ||
+            opportunity.stage === 'vendido') && commissionData && (
+            <div className="mt-4">
+              <button
+                onClick={handleOpenCommissionTracking}
+                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+              >
+                💰 Gestão de Comissão
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -782,6 +845,14 @@ export default function SellerOpportunityView() {
         onSuccess={fetchOpportunity}     
         offer={selectedOffer}
         action={offerAction}
+      />
+
+      {/* Commission Tracking Modal */}
+      <CommissionTrackingModal
+        isOpen={isCommissionTrackingOpen}
+        onClose={() => setIsCommissionTrackingOpen(false)}
+        commissionData={commissionData}
+        onSave={handleSaveCommissionTracking}
       />
     </Layout>
   );

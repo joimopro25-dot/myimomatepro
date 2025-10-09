@@ -54,25 +54,31 @@ service cloud.firestore {
       allow read, write, delete: if isOwner(consultantId);
     }
     
-    // Clients - ✅ FIXED: Added explicit delete permission
+    // Clients
     match /consultants/{consultantId}/clients/{clientId} {
       allow read, create, update: if isOwner(consultantId) && hasValidSubscription();
       allow delete: if isOwner(consultantId) && hasValidSubscription();
     }
     
-    // Opportunities - ✅ FIXED: Added explicit delete permission
+    // Opportunities (with Commission subcollection)
     match /consultants/{consultantId}/clients/{clientId}/opportunities/{opportunityId} {
       allow read, create, update: if isOwner(consultantId) && hasValidSubscription();
       allow delete: if isOwner(consultantId) && hasValidSubscription();
+      
+      // ✅ NEW: Commission subcollection
+      match /commission/{commissionDoc} {
+        allow read, create, update: if isOwner(consultantId) && hasValidSubscription();
+        allow delete: if isOwner(consultantId) && hasValidSubscription();
+      }
     }
     
-    // Deals (direct under clients) - ✅ FIXED: Added explicit delete permission
+    // Deals (direct under clients)
     match /consultants/{consultantId}/clients/{clientId}/deals/{dealId} {
       allow read, create, update: if isOwner(consultantId) && hasValidSubscription();
       allow delete: if isOwner(consultantId) && hasValidSubscription();
     }
     
-    // Deals (nested under opportunities) - ✅ FIXED: Added explicit delete permission
+    // Deals (nested under opportunities)
     match /consultants/{consultantId}/clients/{clientId}/opportunities/{opportunityId}/deals/{dealId} {
       allow read, create, update: if isOwner(consultantId) && hasValidSubscription();
       allow delete: if isOwner(consultantId) && hasValidSubscription();
@@ -93,7 +99,7 @@ service cloud.firestore {
       }
     }
     
-    // Documents - ✅ FIXED: Added explicit delete permission
+    // Documents
     match /consultants/{consultantId}/clients/{clientId}/documents/{documentId} {
       allow read, create, update: if isOwner(consultantId) && hasValidSubscription();
       allow delete: if isOwner(consultantId) && hasValidSubscription();
