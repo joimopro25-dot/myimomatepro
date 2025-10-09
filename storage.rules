@@ -1,0 +1,72 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // Check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Check if user owns the resource
+    function isConsultant(consultantId) {
+      return isAuthenticated() && request.auth.uid == consultantId;
+    }
+    
+    // Validate file size (in MB)
+    function isValidFileSize(maxSizeMB) {
+      return request.resource.size < maxSizeMB * 1024 * 1024;
+    }
+    
+    // Validate file type (documents and images only)
+    function isValidDocumentType() {
+      return request.resource.contentType.matches('application/pdf') ||
+             request.resource.contentType.matches('application/msword') ||
+             request.resource.contentType.matches('application/vnd.openxmlformats-officedocument.wordprocessingml.document') ||
+             request.resource.contentType.matches('image/jpeg') ||
+             request.resource.contentType.matches('image/jpg') ||
+             request.resource.contentType.matches('image/png');
+    }
+    
+    // Extra validation for images (500KB max)
+    function isValidImageSize() {
+      return request.resource.contentType.matches('image/.*') 
+        ? request.resource.size < 500 * 1024 
+        : true;
+    }
+    
+    // OPPORTUNITY DOCUMENTS
+    // Path: consultants/{consultantId}/clients/{clientId}/opportunities/{opportunityId}/documents/{fileName}
+    match /consultants/{consultantId}/clients/{clientId}/opportunities/{opportunityId}/documents/{fileName} {
+      allow read: if isConsultant(consultantId);
+      allow write: if isConsultant(consultantId) 
+                   && isValidDocumentType() 
+                   && isValidFileSize(5)
+                   && isValidImageSize();
+      allow delete: if isConsultant(consultantId);
+    }
+    
+    // CLIENT DOCUMENTS (Future use)
+    match /consultants/{consultantId}/clients/{clientId}/documents/{fileName} {
+      allow read: if isConsultant(consultantId);
+      allow write: if isConsultant(consultantId) 
+                   && isValidDocumentType() 
+                   && isValidFileSize(5)
+                   && isValidImageSize();
+      allow delete: if isConsultant(consultantId);
+    }
+    
+    // CONSULTANT PROFILE
+    match /consultants/{consultantId}/profile/{fileName} {
+      allow read: if isConsultant(consultantId);
+      allow write: if isConsultant(consultantId) 
+                   && isValidFileSize(2); // 2MB max for profile images
+      allow delete: if isConsultant(consultantId);
+    }
+    
+    // DEFAULT DENY
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

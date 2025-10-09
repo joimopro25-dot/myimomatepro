@@ -2,6 +2,7 @@
  * SELLER OPPORTUNITY VIEW - MyImoMatePro
  * Detail view for seller opportunities
  * UPDATED: Added "Create Offer from Visit" functionality (Option 1 & 2)
+ * UPDATED: Added Document Management functionality
  */
 
 import React, { useState, useEffect } from 'react';
@@ -51,6 +52,7 @@ import PropertyMatching from '../components/PropertyMatching';
 import ViewVisitModal from '../components/ViewVisitModal';
 import TransactionTimeline from '../components/TransactionTimeline';
 import CommissionTrackingModal from '../components/CommissionTrackingModal';
+import OpportunityDocuments from '../components/OpportunityDocuments'; // NEW
 
 export default function SellerOpportunityView() {
   const { clientId, opportunityId } = useParams();
@@ -119,6 +121,17 @@ export default function SellerOpportunityView() {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // NEW: Handle document updates
+  const handleDocumentUpdate = async (updates) => {
+    try {
+      await updateSellerOpportunity(db, consultantId, clientId, opportunityId, updates);
+      await fetchOpportunity();
+    } catch (error) {
+      console.error('Error updating documents:', error);
+      alert('Erro ao atualizar documentos');
     }
   };
 
@@ -732,6 +745,7 @@ export default function SellerOpportunityView() {
             </div>
           </div>
 
+          {/* Right Column - Stats, Motivation & Documents */}
           <div className="space-y-6">
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">Estatísticas</h2>
@@ -785,6 +799,16 @@ export default function SellerOpportunityView() {
                 </div>
               </div>
             </div>
+
+            {/* NEW: Documents Section */}
+            <OpportunityDocuments
+              documents={opportunity.documents || []}
+              externalLinks={opportunity.externalLinks || []}
+              opportunityId={opportunityId}
+              clientId={clientId}
+              consultantId={consultantId}
+              onUpdate={handleDocumentUpdate}
+            />
           </div>
         </div>
       </div>
