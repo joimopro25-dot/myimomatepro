@@ -34,6 +34,9 @@ import SellerOpportunitiesBoard from './pages/SellerOpportunities/SellerOpportun
 import NewSellerOpportunity from './pages/SellerOpportunities/NewSellerOpportunity';
 import SellerOpportunityView from './pages/SellerOpportunityView';
 
+// ADD: Calendar page
+import CalendarPage from './pages/CalendarPage';
+
 // Protected Pages - Deals
 import DealList from './pages/DealList';
 import DealBoard from './pages/DealBoard';
@@ -204,6 +207,13 @@ function AppRoutes() {
         <Route path="/commissions" element={
           <ProtectedRoute>
             <CommissionDashboard />
+          </ProtectedRoute>
+        } />
+
+        {/* ===== PROTECTED ROUTES - CALENDAR ===== */}
+        <Route path="/calendar" element={
+          <ProtectedRoute>
+            <CalendarPage />
           </ProtectedRoute>
         } />
 

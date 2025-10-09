@@ -28,6 +28,8 @@ import {
     CogIcon as CogIconSolid,
     CurrencyEuroIcon as CurrencyEuroIconSolid
 } from '@heroicons/react/24/solid';
+import { CalendarIcon as CalendarIconOutline } from '@heroicons/react/24/outline';
+import { CalendarIcon as CalendarIconSolid } from '@heroicons/react/24/solid';
 
 const Sidebar = ({ isCollapsed = false, onToggleCollapse }) => {
     const location = useLocation();
@@ -83,6 +85,13 @@ const Sidebar = ({ isCollapsed = false, onToggleCollapse }) => {
             icon: CurrencyEuroIcon,
             iconSolid: CurrencyEuroIconSolid,
             description: 'Dashboard de comissões'
+        },
+        {
+            name: 'Calendário',
+            href: '/calendar',
+            icon: CalendarIconOutline,
+            iconSolid: CalendarIconSolid,
+            description: 'Calendário de eventos'
         }
     ];
 
