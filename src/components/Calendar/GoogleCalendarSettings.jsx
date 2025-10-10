@@ -1,6 +1,6 @@
 /**
  * GOOGLE CALENDAR SETTINGS - MyImoMatePro
- * Real OAuth Integration with Google Calendar API
+ * Enhanced with sync management and statistics
  */
 
 import React, { useState, useEffect } from 'react';
@@ -11,8 +11,13 @@ import {
   ExclamationTriangleIcon,
   ArrowPathIcon,
   CalendarIcon,
-  TrashIcon
+  TrashIcon,
+  CloudArrowUpIcon,
+  ClockIcon,
+  ChartBarIcon
 } from '@heroicons/react/24/outline';
+
+import { getSyncStats, clearSyncMapping, listCalendars } from './googleCalendarService';
 
 export default function GoogleCalendarSettings({ isOpen, onClose }) {
   const [isConnected, setIsConnected] = useState(false);
@@ -22,16 +27,22 @@ export default function GoogleCalendarSettings({ isOpen, onClose }) {
   const [accessToken, setAccessToken] = useState(null);
   const [autoSync, setAutoSync] = useState(true);
   const [syncStatus, setSyncStatus] = useState(null);
+  const [syncStats, setSyncStats] = useState({ syncedEventsCount: 0, lastSyncDate: null });
+  const [calendars, setCalendars] = useState([]);
+  const [selectedCalendar, setSelectedCalendar] = useState('primary');
+  const [loadingCalendars, setLoadingCalendars] = useState(false);
 
   // Load saved settings from localStorage
   useEffect(() => {
     const savedToken = localStorage.getItem('googleCalendarToken');
     const savedUserInfo = localStorage.getItem('googleCalendarUserInfo');
     const savedAutoSync = localStorage.getItem('googleCalendarAutoSync');
+    const savedCalendarId = localStorage.getItem('googleCalendarId');
 
     if (savedToken) {
       setAccessToken(savedToken);
       setIsConnected(true);
+      loadCalendarList(savedToken);
     }
     if (savedUserInfo) {
       setUserInfo(JSON.parse(savedUserInfo));
@@ -39,7 +50,34 @@ export default function GoogleCalendarSettings({ isOpen, onClose }) {
     if (savedAutoSync !== null) {
       setAutoSync(savedAutoSync === 'true');
     }
+    if (savedCalendarId) {
+      setSelectedCalendar(savedCalendarId);
+    }
+
+    // Load sync stats
+    const stats = getSyncStats();
+    setSyncStats(stats);
   }, []);
+
+  // Reload sync stats when modal opens
+  useEffect(() => {
+    if (isOpen && isConnected) {
+      const stats = getSyncStats();
+      setSyncStats(stats);
+    }
+  }, [isOpen, isConnected]);
+
+  const loadCalendarList = async (token) => {
+    try {
+      setLoadingCalendars(true);
+      const calendarList = await listCalendars(token);
+      setCalendars(calendarList);
+    } catch (err) {
+      console.error('Error loading calendars:', err);
+    } finally {
+      setLoadingCalendars(false);
+    }
+  };
 
   // Google OAuth Login
   const login = useGoogleLogin({
@@ -65,6 +103,9 @@ export default function GoogleCalendarSettings({ isOpen, onClose }) {
         
         setIsConnected(true);
         setSyncStatus({ type: 'success', message: 'Conectado com sucesso!' });
+
+        // Load calendars
+        await loadCalendarList(token);
       } catch (err) {
         setError('Erro ao conectar com Google Calendar');
       } finally {
@@ -82,14 +123,46 @@ export default function GoogleCalendarSettings({ isOpen, onClose }) {
   const handleDisconnect = () => {
     localStorage.removeItem('googleCalendarToken');
     localStorage.removeItem('googleCalendarUserInfo');
+    localStorage.removeItem('googleCalendarId');
     setAccessToken(null);
     setUserInfo(null);
     setIsConnected(false);
+    setCalendars([]);
+    setSyncStats({ syncedEventsCount: 0, lastSyncDate: null });
   };
 
   const handleToggleAutoSync = (enabled) => {
     setAutoSync(enabled);
     localStorage.setItem('googleCalendarAutoSync', enabled.toString());
+  };
+
+  const handleCalendarChange = (calendarId) => {
+    setSelectedCalendar(calendarId);
+    localStorage.setItem('googleCalendarId', calendarId);
+    setSyncStatus({ type: 'info', message: 'Calendário alterado. Execute uma nova sincronização.' });
+  };
+
+  const handleClearSync = () => {
+    if (window.confirm('Deseja limpar o histórico de sincronização? Os eventos permanecerão no Google Calendar, mas o sistema não poderá mais rastreá-los para atualizações.')) {
+      clearSyncMapping();
+      setSyncStats({ syncedEventsCount: 0, lastSyncDate: null });
+      setSyncStatus({ type: 'success', message: 'Histórico de sincronização limpo.' });
+    }
+  };
+
+  const formatLastSync = (date) => {
+    if (!date) return 'Nunca sincronizado';
+    
+    const now = new Date();
+    const diff = now - date;
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+
+    if (minutes < 1) return 'Agora mesmo';
+    if (minutes < 60) return `${minutes} minuto${minutes > 1 ? 's' : ''} atrás`;
+    if (hours < 24) return `${hours} hora${hours > 1 ? 's' : ''} atrás`;
+    return `${days} dia${days > 1 ? 's' : ''} atrás`;
   };
 
   if (!isOpen) return null;
@@ -113,6 +186,7 @@ export default function GoogleCalendarSettings({ isOpen, onClose }) {
           </div>
 
           <div className="p-6 space-y-6">
+            {/* Connection Status */}
             <div className={`rounded-lg p-4 border-2 ${
               isConnected ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'
             }`}>
@@ -140,14 +214,78 @@ export default function GoogleCalendarSettings({ isOpen, onClose }) {
               </div>
             </div>
 
+            {/* Status Messages */}
             {error && (
               <div className="rounded-lg p-4 bg-red-50 border border-red-200">
                 <p className="text-sm text-red-800">{error}</p>
               </div>
             )}
 
+            {syncStatus && (
+              <div className={`rounded-lg p-4 ${
+                syncStatus.type === 'success' ? 'bg-green-50 border border-green-200' :
+                syncStatus.type === 'error' ? 'bg-red-50 border border-red-200' :
+                'bg-blue-50 border border-blue-200'
+              }`}>
+                <p className={`text-sm ${
+                  syncStatus.type === 'success' ? 'text-green-800' :
+                  syncStatus.type === 'error' ? 'text-red-800' :
+                  'text-blue-800'
+                }`}>
+                  {syncStatus.message}
+                </p>
+              </div>
+            )}
+
             {isConnected ? (
               <div className="space-y-4">
+                {/* Sync Statistics */}
+                <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg p-4 border border-purple-200">
+                  <div className="flex items-center gap-2 mb-3">
+                    <ChartBarIcon className="w-5 h-5 text-purple-600" />
+                    <h4 className="font-semibold text-gray-900">Estatísticas de Sincronização</h4>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <div className="text-2xl font-bold text-purple-600">{syncStats.syncedEventsCount}</div>
+                      <div className="text-sm text-gray-600">Eventos Sincronizados</div>
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-1 text-sm text-gray-600">
+                        <ClockIcon className="w-4 h-4" />
+                        <span>{formatLastSync(syncStats.lastSyncDate)}</span>
+                      </div>
+                      <div className="text-sm text-gray-600">Última Sincronização</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Calendar Selection */}
+                {calendars.length > 0 && (
+                  <div className="p-4 bg-gray-50 rounded-lg">
+                    <label className="block mb-2">
+                      <span className="font-medium text-gray-900">Calendário de Destino</span>
+                      <p className="text-sm text-gray-600 mb-2">Escolha onde os eventos serão criados</p>
+                    </label>
+                    {loadingCalendars ? (
+                      <div className="text-sm text-gray-500">Carregando calendários...</div>
+                    ) : (
+                      <select
+                        value={selectedCalendar}
+                        onChange={(e) => handleCalendarChange(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      >
+                        {calendars.map((cal) => (
+                          <option key={cal.id} value={cal.id}>
+                            {cal.summary} {cal.primary ? '(Principal)' : ''}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                )}
+
+                {/* Auto Sync Toggle */}
                 <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                   <div>
                     <h4 className="font-medium">Sincronização Automática</h4>
@@ -164,22 +302,59 @@ export default function GoogleCalendarSettings({ isOpen, onClose }) {
                     }`} />
                   </button>
                 </div>
+
+                {/* Sync Management */}
+                <div className="p-4 bg-gray-50 rounded-lg space-y-3">
+                  <h4 className="font-medium text-gray-900">Gestão de Sincronização</h4>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleClearSync}
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                      <TrashIcon className="w-4 h-4" />
+                      Limpar Histórico
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    Limpar o histórico remove o rastreamento de eventos sincronizados. Os eventos permanecerão no Google Calendar.
+                  </p>
+                </div>
               </div>
             ) : (
               <button
                 onClick={() => login()}
                 disabled={loading}
-                className="w-full flex items-center justify-center space-x-3 px-6 py-4 bg-white border-2 border-gray-300 rounded-lg hover:bg-gray-50"
+                className="w-full flex items-center justify-center space-x-3 px-6 py-4 bg-white border-2 border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                <svg className="w-6 h-6" viewBox="0 0 24 24">
-                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-                </svg>
-                <span className="font-medium">Conectar Google Calendar</span>
+                {loading ? (
+                  <>
+                    <ArrowPathIcon className="w-6 h-6 animate-spin text-gray-600" />
+                    <span className="font-medium">Conectando...</span>
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-6 h-6" viewBox="0 0 24 24">
+                      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                      <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                    </svg>
+                    <span className="font-medium">Conectar Google Calendar</span>
+                  </>
+                )}
               </button>
             )}
+
+            {/* Help Text */}
+            <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+              <h4 className="font-medium text-blue-900 mb-2">ℹ️ Como funciona</h4>
+              <ul className="text-sm text-blue-800 space-y-1">
+                <li>• Conecte sua conta Google para começar</li>
+                <li>• Eventos do MyImoMatePro serão criados no calendário escolhido</li>
+                <li>• A sincronização automática mantém tudo atualizado</li>
+                <li>• Use o botão "Sincronizar" na página principal para sincronizar manualmente</li>
+              </ul>
+            </div>
           </div>
         </div>
       </div>

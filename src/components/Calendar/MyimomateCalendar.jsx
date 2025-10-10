@@ -1,6 +1,6 @@
 /**
  * MYIMOMATE CALENDAR - MyImoMatePro
- * Enhanced with all deal events: viewings, offers, CPCV, escritura
+ * Enhanced with Google Calendar sync
  */
 
 import React, { useState, useMemo, useEffect } from 'react';
@@ -21,7 +21,9 @@ import {
   HomeIcon,
   CheckCircleIcon,
   EyeIcon,
-  ArrowPathIcon
+  ArrowPathIcon,
+  CloudArrowUpIcon,
+  ExclamationCircleIcon
 } from '@heroicons/react/24/outline';
 
 import EventModal from './EventModal';
@@ -35,6 +37,15 @@ import {
   exportToICS
 } from './CalendarUtils';
 
+// Import Google Calendar Service
+import {
+  syncAllEvents,
+  getSyncStats,
+  createGoogleCalendarEvent,
+  updateGoogleCalendarEvent,
+  deleteGoogleCalendarEvent
+} from './googleCalendarService';
+
 const MyimomateCalendar = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [view, setView] = useState('month');
@@ -43,6 +54,9 @@ const MyimomateCalendar = () => {
   const [showSettings, setShowSettings] = useState(false);
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [syncStatus, setSyncStatus] = useState(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncProgress, setSyncProgress] = useState(null);
   
   const { currentUser } = useAuth();
 
@@ -52,6 +66,74 @@ const MyimomateCalendar = () => {
     }
   }, [currentUser]);
 
+  // Auto-sync when events are loaded
+  useEffect(() => {
+    if (events.length > 0 && !loading) {
+      checkAndAutoSync();
+    }
+  }, [events, loading]);
+
+  const checkAndAutoSync = async () => {
+    const accessToken = localStorage.getItem('googleCalendarToken');
+    const autoSync = localStorage.getItem('googleCalendarAutoSync') === 'true';
+    
+    if (accessToken && autoSync) {
+      const stats = getSyncStats();
+      
+      // Auto-sync if:
+      // 1. Never synced before
+      // 2. Last sync was more than 1 hour ago
+      // 3. Number of events changed significantly
+      const shouldSync = 
+        !stats.lastSyncDate || 
+        (Date.now() - stats.lastSyncDate.getTime() > 3600000) ||
+        Math.abs(stats.syncedEventsCount - events.length) > 5;
+      
+      if (shouldSync) {
+        console.log('🔄 Auto-sync triggered');
+        await handleSyncToGoogle();
+      }
+    }
+  };
+
+  const handleSyncToGoogle = async () => {
+    const accessToken = localStorage.getItem('googleCalendarToken');
+    
+    if (!accessToken) {
+      setSyncStatus({
+        type: 'error',
+        message: 'Por favor, conecte-se ao Google Calendar primeiro'
+      });
+      return;
+    }
+
+    try {
+      setSyncing(true);
+      setSyncStatus({ type: 'info', message: 'Sincronizando eventos...' });
+      setSyncProgress({ current: 0, total: events.length, percentage: 0 });
+
+      const results = await syncAllEvents(accessToken, events, (progress) => {
+        setSyncProgress(progress);
+      });
+
+      setSyncStatus({
+        type: 'success',
+        message: `✅ Sincronização concluída! ${results.created} criados, ${results.skipped} já existiam, ${results.errors} erros`
+      });
+
+      setTimeout(() => setSyncStatus(null), 5000);
+    } catch (error) {
+      console.error('Sync error:', error);
+      setSyncStatus({
+        type: 'error',
+        message: `Erro na sincronização: ${error.message}`
+      });
+    } finally {
+      setSyncing(false);
+      setSyncProgress(null);
+    }
+  };
+
   const loadEventsFromFirebase = async () => {
     try {
       setLoading(true);
@@ -60,9 +142,7 @@ const MyimomateCalendar = () => {
       const consultantId = currentUser.uid;
 
       console.log('🗓️ Loading calendar events...');
-      console.log('Consultant ID:', consultantId);
 
-      // Helper function to parse dates
       const parseDate = (dateField) => {
         if (!dateField) return null;
         if (dateField.toDate) return dateField.toDate();
@@ -79,7 +159,6 @@ const MyimomateCalendar = () => {
         
         for (const clientDoc of clientsSnapshot.docs) {
           const client = { id: clientDoc.id, ...clientDoc.data() };
-          console.log(`📋 Processing client: ${client.name}`);
           
           // 1. CLIENT BIRTHDAYS
           const birthDateField = client.birthDate || client.dateOfBirth || client.dataNascimento || client.birthday;
@@ -108,14 +187,10 @@ const MyimomateCalendar = () => {
             const opportunitiesRef = collection(db, 'consultants', consultantId, 'clients', client.id, 'opportunities');
             const opportunitiesSnapshot = await getDocs(opportunitiesRef);
             
-            console.log(`Found ${opportunitiesSnapshot.size} opportunities for ${client.name}`);
-            
             for (const oppDoc of opportunitiesSnapshot.docs) {
               const opp = { id: oppDoc.id, ...oppDoc.data() };
               
-              console.log('📦 Opportunity type:', opp.type, '| Has viewings:', Array.isArray(opp.viewings), '| Has offers:', Array.isArray(opp.offers));
-              
-              // 2a. Opportunity Visits (from opportunity level)
+              // Visit Date
               if (opp.visitDate) {
                 const visitDate = parseDate(opp.visitDate);
                 if (visitDate && !isNaN(visitDate.getTime())) {
@@ -136,7 +211,7 @@ const MyimomateCalendar = () => {
                 }
               }
 
-              // 2b. Follow-ups
+              // Follow-ups
               if (opp.followUpDate) {
                 const followUpDate = parseDate(opp.followUpDate);
                 if (followUpDate && !isNaN(followUpDate.getTime())) {
@@ -156,10 +231,9 @@ const MyimomateCalendar = () => {
                 }
               }
               
-              // 2c. SELLER OPPORTUNITY VIEWINGS (array inside opportunity)
+              // SELLER OPPORTUNITY VIEWINGS
               if (opp.type === 'seller' && opp.viewings && Array.isArray(opp.viewings)) {
                 const propertyAddress = opp.property?.address || opp.address || 'Propriedade';
-                console.log(`✅ Found ${opp.viewings.length} viewings in seller opportunity ${opp.id}`);
                 
                 opp.viewings.forEach((viewing, idx) => {
                   const viewingDate = parseDate(viewing.scheduledDate || viewing.date);
@@ -182,13 +256,11 @@ const MyimomateCalendar = () => {
                 });
               }
               
-              // 2d. SELLER OPPORTUNITY OFFERS (array inside opportunity)
+              // SELLER OPPORTUNITY OFFERS
               if (opp.type === 'seller' && opp.offers && Array.isArray(opp.offers)) {
                 const propertyAddress = opp.property?.address || opp.address || 'Propriedade';
-                console.log(`✅ Found ${opp.offers.length} offers in seller opportunity ${opp.id}`);
                 
                 opp.offers.forEach((offer, idx) => {
-                  // Offer received date
                   const receivedDate = parseDate(offer.receivedDate || offer.receivedAt || offer.date);
                   if (receivedDate && !isNaN(receivedDate.getTime())) {
                     allEvents.push({
@@ -205,7 +277,6 @@ const MyimomateCalendar = () => {
                     });
                   }
                   
-                  // Counter-proposal sent
                   if (offer.status === 'countered' && offer.counteredAt) {
                     const counterDate = parseDate(offer.counteredAt);
                     if (counterDate && !isNaN(counterDate.getTime())) {
@@ -226,12 +297,11 @@ const MyimomateCalendar = () => {
                 });
               }
               
-              // 2e. SELLER TRANSACTION DATES (inside opportunity)
+              // SELLER TRANSACTION DATES
               if (opp.type === 'seller' && opp.transaction) {
                 const propertyAddress = opp.property?.address || opp.address || 'Propriedade';
                 const transaction = opp.transaction;
                 
-                // CPCV Scheduled
                 const cpcvScheduled = parseDate(transaction.cpcv?.scheduledDate);
                 if (cpcvScheduled && !isNaN(cpcvScheduled.getTime())) {
                   allEvents.push({
@@ -248,7 +318,6 @@ const MyimomateCalendar = () => {
                   });
                 }
                 
-                // Escritura Scheduled
                 const escrituraScheduled = parseDate(transaction.escritura?.scheduledDate);
                 if (escrituraScheduled && !isNaN(escrituraScheduled.getTime())) {
                   allEvents.push({
@@ -266,18 +335,16 @@ const MyimomateCalendar = () => {
                 }
               }
               
-              // 3. DEALS (under opportunities)
+              // 3. DEALS
               try {
                 const dealsRef = collection(db, 'consultants', consultantId, 'clients', client.id, 'opportunities', opp.id, 'deals');
                 const dealsSnapshot = await getDocs(dealsRef);
-                
-                console.log(`Found ${dealsSnapshot.size} deals for opportunity ${opp.id}`);
                 
                 for (const dealDoc of dealsSnapshot.docs) {
                   const deal = { id: dealDoc.id, ...dealDoc.data() };
                   const propertyAddress = deal.property?.address || deal.propertyAddress || 'Propriedade';
                   
-                  // 3a. DEAL VIEWINGS (subcollection)
+                  // DEAL VIEWINGS
                   try {
                     const viewingsRef = collection(db, 'consultants', consultantId, 'clients', client.id, 'opportunities', opp.id, 'deals', deal.id, 'viewings');
                     const viewingsSnapshot = await getDocs(viewingsRef);
@@ -306,10 +373,10 @@ const MyimomateCalendar = () => {
                       }
                     });
                   } catch (error) {
-                    console.error(`Error loading viewings for deal ${deal.id}:`, error);
+                    console.error(`Error loading viewings:`, error);
                   }
                   
-                  // 3b. DEAL OFFERS (subcollection)
+                  // DEAL OFFERS
                   try {
                     const offersRef = collection(db, 'consultants', consultantId, 'clients', client.id, 'opportunities', opp.id, 'deals', deal.id, 'offers');
                     const offersSnapshot = await getDocs(offersRef);
@@ -317,7 +384,6 @@ const MyimomateCalendar = () => {
                     offersSnapshot.forEach((offerDoc) => {
                       const offer = offerDoc.data();
                       
-                      // Offer sent date
                       const sentDate = parseDate(offer.sentAt);
                       if (sentDate && !isNaN(sentDate.getTime())) {
                         allEvents.push({
@@ -336,7 +402,6 @@ const MyimomateCalendar = () => {
                         });
                       }
                       
-                      // Offer expiry date
                       const expiryDate = parseDate(offer.expiresAt);
                       if (expiryDate && !isNaN(expiryDate.getTime()) && offer.status === 'sent') {
                         allEvents.push({
@@ -344,7 +409,7 @@ const MyimomateCalendar = () => {
                           type: 'task',
                           title: `⏰ Proposta Expira: ${propertyAddress}`,
                           date: expiryDate,
-                          description: `Valor: €${offer.amount?.toLocaleString('pt-PT')}\nCliente: ${client.name}\nStatus: Aguardando resposta`,
+                          description: `Valor: €${offer.amount?.toLocaleString('pt-PT')}\nCliente: ${client.name}`,
                           clientId: client.id,
                           clientName: client.name,
                           opportunityId: opp.id,
@@ -356,14 +421,13 @@ const MyimomateCalendar = () => {
                       }
                     });
                   } catch (error) {
-                    console.error(`Error loading offers for deal ${deal.id}:`, error);
+                    console.error(`Error loading offers:`, error);
                   }
                   
-                  // 3c. TRANSACTION DATES (CPCV & Escritura)
+                  // TRANSACTION DATES
                   if (deal.transaction) {
                     const transaction = deal.transaction;
                     
-                    // CPCV Scheduled
                     const cpcvScheduled = parseDate(transaction.cpcv?.scheduledDate);
                     if (cpcvScheduled && !isNaN(cpcvScheduled.getTime())) {
                       allEvents.push({
@@ -371,7 +435,7 @@ const MyimomateCalendar = () => {
                         type: 'cpcv',
                         title: `📋 CPCV Agendado: ${propertyAddress}`,
                         date: cpcvScheduled,
-                        description: `Cliente: ${client.name}\nLocal: ${transaction.cpcv.location || 'A definir'}`,
+                        description: `Cliente: ${client.name}`,
                         clientId: client.id,
                         clientName: client.name,
                         opportunityId: opp.id,
@@ -381,25 +445,6 @@ const MyimomateCalendar = () => {
                       });
                     }
                     
-                    // CPCV Signed
-                    const cpcvSigned = parseDate(transaction.cpcv?.signedDate);
-                    if (cpcvSigned && !isNaN(cpcvSigned.getTime())) {
-                      allEvents.push({
-                        id: `cpcv-signed-${deal.id}`,
-                        type: 'cpcv',
-                        title: `✅ CPCV Assinado: ${propertyAddress}`,
-                        date: cpcvSigned,
-                        description: `Cliente: ${client.name}\nSinal: €${transaction.cpcv.signalAmount?.toLocaleString('pt-PT')}`,
-                        clientId: client.id,
-                        clientName: client.name,
-                        opportunityId: opp.id,
-                        dealId: deal.id,
-                        priority: 'medium',
-                        recurring: false
-                      });
-                    }
-                    
-                    // Escritura Scheduled
                     const escrituraScheduled = parseDate(transaction.escritura?.scheduledDate);
                     if (escrituraScheduled && !isNaN(escrituraScheduled.getTime())) {
                       allEvents.push({
@@ -407,7 +452,7 @@ const MyimomateCalendar = () => {
                         type: 'escritura',
                         title: `🏠 Escritura Agendada: ${propertyAddress}`,
                         date: escrituraScheduled,
-                        description: `Cliente: ${client.name}\nNotário: ${transaction.escritura.notaryName || 'A definir'}\nLocal: ${transaction.escritura.notaryLocation || 'A definir'}`,
+                        description: `Cliente: ${client.name}`,
                         clientId: client.id,
                         clientName: client.name,
                         opportunityId: opp.id,
@@ -416,32 +461,14 @@ const MyimomateCalendar = () => {
                         recurring: false
                       });
                     }
-                    
-                    // Escritura Completed
-                    const escrituraCompleted = parseDate(transaction.escritura?.completedDate);
-                    if (escrituraCompleted && !isNaN(escrituraCompleted.getTime())) {
-                      allEvents.push({
-                        id: `escritura-completed-${deal.id}`,
-                        type: 'escritura',
-                        title: `🎉 Escritura Concluída: ${propertyAddress}`,
-                        date: escrituraCompleted,
-                        description: `Cliente: ${client.name}\nValor Final: €${transaction.escritura.finalAmount?.toLocaleString('pt-PT')}`,
-                        clientId: client.id,
-                        clientName: client.name,
-                        opportunityId: opp.id,
-                        dealId: deal.id,
-                        priority: 'medium',
-                        recurring: false
-                      });
-                    }
                   }
                 }
               } catch (error) {
-                console.error(`Error loading deals for opportunity ${opp.id}:`, error);
+                console.error(`Error loading deals:`, error);
               }
             }
           } catch (error) {
-            console.error(`Error loading opportunities for client ${client.id}:`, error);
+            console.error(`Error loading opportunities:`, error);
           }
         }
       } catch (error) {
@@ -472,10 +499,6 @@ const MyimomateCalendar = () => {
 
   const handleSaveEvent = (updatedEvent) => {
     setEvents(events.map(e => e.id === updatedEvent.id ? updatedEvent : e));
-    const settings = JSON.parse(localStorage.getItem('googleCalendarSettings') || '{}');
-    if (settings.connected && settings.autoSync) {
-      console.log('Syncing to Google Calendar:', updatedEvent);
-    }
     setSelectedEvent(null);
   };
 
@@ -565,7 +588,6 @@ const MyimomateCalendar = () => {
           <div className="p-8 text-center text-gray-500">
             <CalendarIcon className="w-16 h-16 mx-auto mb-4 text-gray-300" />
             <p className="text-lg font-medium">Nenhum evento próximo</p>
-            <p className="text-sm mt-2">Os aniversários dos clientes aparecerão automaticamente aqui</p>
           </div>
         ) : (
           Object.entries(groupedEvents).map(([date, events]) => (
@@ -628,6 +650,23 @@ const MyimomateCalendar = () => {
           </div>
           <div className="flex items-center gap-2">
             <button
+              onClick={handleSyncToGoogle}
+              disabled={syncing}
+              className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {syncing ? (
+                <>
+                  <ArrowPathIcon className="w-4 h-4 animate-spin" />
+                  Sincronizando...
+                </>
+              ) : (
+                <>
+                  <CloudArrowUpIcon className="w-4 h-4" />
+                  Sincronizar
+                </>
+              )}
+            </button>
+            <button
               onClick={() => exportToICS(filteredEvents)}
               className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
               disabled={filteredEvents.length === 0}
@@ -644,6 +683,42 @@ const MyimomateCalendar = () => {
             </button>
           </div>
         </div>
+
+        {/* Sync Status Banner */}
+        {syncStatus && (
+          <div className={`mb-4 p-4 rounded-lg ${
+            syncStatus.type === 'success' ? 'bg-green-50 border border-green-200' :
+            syncStatus.type === 'error' ? 'bg-red-50 border border-red-200' :
+            'bg-blue-50 border border-blue-200'
+          }`}>
+            <div className="flex items-center gap-2">
+              {syncStatus.type === 'error' && <ExclamationCircleIcon className="w-5 h-5 text-red-600" />}
+              {syncStatus.type === 'success' && <CheckCircleIcon className="w-5 h-5 text-green-600" />}
+              {syncStatus.type === 'info' && <ArrowPathIcon className="w-5 h-5 text-blue-600" />}
+              <p className={`text-sm font-medium ${
+                syncStatus.type === 'success' ? 'text-green-800' :
+                syncStatus.type === 'error' ? 'text-red-800' :
+                'text-blue-800'
+              }`}>
+                {syncStatus.message}
+              </p>
+            </div>
+            {syncProgress && (
+              <div className="mt-2">
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div 
+                    className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${syncProgress.percentage}%` }}
+                  ></div>
+                </div>
+                <p className="text-xs text-gray-600 mt-1">
+                  {syncProgress.current} de {syncProgress.total} eventos ({syncProgress.percentage}%)
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="relative">
           <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
           <input
