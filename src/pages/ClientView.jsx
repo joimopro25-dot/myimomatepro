@@ -12,6 +12,7 @@ import { useAuth } from '../contexts/AuthContext'; // ADD
 import Layout from '../components/Layout';
 import BuyerOpportunityForm from './BuyerOpportunityForm';
 import SellerQualificationForm from "../components/SellerQualificationForm";
+import ClientEmailTab from '../components/ClientProfile/ClientEmailTab'; // ✅ NEW: Import Email Tab
 import {
   ArrowLeftIcon,
   PencilIcon,
@@ -570,6 +571,15 @@ export default function ClientView() {
                   </>
                 )}
               </div>
+            </div>
+
+            {/* ✅ NEW: Email Section */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                <EnvelopeIcon className="w-5 h-5 mr-2 text-blue-600" />
+                Histórico de Emails
+              </h2>
+              <ClientEmailTab client={client} />
             </div>
           </div>
 

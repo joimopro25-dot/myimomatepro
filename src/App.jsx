@@ -37,6 +37,9 @@ import SellerOpportunityView from './pages/SellerOpportunityView';
 // ADD: Calendar page
 import CalendarPage from './pages/CalendarPage';
 
+// ✅ NEW: Email Hub
+import EmailHub from './components/EmailHub/EmailHub';
+
 // Protected Pages - Deals
 import DealList from './pages/DealList';
 import DealBoard from './pages/DealBoard';
@@ -218,6 +221,13 @@ function AppRoutes() {
         <Route path="/calendar" element={
           <ProtectedRoute>
             <CalendarPage />
+          </ProtectedRoute>
+        } />
+
+        {/* ===== ✅ NEW: EMAIL HUB ROUTE ===== */}
+        <Route path="/emails" element={
+          <ProtectedRoute>
+            <EmailHub />
           </ProtectedRoute>
         } />
 

@@ -18,7 +18,8 @@ import {
     ChevronLeftIcon,
     ChevronRightIcon,
     SparklesIcon,
-    CurrencyEuroIcon
+    CurrencyEuroIcon,
+    EnvelopeIcon  // ✅ NEW
 } from '@heroicons/react/24/outline';
 import {
     HomeIcon as HomeIconSolid,
@@ -26,7 +27,8 @@ import {
     BriefcaseIcon as BriefcaseIconSolid,
     ShoppingBagIcon as ShoppingBagIconSolid,
     CogIcon as CogIconSolid,
-    CurrencyEuroIcon as CurrencyEuroIconSolid
+    CurrencyEuroIcon as CurrencyEuroIconSolid,
+    EnvelopeIcon as EnvelopeIconSolid  // ✅ NEW
 } from '@heroicons/react/24/solid';
 import { CalendarIcon as CalendarIconOutline } from '@heroicons/react/24/outline';
 import { CalendarIcon as CalendarIconSolid } from '@heroicons/react/24/solid';
@@ -92,6 +94,14 @@ const Sidebar = ({ isCollapsed = false, onToggleCollapse }) => {
             icon: CalendarIconOutline,
             iconSolid: CalendarIconSolid,
             description: 'Calendário de eventos'
+        },
+        // ✅ NEW: Email Hub
+        {
+            name: 'Email Hub',
+            href: '/emails',
+            icon: EnvelopeIcon,
+            iconSolid: EnvelopeIconSolid,
+            description: 'Central de emails e comunicações'
         }
     ];
 

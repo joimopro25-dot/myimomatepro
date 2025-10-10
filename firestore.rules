@@ -16,6 +16,14 @@ service cloud.firestore {
       // Owner can read/write own consultant doc
       allow read, create, update, delete: if isConsultant(consultantId);
 
+      // Explicit email collections
+      match /emailAccounts/{accountId} {
+        allow read, write: if isConsultant(consultantId);
+      }
+      match /emails/{emailId} {
+        allow read, write: if isConsultant(consultantId);
+      }
+
       // Any nested collections under a consultant (clients, opportunities, deals, activities, agents, etc.)
       match /{document=**} {
         allow read, create, update, delete: if isConsultant(consultantId);
