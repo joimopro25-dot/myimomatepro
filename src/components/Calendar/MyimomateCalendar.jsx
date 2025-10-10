@@ -1,6 +1,6 @@
 /**
  * MYIMOMATE CALENDAR - MyImoMatePro
- * FIXED: Uses correct nested subcollections structure
+ * Enhanced with all deal events: viewings, offers, CPCV, escritura
  */
 
 import React, { useState, useMemo, useEffect } from 'react';
@@ -62,7 +62,15 @@ const MyimomateCalendar = () => {
       console.log('🗓️ Loading calendar events...');
       console.log('Consultant ID:', consultantId);
 
-      // ✅ LOAD CLIENTS - From correct subcollection path
+      // Helper function to parse dates
+      const parseDate = (dateField) => {
+        if (!dateField) return null;
+        if (dateField.toDate) return dateField.toDate();
+        if (dateField.seconds) return new Date(dateField.seconds * 1000);
+        return new Date(dateField);
+      };
+
+      // ✅ LOAD CLIENTS
       try {
         const clientsRef = collection(db, 'consultants', consultantId, 'clients');
         const clientsSnapshot = await getDocs(clientsRef);
@@ -73,24 +81,11 @@ const MyimomateCalendar = () => {
           const client = { id: clientDoc.id, ...clientDoc.data() };
           console.log(`📋 Processing client: ${client.name}`);
           
-          // Get birthdate from various possible field names
+          // 1. CLIENT BIRTHDAYS
           const birthDateField = client.birthDate || client.dateOfBirth || client.dataNascimento || client.birthday;
-          
           if (birthDateField) {
-            console.log(`🎂 Found birthdate for ${client.name}:`, birthDateField);
-            
-            // Handle Firestore Timestamp or Date string
-            let birthDate;
-            if (birthDateField.toDate) {
-              birthDate = birthDateField.toDate();
-            } else if (birthDateField.seconds) {
-              birthDate = new Date(birthDateField.seconds * 1000);
-            } else {
-              birthDate = new Date(birthDateField);
-            }
-            
-            if (!isNaN(birthDate.getTime())) {
-              // Create recurring birthday events
+            const birthDate = parseDate(birthDateField);
+            if (birthDate && !isNaN(birthDate.getTime())) {
               for (let year = currentYear - 2; year <= currentYear + 5; year++) {
                 const yearsSince = year - birthDate.getFullYear();
                 allEvents.push({
@@ -100,50 +95,51 @@ const MyimomateCalendar = () => {
                   date: new Date(year, birthDate.getMonth(), birthDate.getDate()),
                   description: `Aniversário de ${client.name}`,
                   clientId: client.id,
+                  clientName: client.name,
                   recurring: true,
                   priority: 'medium'
                 });
               }
-              console.log(`✅ Created birthday events for ${client.name}`);
             }
           }
           
-          // ✅ LOAD OPPORTUNITIES for this client - From nested path
+          // 2. OPPORTUNITIES
           try {
             const opportunitiesRef = collection(db, 'consultants', consultantId, 'clients', client.id, 'opportunities');
             const opportunitiesSnapshot = await getDocs(opportunitiesRef);
             
             console.log(`Found ${opportunitiesSnapshot.size} opportunities for ${client.name}`);
             
-            opportunitiesSnapshot.forEach((oppDoc) => {
+            for (const oppDoc of opportunitiesSnapshot.docs) {
               const opp = { id: oppDoc.id, ...oppDoc.data() };
               
-              // Visits
+              console.log('📦 Opportunity type:', opp.type, '| Has viewings:', Array.isArray(opp.viewings), '| Has offers:', Array.isArray(opp.offers));
+              
+              // 2a. Opportunity Visits (from opportunity level)
               if (opp.visitDate) {
-                let visitDate = opp.visitDate.toDate ? opp.visitDate.toDate() : 
-                               opp.visitDate.seconds ? new Date(opp.visitDate.seconds * 1000) :
-                               new Date(opp.visitDate);
-                if (!isNaN(visitDate.getTime())) {
+                const visitDate = parseDate(opp.visitDate);
+                if (visitDate && !isNaN(visitDate.getTime())) {
                   allEvents.push({
-                    id: `visit-${opp.id}`,
+                    id: `opp-visit-${opp.id}`,
                     type: 'visit',
                     title: `👁️ Visita: ${opp.propertyName || opp.title || 'Propriedade'}`,
                     date: visitDate,
                     time: opp.visitTime,
                     description: opp.notes || opp.description,
                     location: opp.address || opp.location,
+                    clientId: client.id,
+                    clientName: client.name,
+                    opportunityId: opp.id,
                     priority: opp.priority || 'medium',
                     recurring: false
                   });
                 }
               }
 
-              // Follow-ups
+              // 2b. Follow-ups
               if (opp.followUpDate) {
-                let followUpDate = opp.followUpDate.toDate ? opp.followUpDate.toDate() : 
-                                  opp.followUpDate.seconds ? new Date(opp.followUpDate.seconds * 1000) :
-                                  new Date(opp.followUpDate);
-                if (!isNaN(followUpDate.getTime())) {
+                const followUpDate = parseDate(opp.followUpDate);
+                if (followUpDate && !isNaN(followUpDate.getTime())) {
                   allEvents.push({
                     id: `followup-${opp.id}`,
                     type: 'followup',
@@ -151,12 +147,299 @@ const MyimomateCalendar = () => {
                     date: followUpDate,
                     time: opp.followUpTime,
                     description: opp.followUpNotes || opp.notes,
+                    clientId: client.id,
+                    clientName: client.name,
+                    opportunityId: opp.id,
                     priority: opp.priority || 'medium',
                     recurring: false
                   });
                 }
               }
-            });
+              
+              // 2c. SELLER OPPORTUNITY VIEWINGS (array inside opportunity)
+              if (opp.type === 'seller' && opp.viewings && Array.isArray(opp.viewings)) {
+                const propertyAddress = opp.property?.address || opp.address || 'Propriedade';
+                console.log(`✅ Found ${opp.viewings.length} viewings in seller opportunity ${opp.id}`);
+                
+                opp.viewings.forEach((viewing, idx) => {
+                  const viewingDate = parseDate(viewing.scheduledDate || viewing.date);
+                  if (viewingDate && !isNaN(viewingDate.getTime())) {
+                    allEvents.push({
+                      id: `seller-viewing-${opp.id}-${viewing.id || idx}`,
+                      type: 'visit',
+                      title: `👁️ Visita (Venda): ${propertyAddress}`,
+                      date: viewingDate,
+                      time: viewing.scheduledTime || viewing.time,
+                      description: `Vendedor: ${client.name}\nComprador: ${viewing.visitorName || 'Comprador'}\nStatus: ${viewing.status || 'agendada'}`,
+                      location: propertyAddress,
+                      clientId: client.id,
+                      clientName: client.name,
+                      opportunityId: opp.id,
+                      priority: 'high',
+                      recurring: false
+                    });
+                  }
+                });
+              }
+              
+              // 2d. SELLER OPPORTUNITY OFFERS (array inside opportunity)
+              if (opp.type === 'seller' && opp.offers && Array.isArray(opp.offers)) {
+                const propertyAddress = opp.property?.address || opp.address || 'Propriedade';
+                console.log(`✅ Found ${opp.offers.length} offers in seller opportunity ${opp.id}`);
+                
+                opp.offers.forEach((offer, idx) => {
+                  // Offer received date
+                  const receivedDate = parseDate(offer.receivedDate || offer.receivedAt || offer.date);
+                  if (receivedDate && !isNaN(receivedDate.getTime())) {
+                    allEvents.push({
+                      id: `seller-offer-received-${opp.id}-${offer.id || idx}`,
+                      type: 'task',
+                      title: `💰 Proposta Recebida: ${propertyAddress}`,
+                      date: receivedDate,
+                      description: `Vendedor: ${client.name}\nValor: €${offer.amount?.toLocaleString('pt-PT')}\nComprador: ${offer.buyerName || 'Comprador'}`,
+                      clientId: client.id,
+                      clientName: client.name,
+                      opportunityId: opp.id,
+                      priority: 'high',
+                      recurring: false
+                    });
+                  }
+                  
+                  // Counter-proposal sent
+                  if (offer.status === 'countered' && offer.counteredAt) {
+                    const counterDate = parseDate(offer.counteredAt);
+                    if (counterDate && !isNaN(counterDate.getTime())) {
+                      allEvents.push({
+                        id: `seller-counter-${opp.id}-${offer.id || idx}`,
+                        type: 'task',
+                        title: `🔄 Contraproposta Enviada: ${propertyAddress}`,
+                        date: counterDate,
+                        description: `Vendedor: ${client.name}\nOriginal: €${offer.amount?.toLocaleString('pt-PT')}\nContraproposta: €${offer.counterAmount?.toLocaleString('pt-PT')}`,
+                        clientId: client.id,
+                        clientName: client.name,
+                        opportunityId: opp.id,
+                        priority: 'high',
+                        recurring: false
+                      });
+                    }
+                  }
+                });
+              }
+              
+              // 2e. SELLER TRANSACTION DATES (inside opportunity)
+              if (opp.type === 'seller' && opp.transaction) {
+                const propertyAddress = opp.property?.address || opp.address || 'Propriedade';
+                const transaction = opp.transaction;
+                
+                // CPCV Scheduled
+                const cpcvScheduled = parseDate(transaction.cpcv?.scheduledDate);
+                if (cpcvScheduled && !isNaN(cpcvScheduled.getTime())) {
+                  allEvents.push({
+                    id: `seller-cpcv-scheduled-${opp.id}`,
+                    type: 'cpcv',
+                    title: `📋 CPCV Agendado (Venda): ${propertyAddress}`,
+                    date: cpcvScheduled,
+                    description: `Vendedor: ${client.name}`,
+                    clientId: client.id,
+                    clientName: client.name,
+                    opportunityId: opp.id,
+                    priority: 'high',
+                    recurring: false
+                  });
+                }
+                
+                // Escritura Scheduled
+                const escrituraScheduled = parseDate(transaction.escritura?.scheduledDate);
+                if (escrituraScheduled && !isNaN(escrituraScheduled.getTime())) {
+                  allEvents.push({
+                    id: `seller-escritura-scheduled-${opp.id}`,
+                    type: 'escritura',
+                    title: `🏠 Escritura Agendada (Venda): ${propertyAddress}`,
+                    date: escrituraScheduled,
+                    description: `Vendedor: ${client.name}`,
+                    clientId: client.id,
+                    clientName: client.name,
+                    opportunityId: opp.id,
+                    priority: 'high',
+                    recurring: false
+                  });
+                }
+              }
+              
+              // 3. DEALS (under opportunities)
+              try {
+                const dealsRef = collection(db, 'consultants', consultantId, 'clients', client.id, 'opportunities', opp.id, 'deals');
+                const dealsSnapshot = await getDocs(dealsRef);
+                
+                console.log(`Found ${dealsSnapshot.size} deals for opportunity ${opp.id}`);
+                
+                for (const dealDoc of dealsSnapshot.docs) {
+                  const deal = { id: dealDoc.id, ...dealDoc.data() };
+                  const propertyAddress = deal.property?.address || deal.propertyAddress || 'Propriedade';
+                  
+                  // 3a. DEAL VIEWINGS (subcollection)
+                  try {
+                    const viewingsRef = collection(db, 'consultants', consultantId, 'clients', client.id, 'opportunities', opp.id, 'deals', deal.id, 'viewings');
+                    const viewingsSnapshot = await getDocs(viewingsRef);
+                    
+                    viewingsSnapshot.forEach((viewingDoc) => {
+                      const viewing = viewingDoc.data();
+                      const viewingDate = parseDate(viewing.scheduledDate || viewing.date);
+                      
+                      if (viewingDate && !isNaN(viewingDate.getTime())) {
+                        allEvents.push({
+                          id: `viewing-${viewingDoc.id}`,
+                          type: 'visit',
+                          title: `🏠 Visita ao Imóvel: ${propertyAddress}`,
+                          date: viewingDate,
+                          time: viewing.time,
+                          description: `Cliente: ${client.name}\nStatus: ${viewing.status || 'agendada'}`,
+                          location: viewing.location || propertyAddress,
+                          clientId: client.id,
+                          clientName: client.name,
+                          opportunityId: opp.id,
+                          dealId: deal.id,
+                          viewingId: viewingDoc.id,
+                          priority: 'high',
+                          recurring: false
+                        });
+                      }
+                    });
+                  } catch (error) {
+                    console.error(`Error loading viewings for deal ${deal.id}:`, error);
+                  }
+                  
+                  // 3b. DEAL OFFERS (subcollection)
+                  try {
+                    const offersRef = collection(db, 'consultants', consultantId, 'clients', client.id, 'opportunities', opp.id, 'deals', deal.id, 'offers');
+                    const offersSnapshot = await getDocs(offersRef);
+                    
+                    offersSnapshot.forEach((offerDoc) => {
+                      const offer = offerDoc.data();
+                      
+                      // Offer sent date
+                      const sentDate = parseDate(offer.sentAt);
+                      if (sentDate && !isNaN(sentDate.getTime())) {
+                        allEvents.push({
+                          id: `offer-sent-${offerDoc.id}`,
+                          type: 'task',
+                          title: `💰 Proposta Enviada: ${propertyAddress}`,
+                          date: sentDate,
+                          description: `Valor: €${offer.amount?.toLocaleString('pt-PT')}\nCliente: ${client.name}`,
+                          clientId: client.id,
+                          clientName: client.name,
+                          opportunityId: opp.id,
+                          dealId: deal.id,
+                          offerId: offerDoc.id,
+                          priority: 'high',
+                          recurring: false
+                        });
+                      }
+                      
+                      // Offer expiry date
+                      const expiryDate = parseDate(offer.expiresAt);
+                      if (expiryDate && !isNaN(expiryDate.getTime()) && offer.status === 'sent') {
+                        allEvents.push({
+                          id: `offer-expiry-${offerDoc.id}`,
+                          type: 'task',
+                          title: `⏰ Proposta Expira: ${propertyAddress}`,
+                          date: expiryDate,
+                          description: `Valor: €${offer.amount?.toLocaleString('pt-PT')}\nCliente: ${client.name}\nStatus: Aguardando resposta`,
+                          clientId: client.id,
+                          clientName: client.name,
+                          opportunityId: opp.id,
+                          dealId: deal.id,
+                          offerId: offerDoc.id,
+                          priority: 'high',
+                          recurring: false
+                        });
+                      }
+                    });
+                  } catch (error) {
+                    console.error(`Error loading offers for deal ${deal.id}:`, error);
+                  }
+                  
+                  // 3c. TRANSACTION DATES (CPCV & Escritura)
+                  if (deal.transaction) {
+                    const transaction = deal.transaction;
+                    
+                    // CPCV Scheduled
+                    const cpcvScheduled = parseDate(transaction.cpcv?.scheduledDate);
+                    if (cpcvScheduled && !isNaN(cpcvScheduled.getTime())) {
+                      allEvents.push({
+                        id: `cpcv-scheduled-${deal.id}`,
+                        type: 'cpcv',
+                        title: `📋 CPCV Agendado: ${propertyAddress}`,
+                        date: cpcvScheduled,
+                        description: `Cliente: ${client.name}\nLocal: ${transaction.cpcv.location || 'A definir'}`,
+                        clientId: client.id,
+                        clientName: client.name,
+                        opportunityId: opp.id,
+                        dealId: deal.id,
+                        priority: 'high',
+                        recurring: false
+                      });
+                    }
+                    
+                    // CPCV Signed
+                    const cpcvSigned = parseDate(transaction.cpcv?.signedDate);
+                    if (cpcvSigned && !isNaN(cpcvSigned.getTime())) {
+                      allEvents.push({
+                        id: `cpcv-signed-${deal.id}`,
+                        type: 'cpcv',
+                        title: `✅ CPCV Assinado: ${propertyAddress}`,
+                        date: cpcvSigned,
+                        description: `Cliente: ${client.name}\nSinal: €${transaction.cpcv.signalAmount?.toLocaleString('pt-PT')}`,
+                        clientId: client.id,
+                        clientName: client.name,
+                        opportunityId: opp.id,
+                        dealId: deal.id,
+                        priority: 'medium',
+                        recurring: false
+                      });
+                    }
+                    
+                    // Escritura Scheduled
+                    const escrituraScheduled = parseDate(transaction.escritura?.scheduledDate);
+                    if (escrituraScheduled && !isNaN(escrituraScheduled.getTime())) {
+                      allEvents.push({
+                        id: `escritura-scheduled-${deal.id}`,
+                        type: 'escritura',
+                        title: `🏠 Escritura Agendada: ${propertyAddress}`,
+                        date: escrituraScheduled,
+                        description: `Cliente: ${client.name}\nNotário: ${transaction.escritura.notaryName || 'A definir'}\nLocal: ${transaction.escritura.notaryLocation || 'A definir'}`,
+                        clientId: client.id,
+                        clientName: client.name,
+                        opportunityId: opp.id,
+                        dealId: deal.id,
+                        priority: 'high',
+                        recurring: false
+                      });
+                    }
+                    
+                    // Escritura Completed
+                    const escrituraCompleted = parseDate(transaction.escritura?.completedDate);
+                    if (escrituraCompleted && !isNaN(escrituraCompleted.getTime())) {
+                      allEvents.push({
+                        id: `escritura-completed-${deal.id}`,
+                        type: 'escritura',
+                        title: `🎉 Escritura Concluída: ${propertyAddress}`,
+                        date: escrituraCompleted,
+                        description: `Cliente: ${client.name}\nValor Final: €${transaction.escritura.finalAmount?.toLocaleString('pt-PT')}`,
+                        clientId: client.id,
+                        clientName: client.name,
+                        opportunityId: opp.id,
+                        dealId: deal.id,
+                        priority: 'medium',
+                        recurring: false
+                      });
+                    }
+                  }
+                }
+              } catch (error) {
+                console.error(`Error loading deals for opportunity ${opp.id}:`, error);
+              }
+            }
           } catch (error) {
             console.error(`Error loading opportunities for client ${client.id}:`, error);
           }
@@ -449,7 +732,7 @@ const MyimomateCalendar = () => {
       {view === 'agenda' && <AgendaView />}
 
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="text-center">
             <div className="text-2xl font-bold text-gray-900">{filteredEvents.length}</div>
             <div className="text-sm text-gray-500">Total de Eventos</div>
@@ -459,8 +742,30 @@ const MyimomateCalendar = () => {
             <div className="text-sm text-gray-500">Aniversários</div>
           </div>
           <div className="text-center">
+            <div className="text-2xl font-bold text-purple-600">{filteredEvents.filter(e => e.type === 'visit').length}</div>
+            <div className="text-sm text-gray-500">Visitas</div>
+          </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-yellow-600">{filteredEvents.filter(e => e.type === 'cpcv').length}</div>
+            <div className="text-sm text-gray-500">CPCV</div>
+          </div>
+          <div className="text-center">
             <div className="text-2xl font-bold text-green-600">{filteredEvents.filter(e => e.type === 'escritura').length}</div>
-            <div className="text-sm text-gray-500">Aniversários de Propriedades</div>
+            <div className="text-sm text-gray-500">Escrituras</div>
+          </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-orange-600">{filteredEvents.filter(e => e.type === 'task').length}</div>
+            <div className="text-sm text-gray-500">Propostas</div>
+          </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-cyan-600">{filteredEvents.filter(e => e.type === 'followup').length}</div>
+            <div className="text-sm text-gray-500">Follow-ups</div>
+          </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-red-600">
+              {filteredEvents.filter(e => e.priority === 'high' && e.date >= new Date()).length}
+            </div>
+            <div className="text-sm text-gray-500">Urgentes</div>
           </div>
         </div>
       </div>

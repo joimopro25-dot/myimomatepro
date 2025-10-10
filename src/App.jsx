@@ -46,6 +46,10 @@ import DealView from './components/DealView';
 import CommissionDashboard from './components/CommissionDashboard';
 import SellerDealBoard from './components/SellerDealBoard'; // Added
 
+// Add Google OAuth provider import and client ID
+import { GoogleOAuthProvider } from '@react-oauth/google';
+const GOOGLE_CLIENT_ID = '1049091148333-601scem4d8c7ek4d5ikvehugjv89jsj7.apps.googleusercontent.com';
+
 // Styles
 import './index.css';
 
@@ -230,17 +234,19 @@ function AppRoutes() {
  */
 function App() {
   return (
-    <AuthProvider>
-      <SubscriptionProvider>
-        <ClientProvider>
-          <OpportunityProvider>
-            <DealProvider>
-              <AppRoutes />
-            </DealProvider>
-          </OpportunityProvider>
-        </ClientProvider>
-      </SubscriptionProvider>
-    </AuthProvider>
+    <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
+      <AuthProvider>
+        <SubscriptionProvider>
+          <ClientProvider>
+            <OpportunityProvider>
+              <DealProvider>
+                <AppRoutes />
+              </DealProvider>
+            </OpportunityProvider>
+          </ClientProvider>
+        </SubscriptionProvider>
+      </AuthProvider>
+    </GoogleOAuthProvider>
   );
 }
 
