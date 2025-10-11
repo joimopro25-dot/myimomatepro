@@ -1,263 +1,255 @@
-// components/EmailHub/EmailHub.jsx
-// Main Email Hub component with unified inbox
-
+// components/email/EmailHub.jsx
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import Layout from '../Layout';
-import emailSyncService from '../../services/emailSyncService';
 import emailAccountService from '../../services/emailAccountService';
+import emailSyncService from '../../services/emailSyncService';
+import Layout from '../Layout';
 import EmailList from './EmailList';
 import EmailViewer from './EmailViewer';
 import ComposeEmail from './ComposeEmail';
 import AccountManager from './AccountManager';
+import UnmatchedEmailReview from './UnmatchedEmailReview';
 import './EmailHub.css';
 
 const EmailHub = () => {
   const { currentUser } = useAuth();
   const [emails, setEmails] = useState([]);
   const [selectedEmail, setSelectedEmail] = useState(null);
-  const [accounts, setAccounts] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [showCompose, setShowCompose] = useState(false);
-  const [showAccountManager, setShowAccountManager] = useState(false);
-  const [filter, setFilter] = useState('all'); // all, unread, starred
-  const [searchQuery, setSearchQuery] = useState('');
+  const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [emailAccounts, setEmailAccounts] = useState([]);
+  const [showAccountManager, setShowAccountManager] = useState(false);
+  const [showCompose, setShowCompose] = useState(false);
+  const [showUnmatchedReview, setShowUnmatchedReview] = useState(false);
+  const [unmatchedEmails, setUnmatchedEmails] = useState([]);
+  const [matchedCount, setMatchedCount] = useState(0);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     if (currentUser) {
-      loadEmailsAndAccounts();
+      loadEmailAccounts();
+      loadEmails();
     }
   }, [currentUser]);
 
-  const loadEmailsAndAccounts = async () => {
+  const loadEmailAccounts = async () => {
     try {
-      setLoading(true);
-      const [emailsData, accountsData] = await Promise.all([
-        emailSyncService.getAllEmails(currentUser.uid),
-        emailAccountService.getAccountsWithTokens(currentUser.uid)
-      ]);
-      setEmails(emailsData);
-      setAccounts(accountsData);
-    } catch (error) {
-      console.error('Error loading emails:', error);
+      const accounts = await emailAccountService.getAccounts(currentUser.uid);
+      setEmailAccounts(accounts);
+      
+      if (accounts.length === 0) {
+        setShowAccountManager(true);
+      }
+    } catch (err) {
+      console.error('Error loading email accounts:', err);
+      setError('Failed to load email accounts');
+    }
+  };
+
+  const loadEmails = async () => {
+    setLoading(true);
+    try {
+      const fetchedEmails = await emailSyncService.getEmails(currentUser.uid);
+      
+      // Sort by timestamp (newest first)
+      const sortedEmails = fetchedEmails.sort((a, b) => 
+        new Date(b.timestamp) - new Date(a.timestamp)
+      );
+      
+      setEmails(sortedEmails);
+    } catch (err) {
+      console.error('Error loading emails:', err);
+      setError('Failed to load emails');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSyncAll = async () => {
+  const handleSync = async () => {
+    if (emailAccounts.length === 0) {
+      alert('Please connect an email account first');
+      setShowAccountManager(true);
+      return;
+    }
+
+    const activeAccount = emailAccounts.find(acc => acc.isActive);
+    if (!activeAccount) {
+      alert('No active email account found');
+      return;
+    }
+
+    setSyncing(true);
+    setError('');
+
     try {
-      setSyncing(true);
-      let totalSynced = 0;
-      let totalMatched = 0;
+      // Sync emails with selective storage
+      const syncResult = await emailSyncService.syncEmails(
+        currentUser.uid,
+        activeAccount.id,
+        50 // Max results
+      );
 
-      for (const account of accounts) {
-        if (!account.hasToken) continue;
+      // Store results for review modal
+      setMatchedCount(syncResult.matched.length);
+      setUnmatchedEmails(syncResult.unmatched);
 
-        const token = emailAccountService.getAccessToken(currentUser.uid, account.id);
-        
-        await emailAccountService.updateSyncStatus(
-          currentUser.uid,
-          account.id,
-          'syncing'
-        );
+      // Reload emails list to show newly saved matched emails
+      await loadEmails();
 
-        const result = await emailSyncService.syncEmailAccount(
-          currentUser.uid,
-          account.id,
-          token,
-          50
-        );
-
-        totalSynced += result.synced;
-        totalMatched += result.matched;
-
-        await emailAccountService.updateSyncStatus(
-          currentUser.uid,
-          account.id,
-          'completed',
-          new Date().toISOString()
-        );
+      // Show review modal if there are unmatched emails
+      if (syncResult.unmatched.length > 0) {
+        setShowUnmatchedReview(true);
+      } else {
+        // All emails matched - show success message
+        alert(`Sync complete! ${syncResult.matched.length} emails matched and saved.`);
       }
-
-      alert(`Sync completed! ${totalSynced} emails synced, ${totalMatched} matched to clients.`);
-      await loadEmailsAndAccounts();
-    } catch (error) {
-      console.error('Error syncing emails:', error);
-      alert('Error syncing emails. Please check console for details.');
+    } catch (err) {
+      console.error('Error syncing emails:', err);
+      setError('Failed to sync emails. Please try again.');
     } finally {
       setSyncing(false);
     }
   };
 
-  const handleSearch = async () => {
-    if (!searchQuery.trim()) {
-      await loadEmailsAndAccounts();
-      return;
-    }
-
-    try {
-      setLoading(true);
-      const results = await emailSyncService.searchEmails(currentUser.uid, searchQuery);
-      setEmails(results);
-    } catch (error) {
-      console.error('Error searching emails:', error);
-    } finally {
-      setLoading(false);
-    }
+  const handleUnmatchedReviewComplete = async () => {
+    // Reload emails after user completes review
+    await loadEmails();
+    setShowUnmatchedReview(false);
+    setUnmatchedEmails([]);
+    setMatchedCount(0);
   };
 
-  const handleEmailSent = async () => {
-    setShowCompose(false);
-    await loadEmailsAndAccounts();
+  const handleAccountConnected = async () => {
+    await loadEmailAccounts();
+    setShowAccountManager(false);
   };
 
-  const filteredEmails = emails.filter(email => {
-    if (filter === 'unread') return email.isUnread;
-    if (filter === 'starred') return email.isStarred;
-    return true;
-  });
+  const handleAccountDisconnected = async () => {
+    await loadEmailAccounts();
+  };
 
-  if (loading && emails.length === 0) {
-    return (
-      <Layout>
-        <div className="email-hub-loading">
-          <div className="spinner"></div>
-          <p>Loading emails...</p>
-        </div>
-      </Layout>
-    );
-  }
+  const handleEmailSelect = (email) => {
+    setSelectedEmail(email);
+  };
+
+  const handleReply = (email) => {
+    setSelectedEmail(null);
+    setShowCompose(true);
+  };
+
+  const handleComposeNew = () => {
+    setShowCompose(true);
+  };
+
+  const activeAccount = emailAccounts.find(acc => acc.isActive);
 
   return (
     <Layout>
       <div className="email-hub">
-        {/* Header */}
         <div className="email-hub-header">
-          <h1>📧 Email Hub</h1>
-          <div className="email-hub-actions">
+          <div className="header-title">
+            <h1>Email Hub</h1>
+            {activeAccount && (
+              <span className="connected-account">
+                Connected: {activeAccount.email}
+              </span>
+            )}
+          </div>
+          
+          <div className="header-actions">
             <button 
-              className="btn-primary"
-              onClick={() => setShowCompose(true)}
+              className="btn-compose"
+              onClick={handleComposeNew}
+              disabled={emailAccounts.length === 0}
             >
               ✉️ Compose
             </button>
+            
             <button 
-              className="btn-secondary"
-              onClick={handleSyncAll}
-              disabled={syncing || accounts.length === 0}
+              className="btn-sync"
+              onClick={handleSync}
+              disabled={syncing || emailAccounts.length === 0}
             >
-              {syncing ? '🔄 Syncing...' : '🔄 Sync All'}
+              {syncing ? '🔄 Syncing...' : '🔄 Sync Emails'}
             </button>
+            
             <button 
-              className="btn-secondary"
+              className="btn-accounts"
               onClick={() => setShowAccountManager(true)}
             >
-              ⚙️ Accounts ({accounts.length})
+              ⚙️ Manage Accounts
             </button>
           </div>
         </div>
 
-      {/* Search and Filter Bar */}
-      <div className="email-hub-toolbar">
-        <div className="search-bar">
-          <input
-            type="text"
-            placeholder="Search emails..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-          />
-          <button onClick={handleSearch}>🔍 Search</button>
-        </div>
-        
-        <div className="filter-buttons">
-          <button
-            className={filter === 'all' ? 'active' : ''}
-            onClick={() => setFilter('all')}
-          >
-            All
-          </button>
-          <button
-            className={filter === 'unread' ? 'active' : ''}
-            onClick={() => setFilter('unread')}
-          >
-            Unread
-          </button>
-          <button
-            className={filter === 'starred' ? 'active' : ''}
-            onClick={() => setFilter('starred')}
-          >
-            Starred
-          </button>
-        </div>
-      </div>
-
-      {/* No accounts warning */}
-      {accounts.length === 0 && (
-        <div className="email-hub-empty">
-          <h2>📮 No Email Accounts Connected</h2>
-          <p>Connect your Gmail account to start syncing emails</p>
-          <button 
-            className="btn-primary"
-            onClick={() => setShowAccountManager(true)}
-          >
-            Connect Gmail Account
-          </button>
-        </div>
-      )}
-
-      {/* Email Content */}
-      {accounts.length > 0 && (
-        <div className="email-hub-content">
-          <div className="email-list-panel">
-            <EmailList
-              emails={filteredEmails}
-              selectedEmail={selectedEmail}
-              onSelectEmail={setSelectedEmail}
-            />
+        {error && (
+          <div className="error-banner">
+            {error}
+            <button onClick={() => setError('')}>×</button>
           </div>
-          
-          <div className="email-viewer-panel">
-            {selectedEmail ? (
-              <EmailViewer
-                email={selectedEmail}
-                consultantId={currentUser.uid}
-                onClose={() => setSelectedEmail(null)}
-                onReply={() => {
-                  setShowCompose(true);
-                }}
+        )}
+
+        {emailAccounts.length === 0 ? (
+          <div className="empty-state">
+            <div className="empty-icon">📧</div>
+            <h2>No Email Account Connected</h2>
+            <p>Connect your Gmail account to start managing emails</p>
+            <button 
+              className="btn-primary"
+              onClick={() => setShowAccountManager(true)}
+            >
+              Connect Gmail Account
+            </button>
+          </div>
+        ) : (
+          <div className="email-hub-content">
+            <div className="email-list-panel">
+              <EmailList
+                emails={emails}
+                selectedEmail={selectedEmail}
+                onEmailSelect={handleEmailSelect}
+                loading={loading}
               />
-            ) : (
-              <div className="no-email-selected">
-                <p>Select an email to view</p>
-              </div>
-            )}
+            </div>
+
+            <div className="email-viewer-panel">
+              {selectedEmail ? (
+                <EmailViewer
+                  email={selectedEmail}
+                  onReply={handleReply}
+                  onClose={() => setSelectedEmail(null)}
+                />
+              ) : (
+                <div className="no-email-selected">
+                  <div className="placeholder-icon">✉️</div>
+                  <p>Select an email to view</p>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Compose Modal */}
-      {showCompose && (
-        <ComposeEmail
-          consultantId={currentUser.uid}
-          accounts={accounts}
-          onClose={() => setShowCompose(false)}
-          onEmailSent={handleEmailSent}
-          replyTo={selectedEmail}
-        />
-      )}
-
-      {/* Account Manager Modal */}
-      {showAccountManager && (
+        {/* Modals */}
         <AccountManager
-          consultantId={currentUser.uid}
+          isOpen={showAccountManager}
           onClose={() => setShowAccountManager(false)}
-          onAccountsChanged={loadEmailsAndAccounts}
+          onAccountConnected={handleAccountConnected}
+          onAccountDisconnected={handleAccountDisconnected}
         />
-      )}
-    </div>
+
+        <ComposeEmail
+          isOpen={showCompose}
+          onClose={() => setShowCompose(false)}
+        />
+
+        <UnmatchedEmailReview
+          isOpen={showUnmatchedReview}
+          onClose={() => setShowUnmatchedReview(false)}
+          unmatchedEmails={unmatchedEmails}
+          matchedCount={matchedCount}
+          onComplete={handleUnmatchedReviewComplete}
+        />
+      </div>
     </Layout>
   );
 };

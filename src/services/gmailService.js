@@ -4,6 +4,31 @@
 const GMAIL_API_BASE = 'https://www.googleapis.com/gmail/v1';
 
 class GmailService {
+  constructor() {
+    this.currentAccessToken = null;
+  }
+
+  /**
+   * Set the current access token for API calls
+   */
+  setAccessToken(token) {
+    this.currentAccessToken = token;
+  }
+
+  /**
+   * Get authorization headers
+   */
+  getAuthHeaders(accessToken = null) {
+    const token = accessToken || this.currentAccessToken;
+    if (!token) {
+      throw new Error('No access token available');
+    }
+    return {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    };
+  }
+
   /**
    * Fetch emails from Gmail API
    * @param {string} accessToken - OAuth access token
@@ -18,14 +43,12 @@ class GmailService {
       }
 
       const response = await fetch(url, {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json'
-        }
+        headers: this.getAuthHeaders(accessToken)
       });
 
       if (!response.ok) {
-        throw new Error(`Gmail API error: ${response.status}`);
+        const error = await response.json();
+        throw new Error(`Gmail API error: ${error.error?.message || response.status}`);
       }
 
       const data = await response.json();
@@ -46,14 +69,12 @@ class GmailService {
       const url = `${GMAIL_API_BASE}/users/me/messages/${messageId}?format=full`;
 
       const response = await fetch(url, {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json'
-        }
+        headers: this.getAuthHeaders(accessToken)
       });
 
       if (!response.ok) {
-        throw new Error(`Gmail API error: ${response.status}`);
+        const error = await response.json();
+        throw new Error(`Gmail API error: ${error.error?.message || response.status}`);
       }
 
       const data = await response.json();
@@ -130,7 +151,8 @@ class GmailService {
       htmlBody: htmlBody,
       attachments: attachments,
       isUnread: message.labelIds?.includes('UNREAD') || false,
-      isStarred: message.labelIds?.includes('STARRED') || false
+      isStarred: message.labelIds?.includes('STARRED') || false,
+      isRead: !message.labelIds?.includes('UNREAD')
     };
   }
 
@@ -151,26 +173,48 @@ class GmailService {
   /**
    * Send email via Gmail API
    * @param {string} accessToken - OAuth access token
-   * @param {Object} emailData - Email content (to, subject, body, etc.)
+   * @param {string} to - Recipient email
+   * @param {string} subject - Email subject
+   * @param {string} body - Email body (HTML)
+   * @param {string} threadId - Optional thread ID for replies
    */
-  async sendEmail(accessToken, emailData) {
+  async sendEmail(accessToken, to, subject, body, threadId = null) {
     try {
-      const email = this.createEmailMessage(emailData);
-      const encodedEmail = btoa(email).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+      // Create email in RFC 2822 format
+      const emailLines = [
+        `To: ${to}`,
+        `Subject: ${subject}`,
+        'MIME-Version: 1.0',
+        'Content-Type: text/html; charset=utf-8',
+        '',
+        body
+      ];
+
+      const email = emailLines.join('\r\n');
+      
+      // Encode to base64 URL-safe
+      const encodedEmail = btoa(unescape(encodeURIComponent(email)))
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=+$/, '');
+
+      const requestBody = {
+        raw: encodedEmail
+      };
+
+      if (threadId) {
+        requestBody.threadId = threadId;
+      }
 
       const response = await fetch(`${GMAIL_API_BASE}/users/me/messages/send`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          raw: encodedEmail
-        })
+        headers: this.getAuthHeaders(accessToken),
+        body: JSON.stringify(requestBody)
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to send email: ${response.status}`);
+        const error = await response.json();
+        throw new Error(`Failed to send email: ${error.error?.message || response.status}`);
       }
 
       return await response.json();
@@ -181,42 +225,58 @@ class GmailService {
   }
 
   /**
-   * Create RFC 2822 formatted email message
-   */
-  createEmailMessage({ to, cc, bcc, subject, body, inReplyTo, references }) {
-    const lines = [];
-    lines.push(`To: ${to}`);
-    if (cc) lines.push(`Cc: ${cc}`);
-    if (bcc) lines.push(`Bcc: ${bcc}`);
-    lines.push(`Subject: ${subject}`);
-    if (inReplyTo) lines.push(`In-Reply-To: ${inReplyTo}`);
-    if (references) lines.push(`References: ${references}`);
-    lines.push('Content-Type: text/html; charset=utf-8');
-    lines.push('');
-    lines.push(body);
-
-    return lines.join('\r\n');
-  }
-
-  /**
    * Get user profile info
    */
   async getUserProfile(accessToken) {
     try {
       const response = await fetch(`${GMAIL_API_BASE}/users/me/profile`, {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`
-        }
+        headers: this.getAuthHeaders(accessToken)
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to fetch profile: ${response.status}`);
+        const error = await response.json();
+        throw new Error(`Failed to fetch profile: ${error.error?.message || response.status}`);
       }
 
       return await response.json();
     } catch (error) {
       console.error('Error fetching Gmail profile:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Fetch Gmail signature and related "send as" info
+   * @param {string} accessToken - OAuth access token
+   * @returns {{signature: string, displayName: string, replyToAddress: string}}
+   */
+  async getSignature(accessToken) {
+    try {
+      const response = await fetch(`${GMAIL_API_BASE}/users/me/settings/sendAs`, {
+        headers: this.getAuthHeaders(accessToken)
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(`Failed to fetch sendAs settings: ${error.error?.message || response.status}`);
+      }
+
+      const data = await response.json();
+      const sendAs = data.sendAs || [];
+      const primary = sendAs.find(a => a.isPrimary) || sendAs[0];
+
+      if (primary) {
+        return {
+          signature: primary.signature || '',
+          displayName: primary.displayName || '',
+          replyToAddress: primary.replyToAddress || primary.sendAsEmail || ''
+        };
+      }
+
+      return { signature: '', displayName: '', replyToAddress: '' };
+    } catch (error) {
+      console.error('Error fetching Gmail signature:', error);
+      return { signature: '', displayName: '', replyToAddress: '' };
     }
   }
 
@@ -229,10 +289,7 @@ class GmailService {
         `${GMAIL_API_BASE}/users/me/messages/${messageId}/modify`,
         {
           method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Content-Type': 'application/json'
-          },
+          headers: this.getAuthHeaders(accessToken),
           body: JSON.stringify({
             addLabelIds: addLabels,
             removeLabelIds: removeLabels
@@ -241,7 +298,8 @@ class GmailService {
       );
 
       if (!response.ok) {
-        throw new Error(`Failed to modify email: ${response.status}`);
+        const error = await response.json();
+        throw new Error(`Failed to modify email: ${error.error?.message || response.status}`);
       }
 
       return await response.json();
@@ -286,6 +344,53 @@ class GmailService {
     if (!emailString) return null;
     const match = emailString.match(/<(.+?)>/);
     return match ? match[1].toLowerCase() : emailString.toLowerCase();
+  }
+
+  /**
+   * Extract all email addresses from a header value (supports multiple emails)
+   */
+  extractEmailAddresses(headerValue) {
+    if (!headerValue) return [];
+    
+    const emailRegex = /([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/gi;
+    const matches = headerValue.match(emailRegex);
+    return matches ? matches.map(e => e.toLowerCase()) : [];
+  }
+
+  /**
+   * Parse email headers into a map
+   */
+  parseHeaders(headers) {
+    const headerMap = {};
+    headers.forEach((header) => {
+      headerMap[header.name.toLowerCase()] = header.value;
+    });
+    return headerMap;
+  }
+
+  /**
+   * Decode email body from message object (for compatibility with emailSyncService)
+   */
+  decodeBody(message) {
+    let body = '';
+    
+    if (message.payload.parts) {
+      const htmlPart = message.payload.parts.find(
+        (part) => part.mimeType === 'text/html'
+      );
+      const textPart = message.payload.parts.find(
+        (part) => part.mimeType === 'text/plain'
+      );
+      
+      const part = htmlPart || textPart;
+      if (part && part.body.data) {
+        body = this.decodeBase64(part.body.data);
+      }
+    } else if (message.payload.body.data) {
+      body = this.decodeBase64(message.payload.body.data);
+    }
+    
+    return body;
   }
 }
 

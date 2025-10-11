@@ -1,235 +1,225 @@
-// components/EmailHub/AccountManager.jsx
-// Manage multiple Gmail account connections
-
+// components/email/AccountManager.jsx
 import React, { useState, useEffect } from 'react';
-import { useGoogleLogin } from '@react-oauth/google';
+import { useAuth } from '../../contexts/AuthContext';
 import emailAccountService from '../../services/emailAccountService';
-import emailSyncService from '../../services/emailSyncService';
+import gmailService from '../../services/gmailService';
 import './AccountManager.css';
 
-const AccountManager = ({ consultantId, onClose, onAccountsChanged }) => {
+const AccountManager = ({ isOpen, onClose, onAccountConnected, onAccountDisconnected }) => {
+  const { currentUser } = useAuth();
   const [accounts, setAccounts] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [connecting, setConnecting] = useState(false);
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    loadAccounts();
-  }, []);
+    if (isOpen && currentUser) {
+      loadAccounts();
+    }
+  }, [isOpen, currentUser]);
 
   const loadAccounts = async () => {
+    setLoading(true);
     try {
-      setLoading(true);
-      const accountsData = await emailAccountService.getAccountsWithTokens(consultantId);
-      setAccounts(accountsData);
-    } catch (error) {
-      console.error('Error loading accounts:', error);
+      // FIXED: Using getAccounts method
+      const fetchedAccounts = await emailAccountService.getAccounts(currentUser.uid);
+      setAccounts(fetchedAccounts);
+    } catch (err) {
+      console.error('Error loading accounts:', err);
+      setError('Failed to load email accounts');
     } finally {
       setLoading(false);
     }
   };
 
-  // Google OAuth login for Gmail
-  const googleLogin = useGoogleLogin({
-    onSuccess: async (tokenResponse) => {
-      try {
-        setConnecting(true);
-        
-        // Connect account to Firebase
-        await emailAccountService.connectAccount(consultantId, tokenResponse.access_token);
-        
-        alert('Gmail account connected successfully!');
-        
-        // Reload accounts
-        await loadAccounts();
-        onAccountsChanged();
-      } catch (error) {
-        console.error('Error connecting account:', error);
-        alert('Failed to connect Gmail account. Please try again.');
-      } finally {
-        setConnecting(false);
+  const handleConnectAccount = async () => {
+    setConnecting(true);
+    setError('');
+
+    try {
+      // Initialize Google API
+      await gmailService.initializeGoogleAPI();
+      
+      // Request access token
+      const accessToken = await gmailService.requestAccessToken();
+      
+      // Connect account with the service
+      const newAccount = await emailAccountService.connectAccount(
+        currentUser.uid,
+        accessToken
+      );
+
+      // Reload accounts
+      await loadAccounts();
+      
+      // Notify parent
+      if (onAccountConnected) {
+        onAccountConnected(newAccount);
       }
-    },
-    onError: (error) => {
-      console.error('OAuth error:', error);
-      alert('Failed to authenticate with Google. Please try again.');
+
+      alert('Gmail account connected successfully!');
+    } catch (err) {
+      console.error('Error connecting account:', err);
+      setError(err.message || 'Failed to connect Gmail account');
+    } finally {
       setConnecting(false);
-    },
-    scope: 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.modify',
-    flow: 'implicit',
-    ux_mode: 'popup', // Use popup mode
-    redirect_uri: window.location.origin // Use current origin as redirect
-  });
-
-  const handleConnectAccount = () => {
-    googleLogin();
-  };
-
-  const handleDisconnectAccount = async (accountId, email) => {
-    if (!confirm(`Are you sure you want to disconnect ${email}?`)) {
-      return;
-    }
-
-    try {
-      await emailAccountService.disconnectAccount(consultantId, accountId);
-      alert('Account disconnected successfully');
-      await loadAccounts();
-      onAccountsChanged();
-    } catch (error) {
-      console.error('Error disconnecting account:', error);
-      alert('Failed to disconnect account');
     }
   };
 
-  const handleSyncAccount = async (account) => {
-    if (!account.hasToken) {
-      alert('This account needs to be reconnected. Please disconnect and connect again.');
-      return;
-    }
+  const handleDisconnectAccount = async (accountId) => {
+    const confirmed = window.confirm(
+      'Are you sure you want to disconnect this email account? This will also remove all synced emails.'
+    );
+
+    if (!confirmed) return;
 
     try {
-      const token = emailAccountService.getAccessToken(consultantId, account.id);
+      // FIXED: Using disconnectAccount method
+      await emailAccountService.disconnectAccount(currentUser.uid, accountId);
       
-      await emailAccountService.updateSyncStatus(consultantId, account.id, 'syncing');
-      setAccounts(prev => prev.map(acc => 
-        acc.id === account.id ? { ...acc, syncStatus: 'syncing' } : acc
-      ));
+      // Reload accounts
+      await loadAccounts();
+      
+      // Notify parent
+      if (onAccountDisconnected) {
+        onAccountDisconnected();
+      }
 
-      const result = await emailSyncService.syncEmailAccount(
-        consultantId,
-        account.id,
-        token,
-        50
-      );
+      alert('Email account disconnected successfully');
+    } catch (err) {
+      console.error('Error disconnecting account:', err);
+      setError('Failed to disconnect account');
+    }
+  };
 
+  const handleToggleActive = async (accountId, currentStatus) => {
+    try {
+      const accountRef = emailAccountService.getAccount(currentUser.uid, accountId);
+      
+      // Update active status
       await emailAccountService.updateSyncStatus(
-        consultantId,
-        account.id,
-        'completed',
-        new Date().toISOString()
+        currentUser.uid,
+        accountId,
+        currentStatus ? 'inactive' : 'active'
       );
 
-      alert(`Sync completed! ${result.synced} emails synced, ${result.matched} matched to clients.`);
-      
+      // Reload accounts
       await loadAccounts();
-      onAccountsChanged();
-    } catch (error) {
-      console.error('Error syncing account:', error);
-      alert('Failed to sync account');
-      
-      await emailAccountService.updateSyncStatus(consultantId, account.id, 'error');
-      await loadAccounts();
+    } catch (err) {
+      console.error('Error toggling account status:', err);
+      setError('Failed to update account status');
     }
   };
 
   const formatDate = (dateString) => {
     if (!dateString) return 'Never';
     const date = new Date(dateString);
-    return date.toLocaleString();
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
   };
 
-  if (loading) {
-    return (
-      <div className="account-manager-modal">
-        <div className="account-manager-container">
-          <div className="loading">Loading accounts...</div>
-        </div>
-      </div>
-    );
-  }
+  if (!isOpen) return null;
 
   return (
-    <div className="account-manager-modal">
-      <div className="account-manager-container">
+    <div className="account-manager-overlay" onClick={onClose}>
+      <div className="account-manager-modal" onClick={(e) => e.stopPropagation()}>
         <div className="account-manager-header">
-          <h2>⚙️ Email Account Management</h2>
-          <button className="close-btn" onClick={onClose}>✕</button>
+          <h2>Manage Email Accounts</h2>
+          <button className="close-button" onClick={onClose}>×</button>
         </div>
 
         <div className="account-manager-content">
-          {/* Connected Accounts */}
-          <div className="accounts-section">
-            <h3>Connected Accounts ({accounts.length})</h3>
-            
-            {accounts.length === 0 ? (
-              <div className="no-accounts">
-                <p>No Gmail accounts connected yet</p>
-              </div>
-            ) : (
-              <div className="accounts-list">
-                {accounts.map(account => (
-                  <div key={account.id} className="account-card">
-                    <div className="account-info">
-                      <div className="account-email">
-                        <span className="email-icon">📧</span>
-                        <strong>{account.email}</strong>
-                      </div>
-                      <div className="account-details">
-                        <div className="detail-row">
-                          <span>Connected:</span>
-                          <span>{formatDate(account.connectedAt)}</span>
-                        </div>
-                        <div className="detail-row">
-                          <span>Last Sync:</span>
-                          <span>{formatDate(account.lastSyncAt)}</span>
-                        </div>
-                        <div className="detail-row">
-                          <span>Status:</span>
-                          <span className={`status-badge status-${account.syncStatus}`}>
-                            {account.syncStatus || 'pending'}
-                          </span>
-                        </div>
-                        {!account.hasToken && (
-                          <div className="detail-row warning">
-                            <span>⚠️ Token expired - reconnection needed</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    
-                    <div className="account-actions">
-                      <button
-                        className="btn-sync"
-                        onClick={() => handleSyncAccount(account)}
-                        disabled={!account.hasToken || account.syncStatus === 'syncing'}
-                      >
-                        {account.syncStatus === 'syncing' ? '🔄 Syncing...' : '🔄 Sync Now'}
-                      </button>
-                      <button
-                        className="btn-disconnect"
-                        onClick={() => handleDisconnectAccount(account.id, account.email)}
-                      >
-                        🗑️ Disconnect
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          {error && (
+            <div className="error-message">
+              {error}
+              <button onClick={() => setError('')}>×</button>
+            </div>
+          )}
 
-          {/* Connect New Account */}
           <div className="connect-section">
-            <h3>Connect New Gmail Account</h3>
-            <p>Connect additional Gmail accounts to sync and manage all your emails in one place.</p>
             <button
               className="btn-connect"
               onClick={handleConnectAccount}
               disabled={connecting}
             >
-              {connecting ? '⏳ Connecting...' : '➕ Connect Gmail Account'}
+              {connecting ? '🔄 Connecting...' : '➕ Connect Gmail Account'}
             </button>
+            <p className="connect-help">
+              Connect your Gmail account to sync and manage emails
+            </p>
           </div>
 
-          {/* Info Section */}
-          <div className="info-section">
-            <h4>ℹ️ About Email Sync</h4>
-            <ul>
-              <li>Sync fetches your latest 50 emails from each account</li>
-              <li>Emails are automatically matched to clients by email address</li>
-              <li>You can send emails from any connected account</li>
-              <li>All data is stored securely in Firebase</li>
-            </ul>
-          </div>
+          {loading ? (
+            <div className="loading-state">
+              <div className="loading-spinner"></div>
+              <p>Loading accounts...</p>
+            </div>
+          ) : accounts.length === 0 ? (
+            <div className="empty-accounts">
+              <div className="empty-icon">📧</div>
+              <p>No email accounts connected yet</p>
+            </div>
+          ) : (
+            <div className="accounts-list">
+              <h3>Connected Accounts ({accounts.length})</h3>
+              {accounts.map((account) => (
+                <div key={account.id} className="account-card">
+                  <div className="account-info">
+                    <div className="account-header">
+                      <div className="account-email">
+                        <span className="email-icon">📧</span>
+                        <strong>{account.email}</strong>
+                      </div>
+                      <div className={`account-status ${account.isActive ? 'active' : 'inactive'}`}>
+                        {account.isActive ? '● Active' : '○ Inactive'}
+                      </div>
+                    </div>
+
+                    <div className="account-details">
+                      <div className="detail-row">
+                        <span className="detail-label">Connected:</span>
+                        <span className="detail-value">{formatDate(account.connectedAt)}</span>
+                      </div>
+                      <div className="detail-row">
+                        <span className="detail-label">Last Sync:</span>
+                        <span className="detail-value">{formatDate(account.lastSyncAt)}</span>
+                      </div>
+                      <div className="detail-row">
+                        <span className="detail-label">Messages:</span>
+                        <span className="detail-value">{account.messagesTotal || 0}</span>
+                      </div>
+                      {account.signature && (
+                        <div className="detail-row">
+                          <span className="detail-label">Signature:</span>
+                          <span className="detail-value signature-indicator">✓ Configured</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="account-actions">
+                    <button
+                      className="btn-disconnect"
+                      onClick={() => handleDisconnectAccount(account.id)}
+                    >
+                      Disconnect
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="account-manager-footer">
+          <button className="btn-close" onClick={onClose}>
+            Close
+          </button>
         </div>
       </div>
     </div>

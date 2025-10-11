@@ -1,0 +1,464 @@
+/* components/email/UnmatchedEmailReview.css - Light Professional Theme */
+.unmatched-review-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1100;
+  backdrop-filter: blur(6px);
+}
+
+.unmatched-review-modal {
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  width: 90%;
+  max-width: 900px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #e0e0e0;
+}
+
+.unmatched-review-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 24px 28px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.unmatched-review-header h2 {
+  color: #333;
+  font-size: 26px;
+  font-weight: 600;
+  margin: 0 0 8px 0;
+}
+
+.sync-summary {
+  color: #666;
+  font-size: 14px;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.sync-summary strong {
+  color: #2196F3;
+  font-weight: 600;
+}
+
+.close-button {
+  background: none;
+  border: none;
+  font-size: 32px;
+  color: #999;
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  flex-shrink: 0;
+}
+
+.close-button:hover {
+  color: #333;
+  transform: rotate(90deg);
+}
+
+/* No Unmatched State */
+.no-unmatched {
+  padding: 60px 40px;
+  text-align: center;
+}
+
+.success-icon {
+  width: 80px;
+  height: 80px;
+  background: linear-gradient(135deg, #4caf50 0%, #66bb6a 100%);
+  color: #ffffff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 48px;
+  font-weight: bold;
+  margin: 0 auto 24px;
+  box-shadow: 0 10px 30px rgba(76, 175, 80, 0.3);
+}
+
+.no-unmatched h3 {
+  color: #333;
+  font-size: 22px;
+  margin: 0 0 12px 0;
+}
+
+.no-unmatched p {
+  color: #666;
+  font-size: 15px;
+  margin: 0 0 32px 0;
+}
+
+/* Content Area */
+.unmatched-review-content {
+  padding: 24px 28px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.review-info {
+  background: #e3f2fd;
+  border: 1px solid #2196F3;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 20px;
+}
+
+.review-info p {
+  color: #333;
+  margin: 0 0 12px 0;
+  font-size: 14px;
+}
+
+.review-info ul {
+  margin: 0;
+  padding-left: 20px;
+  color: #555;
+  font-size: 14px;
+}
+
+.review-info li {
+  margin: 6px 0;
+}
+
+/* Bulk Actions */
+.bulk-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.btn-select-all {
+  background: #ffffff;
+  color: #2196F3;
+  border: 1px solid #2196F3;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-select-all:hover {
+  background: #e3f2fd;
+}
+
+.selection-count {
+  color: #2196F3;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* Email List */
+.unmatched-emails-list {
+  background: #f8f9fa;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  max-height: 400px;
+  overflow-y: auto;
+  margin-bottom: 20px;
+}
+
+.unmatched-email-item {
+  display: flex;
+  gap: 12px;
+  padding: 16px;
+  border-bottom: 1px solid #e0e0e0;
+  transition: background 0.2s ease;
+  background: #ffffff;
+}
+
+.unmatched-email-item:last-child {
+  border-bottom: none;
+}
+
+.unmatched-email-item:hover {
+  background: #f5f5f5;
+}
+
+.email-checkbox {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: #2196F3;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.email-info {
+  flex: 1;
+  cursor: pointer;
+}
+
+.email-from {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.email-from strong {
+  color: #333;
+  font-size: 14px;
+}
+
+.email-address {
+  color: #666;
+  font-size: 13px;
+}
+
+.email-subject {
+  color: #1976D2;
+  font-size: 14px;
+  font-weight: 500;
+  margin-bottom: 6px;
+}
+
+.email-snippet {
+  color: #666;
+  font-size: 13px;
+  margin-bottom: 8px;
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.email-date {
+  color: #999;
+  font-size: 12px;
+}
+
+/* Review Actions */
+.review-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.link-section {
+  background: #f8f9fa;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.link-section label {
+  display: block;
+  color: #666;
+  font-size: 14px;
+  font-weight: 500;
+  margin-bottom: 12px;
+}
+
+.link-controls {
+  display: flex;
+  gap: 12px;
+}
+
+.client-select {
+  flex: 1;
+  padding: 10px 12px;
+  background: #ffffff;
+  border: 1px solid #d0d0d0;
+  border-radius: 6px;
+  color: #333;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.client-select:focus {
+  outline: none;
+  border-color: #2196F3;
+  box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.1);
+}
+
+.client-select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-link {
+  background: #2196F3;
+  color: #ffffff;
+  border: none;
+  padding: 10px 24px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+
+.btn-link:hover:not(:disabled) {
+  background: #1976D2;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(33, 150, 243, 0.4);
+}
+
+.btn-link:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.discard-section {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.btn-discard-selected,
+.btn-discard-all {
+  background: #ffffff;
+  color: #f44336;
+  border: 1px solid #f44336;
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-discard-selected:hover:not(:disabled),
+.btn-discard-all:hover {
+  background: #ffebee;
+}
+
+.btn-discard-selected:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Email Detail View */
+.email-detail-view {
+  padding: 24px 28px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.btn-back {
+  background: #ffffff;
+  color: #2196F3;
+  border: 1px solid #2196F3;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-bottom: 20px;
+}
+
+.btn-back:hover {
+  background: #e3f2fd;
+}
+
+.email-detail-header {
+  background: #f8f9fa;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.email-detail-header h3 {
+  color: #333;
+  font-size: 20px;
+  margin: 0 0 16px 0;
+}
+
+.detail-meta div {
+  color: #555;
+  font-size: 14px;
+  margin: 8px 0;
+  line-height: 1.5;
+}
+
+.detail-meta strong {
+  color: #666;
+  min-width: 60px;
+  display: inline-block;
+}
+
+.email-detail-body {
+  background: #ffffff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 20px;
+  color: #333;
+  font-size: 14px;
+  line-height: 1.6;
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+/* Common Button */
+.btn-primary {
+  background: #2196F3;
+  color: #ffffff;
+  border: none;
+  padding: 12px 32px;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(33, 150, 243, 0.3);
+}
+
+.btn-primary:hover {
+  background: #1976D2;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(33, 150, 243, 0.4);
+}
+
+/* Scrollbar */
+.unmatched-review-content::-webkit-scrollbar,
+.unmatched-emails-list::-webkit-scrollbar,
+.email-detail-body::-webkit-scrollbar {
+  width: 8px;
+}
+
+.unmatched-review-content::-webkit-scrollbar-track,
+.unmatched-emails-list::-webkit-scrollbar-track,
+.email-detail-body::-webkit-scrollbar-track {
+  background: #f5f5f5;
+  border-radius: 4px;
+}
+
+.unmatched-review-content::-webkit-scrollbar-thumb,
+.unmatched-emails-list::-webkit-scrollbar-thumb,
+.email-detail-body::-webkit-scrollbar-thumb {
+  background: #ccc;
+  border-radius: 4px;
+}
+
+.unmatched-review-content::-webkit-scrollbar-thumb:hover,
+.unmatched-emails-list::-webkit-scrollbar-thumb:hover,
+.email-detail-body::-webkit-scrollbar-thumb:hover {
+  background: #999;
+}

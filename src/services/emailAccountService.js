@@ -1,8 +1,18 @@
 // services/emailAccountService.js
 // Manage multiple Gmail account connections
 
-import { collection, doc, setDoc, getDocs, deleteDoc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
+import {
+  collection,
+  doc,
+  setDoc,
+  getDoc,
+  getDocs,
+  deleteDoc,
+  query,
+  where,
+  serverTimestamp,
+} from 'firebase/firestore';
 import gmailService from './gmailService';
 
 class EmailAccountService {
@@ -16,6 +26,9 @@ class EmailAccountService {
       // Get Gmail profile info
       const profile = await gmailService.getUserProfile(accessToken);
 
+      // Fetch Gmail signature info
+      const signatureData = await gmailService.getSignature(accessToken);
+
       // Create account document
       const accountId = profile.emailAddress.replace(/[@.]/g, '_');
       const accountRef = doc(db, `consultants/${consultantId}/emailAccounts/${accountId}`);
@@ -28,19 +41,21 @@ class EmailAccountService {
         isActive: true,
         syncStatus: 'pending',
         messagesTotal: profile.messagesTotal || 0,
-        threadsTotal: profile.threadsTotal || 0
+        threadsTotal: profile.threadsTotal || 0,
+        // Signature fields
+        signature: signatureData.signature || '',
+        displayName: signatureData.displayName || '',
+        replyToAddress: signatureData.replyToAddress || profile.emailAddress
       };
 
       await setDoc(accountRef, accountData);
 
-      // Store access token in localStorage (per agent)
+      // Persist access token for future sync/send
       this.storeAccessToken(consultantId, accountId, accessToken);
-
-      console.log(`Gmail account connected: ${profile.emailAddress}`);
 
       return accountData;
     } catch (error) {
-      console.error('Error connecting Gmail account:', error);
+      console.error('Error connecting account:', error);
       throw error;
     }
   }
@@ -132,6 +147,38 @@ class EmailAccountService {
       return true;
     } catch (error) {
       console.error('Error updating sync status:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Refresh signature for an account
+   * @param {string} consultantId - Consultant UID
+   * @param {string} accountId - Account ID
+   */
+  async refreshSignature(consultantId, accountId) {
+    try {
+      // Get stored access token
+      const accessToken = this.getAccessToken(consultantId, accountId);
+      
+      if (!accessToken) {
+        throw new Error('No access token found for this account');
+      }
+
+      // Get Gmail signature
+      const signatureData = await gmailService.getSignature(accessToken);
+      
+      // Update account with new signature
+      const accountRef = doc(db, `consultants/${consultantId}/emailAccounts/${accountId}`);
+      await setDoc(accountRef, {
+        signature: signatureData.signature || '',
+        displayName: signatureData.displayName || '',
+        replyToAddress: signatureData.replyToAddress || '',
+      }, { merge: true });
+      
+      return signatureData;
+    } catch (error) {
+      console.error('Error refreshing signature:', error);
       throw error;
     }
   }

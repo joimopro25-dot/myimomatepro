@@ -1,80 +1,85 @@
 // services/emailSyncService.js
-// Sync emails from Gmail API to Firebase
+// Sync emails from Gmail API to Firebase (only save matched emails)
 
-import { collection, doc, setDoc, getDocs, query, where, orderBy, limit, getDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
+import {
+  collection,
+  doc,
+  setDoc,
+  getDocs,
+  query,
+  where,
+  serverTimestamp,
+} from 'firebase/firestore';
 import gmailService from './gmailService';
 
 class EmailSyncService {
-  /**
-   * Sync emails for a specific Gmail account
-   * @param {string} consultantId - Consultant UID
-   * @param {string} accountId - Email account ID
-   * @param {string} accessToken - OAuth access token
-   * @param {number} maxEmails - Max emails to sync per batch
-   */
-  async syncEmailAccount(consultantId, accountId, accessToken, maxEmails = 50) {
+  // New selective sync using GAPI. Saves only matched emails.
+  async syncEmails(userId, accountId, maxResults = 50) {
     try {
-      console.log(`Starting sync for account ${accountId}...`);
+      // Initialize Gmail API (GAPI)
+      await gmailService.initializeGoogleAPI();
+      await gmailService.requestAccessToken();
 
-      // Fetch emails from Gmail API
-      const gmailData = await gmailService.fetchEmails(accessToken, maxEmails);
-      
-      if (!gmailData.messages || gmailData.messages.length === 0) {
-        console.log('No emails to sync');
-        return { synced: 0, matched: 0 };
+      const messagesList = await gmailService.listMessages(maxResults);
+
+      if (!messagesList.messages || messagesList.messages.length === 0) {
+        await this.updateAccountSyncTime(userId, accountId);
+        return { matched: [], unmatched: [], totalSynced: 0 };
       }
 
-      let syncedCount = 0;
-      let matchedCount = 0;
+      const matchedEmails = [];
+      const unmatchedEmails = [];
 
-      // Fetch full details for each email and save to Firebase
-      for (const message of gmailData.messages) {
+      for (const message of messagesList.messages) {
         try {
-          // Check if email already exists
-          const emailRef = doc(db, `consultants/${consultantId}/emails/${message.id}`);
-          const emailDoc = await getDoc(emailRef);
-          
-          if (emailDoc.exists()) {
-            console.log(`Email ${message.id} already synced, skipping...`);
-            continue;
-          }
+          const emailData = await gmailService.getMessage(message.id);
+          const headers = gmailService.parseHeaders(emailData.payload.headers);
+          const body = gmailService.decodeBody(emailData);
 
-          // Fetch full email details
-          const emailData = await gmailService.fetchEmailById(accessToken, message.id);
+          // Extract addresses from headers
+          const emailAddresses = this.extractAllEmailAddresses(headers);
 
-          // Match with clients
-          const matchedClientIds = await this.matchEmailToClients(consultantId, emailData);
+          // Try to match with clients
+          const matchedClients = await this.matchEmailToClients(userId, emailAddresses);
 
-          // Save to Firebase
-          const emailToSave = {
-            ...emailData,
+          // Build email object
+          const emailObject = {
+            messageId: emailData.id,
+            threadId: emailData.threadId,
             accountId: accountId,
-            consultantId: consultantId,
-            matchedClientIds: matchedClientIds,
-            syncedAt: new Date().toISOString(),
-            createdAt: new Date(emailData.timestamp).toISOString()
+            from: headers.from || '',
+            to: headers.to || '',
+            cc: headers.cc || '',
+            bcc: headers.bcc || '',
+            subject: headers.subject || '(No Subject)',
+            date: headers.date || '',
+            timestamp: new Date(parseInt(emailData.internalDate)).toISOString(),
+            body: body,
+            snippet: emailData.snippet || '',
+            labelIds: emailData.labelIds || [],
+            isRead: !emailData.labelIds?.includes('UNREAD'),
           };
 
-          await setDoc(emailRef, emailToSave);
-          syncedCount++;
-
-          if (matchedClientIds.length > 0) {
-            matchedCount++;
+          if (matchedClients.length > 0) {
+            emailObject.clientIds = matchedClients;
+            emailObject.matchedAt = serverTimestamp();
+            await this.saveEmail(userId, emailObject);
+            matchedEmails.push({ ...emailObject });
+          } else {
+            unmatchedEmails.push(emailObject);
           }
-
-          console.log(`Synced email: ${emailData.subject} (matched: ${matchedClientIds.length} clients)`);
-        } catch (error) {
-          console.error(`Error syncing email ${message.id}:`, error);
+        } catch (err) {
+          console.error(`Error processing message ${message.id}:`, err);
         }
       }
 
-      console.log(`Sync complete: ${syncedCount} emails synced, ${matchedCount} matched to clients`);
+      await this.updateAccountSyncTime(userId, accountId);
 
       return {
-        synced: syncedCount,
-        matched: matchedCount,
-        total: gmailData.messages.length
+        matched: matchedEmails,
+        unmatched: unmatchedEmails,
+        totalSynced: messagesList.messages.length,
       };
     } catch (error) {
       console.error('Error syncing emails:', error);
@@ -82,196 +87,130 @@ class EmailSyncService {
     }
   }
 
-  /**
-   * Match email to existing clients by email address
-   * @param {string} consultantId - Consultant UID
-   * @param {Object} emailData - Parsed email data
-   * @returns {Array} - Array of matched client IDs
-   */
-  async matchEmailToClients(consultantId, emailData) {
-    try {
-      // Extract all email addresses from the email
-      const emailAddresses = this.extractAllEmails(emailData);
+  // Backwards-compatible wrapper (used by AccountManager). Returns counts like before.
+  async syncEmailAccount(consultantId, accountId, _accessToken, maxEmails = 50) {
+    const res = await this.syncEmails(consultantId, accountId, maxEmails);
+    return {
+      synced: res.matched.length,  // we only save matched emails
+      matched: res.matched.length,
+      total: res.totalSynced,
+    };
+    // Note: res.unmatched contains items not saved, should you want to display/suggest linking later.
+  }
 
-      if (emailAddresses.length === 0) {
-        return [];
+  // Extract all email addresses from headers via gmailService helper
+  extractAllEmailAddresses(headers) {
+    const fields = ['from', 'to', 'cc', 'bcc'];
+    const all = [];
+
+    fields.forEach((field) => {
+      if (headers[field]) {
+        const extracted = gmailService.extractEmailAddresses(headers[field]);
+        if (extracted && extracted.length) {
+          all.push(...extracted.map(e => e.toLowerCase()));
+        }
       }
+    });
 
-      // Query clients collection for matching emails
-      const clientsRef = collection(db, `consultants/${consultantId}/clients`);
-      const matchedClientIds = [];
+    return [...new Set(all)];
+  }
+
+  // Match email to clients by email address
+  async matchEmailToClients(userId, emailAddresses) {
+    try {
+      if (!emailAddresses || emailAddresses.length === 0) return [];
+
+      const clientsRef = collection(db, 'consultants', userId, 'clients');
+      const matchedClientIds = new Set();
 
       for (const email of emailAddresses) {
-        const q = query(
-          clientsRef,
-          where('email', '==', email)
-        );
-
-        const querySnapshot = await getDocs(q);
-        querySnapshot.forEach((doc) => {
-          if (!matchedClientIds.includes(doc.id)) {
-            matchedClientIds.push(doc.id);
-          }
-        });
+        const q = query(clientsRef, where('email', '==', email));
+        const snapshot = await getDocs(q);
+        snapshot.forEach((d) => matchedClientIds.add(d.id));
       }
 
-      return matchedClientIds;
+      return Array.from(matchedClientIds);
     } catch (error) {
       console.error('Error matching email to clients:', error);
       return [];
     }
   }
 
-  /**
-   * Extract all email addresses from email data (from, to, cc, bcc)
-   */
-  extractAllEmails(emailData) {
-    const emails = [];
-    const fields = ['from', 'to', 'cc', 'bcc'];
-
-    fields.forEach(field => {
-      if (emailData[field]) {
-        // Handle multiple recipients (comma-separated)
-        const recipients = emailData[field].split(',');
-        recipients.forEach(recipient => {
-          const email = gmailService.extractEmail(recipient.trim());
-          if (email && !emails.includes(email)) {
-            emails.push(email);
-          }
-        });
-      }
-    });
-
-    return emails;
+  // Save matched email to Firestore
+  async saveEmail(userId, emailData) {
+    try {
+      const emailsRef = collection(db, 'consultants', userId, 'emails');
+      const emailRef = doc(emailsRef, emailData.messageId);
+      await setDoc(emailRef, { ...emailData, savedAt: serverTimestamp() }, { merge: true });
+      return emailRef.id;
+    } catch (error) {
+      console.error('Error saving email:', error);
+      throw error;
+    }
   }
 
-  /**
-   * Get emails for a specific client
-   * @param {string} consultantId - Consultant UID
-   * @param {string} clientId - Client ID
-   */
-  async getClientEmails(consultantId, clientId) {
+  // Manually link an unmatched email to a client (saves it)
+  async linkEmailToClient(userId, emailData, clientId) {
     try {
-      const emailsRef = collection(db, `consultants/${consultantId}/emails`);
-      const q = query(
-        emailsRef,
-        where('matchedClientIds', 'array-contains', clientId),
-        orderBy('timestamp', 'desc')
-      );
+      const emailWithClient = {
+        ...emailData,
+        clientIds: [clientId],
+        matchedAt: serverTimestamp(),
+        manuallyLinked: true,
+      };
+      await this.saveEmail(userId, emailWithClient);
+      return { success: true, emailId: emailData.messageId };
+    } catch (error) {
+      console.error('Error linking email to client:', error);
+      throw error;
+    }
+  }
 
-      const querySnapshot = await getDocs(q);
-      const emails = [];
+  // Bulk link
+  async bulkLinkEmails(userId, emailsData, clientId) {
+    try {
+      const linkedIds = [];
+      for (const emailData of emailsData) {
+        await this.linkEmailToClient(userId, emailData, clientId);
+        linkedIds.push(emailData.messageId);
+      }
+      return { success: true, linkedCount: linkedIds.length, emailIds: linkedIds };
+    } catch (error) {
+      console.error('Error bulk linking emails:', error);
+      throw error;
+    }
+  }
 
-      querySnapshot.forEach((doc) => {
-        emails.push({
-          id: doc.id,
-          ...doc.data()
-        });
-      });
+  // Update account last sync time
+  async updateAccountSyncTime(userId, accountId) {
+    try {
+      const accountRef = doc(db, 'consultants', userId, 'emailAccounts', accountId);
+      await setDoc(accountRef, { lastSyncAt: serverTimestamp() }, { merge: true });
+    } catch (error) {
+      console.error('Error updating account sync time:', error);
+    }
+  }
 
-      return emails;
+  // Convenience getters (unchanged behavior)
+  async getEmails(userId) {
+    try {
+      const emailsRef = collection(db, 'consultants', userId, 'emails');
+      const snapshot = await getDocs(emailsRef);
+      return snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+    } catch (error) {
+      console.error('Error fetching emails:', error);
+      throw error;
+    }
+  }
+
+  async getClientEmails(userId, clientId) {
+    try {
+      const emailsRef = collection(db, 'consultants', userId, 'emails');
+      const q = query(emailsRef, where('clientIds', 'array-contains', clientId));
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
     } catch (error) {
       console.error('Error fetching client emails:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Get all emails for consultant (unified inbox)
-   * @param {string} consultantId - Consultant UID
-   * @param {number} limitCount - Max emails to fetch
-   */
-  async getAllEmails(consultantId, limitCount = 100) {
-    try {
-      const emailsRef = collection(db, `consultants/${consultantId}/emails`);
-      const q = query(
-        emailsRef,
-        orderBy('timestamp', 'desc'),
-        limit(limitCount)
-      );
-
-      const querySnapshot = await getDocs(q);
-      const emails = [];
-
-      querySnapshot.forEach((doc) => {
-        emails.push({
-          id: doc.id,
-          ...doc.data()
-        });
-      });
-
-      return emails;
-    } catch (error) {
-      console.error('Error fetching all emails:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Get emails for a specific account
-   */
-  async getAccountEmails(consultantId, accountId, limitCount = 100) {
-    try {
-      const emailsRef = collection(db, `consultants/${consultantId}/emails`);
-      const q = query(
-        emailsRef,
-        where('accountId', '==', accountId),
-        orderBy('timestamp', 'desc'),
-        limit(limitCount)
-      );
-
-      const querySnapshot = await getDocs(q);
-      const emails = [];
-
-      querySnapshot.forEach((doc) => {
-        emails.push({
-          id: doc.id,
-          ...doc.data()
-        });
-      });
-
-      return emails;
-    } catch (error) {
-      console.error('Error fetching account emails:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Search emails by query string
-   */
-  async searchEmails(consultantId, searchQuery) {
-    try {
-      const emailsRef = collection(db, `consultants/${consultantId}/emails`);
-      const q = query(
-        emailsRef,
-        orderBy('timestamp', 'desc'),
-        limit(100)
-      );
-
-      const querySnapshot = await getDocs(q);
-      const emails = [];
-
-      // Client-side filtering (Firestore doesn't support full-text search)
-      const searchLower = searchQuery.toLowerCase();
-      querySnapshot.forEach((doc) => {
-        const data = doc.data();
-        if (
-          data.subject?.toLowerCase().includes(searchLower) ||
-          data.from?.toLowerCase().includes(searchLower) ||
-          data.to?.toLowerCase().includes(searchLower) ||
-          data.body?.toLowerCase().includes(searchLower)
-        ) {
-          emails.push({
-            id: doc.id,
-            ...data
-          });
-        }
-      });
-
-      return emails;
-    } catch (error) {
-      console.error('Error searching emails:', error);
       throw error;
     }
   }

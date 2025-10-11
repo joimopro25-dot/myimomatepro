@@ -1,236 +1,234 @@
-// components/EmailHub/ComposeEmail.jsx
-// Compose and send email modal
-
+// components/email/ComposeEmail.jsx
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '../../contexts/AuthContext';
 import gmailService from '../../services/gmailService';
 import emailAccountService from '../../services/emailAccountService';
 import './ComposeEmail.css';
 
-const ComposeEmail = ({ consultantId, accounts, onClose, onEmailSent, replyTo }) => {
-  const [selectedAccount, setSelectedAccount] = useState('');
+const ComposeEmail = ({ isOpen, onClose, replyTo = null, clientEmail = null }) => {
+  const { currentUser } = useAuth();
   const [to, setTo] = useState('');
-  const [cc, setCc] = useState('');
-  const [bcc, setBcc] = useState('');
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
   const [sending, setSending] = useState(false);
-  const [showCc, setShowCc] = useState(false);
-  const [showBcc, setShowBcc] = useState(false);
+  const [error, setError] = useState('');
+  const [emailAccounts, setEmailAccounts] = useState([]);
+  const [selectedAccount, setSelectedAccount] = useState(null);
+  const [useSignature, setUseSignature] = useState(true);
 
   useEffect(() => {
-    // Pre-fill form if replying
-    if (replyTo) {
-      const replyEmail = gmailService.extractEmail(replyTo.from);
-      setTo(replyEmail);
-      setSubject(replyTo.subject?.startsWith('Re:') ? replyTo.subject : `Re: ${replyTo.subject}`);
-      
-      // Add quoted original message
-      const quotedBody = `\n\n---\nOn ${new Date(replyTo.timestamp).toLocaleString()}, ${replyTo.from} wrote:\n\n${replyTo.body || replyTo.snippet}`;
-      setBody(quotedBody);
+    if (isOpen && currentUser) {
+      loadEmailAccounts();
     }
+  }, [isOpen, currentUser]);
 
-    // Select first available account
-    if (accounts.length > 0 && !selectedAccount) {
-      const firstAccount = accounts.find(acc => acc.hasToken);
-      if (firstAccount) {
-        setSelectedAccount(firstAccount.id);
-      }
+  useEffect(() => {
+    if (replyTo) {
+      setTo(replyTo.from || '');
+      setSubject(replyTo.subject?.startsWith('Re:') ? replyTo.subject : `Re: ${replyTo.subject}`);
+    } else if (clientEmail) {
+      setTo(clientEmail);
     }
-  }, [replyTo, accounts, selectedAccount]);
+  }, [replyTo, clientEmail]);
+
+  const loadEmailAccounts = async () => {
+    try {
+      // FIXED: Changed from getEmailAccounts to getAccounts
+      const accounts = await emailAccountService.getAccounts(currentUser.uid);
+      const activeAccounts = accounts.filter(acc => acc.isActive);
+      setEmailAccounts(activeAccounts);
+      
+      if (activeAccounts.length > 0) {
+        setSelectedAccount(activeAccounts[0]);
+      }
+    } catch (err) {
+      console.error('Error loading email accounts:', err);
+    }
+  };
+
+  const getEmailBodyWithSignature = () => {
+    let finalBody = body;
+    
+    if (useSignature && selectedAccount?.signature) {
+      // Add line breaks before signature
+      const signature = `<br><br>${selectedAccount.signature}`;
+      finalBody = body + signature;
+    }
+    
+    return finalBody;
+  };
 
   const handleSend = async (e) => {
     e.preventDefault();
+    
+    if (!to.trim() || !subject.trim()) {
+      setError('Please fill in all required fields');
+      return;
+    }
 
     if (!selectedAccount) {
-      alert('Please select a sender account');
+      setError('No email account selected');
       return;
     }
 
-    if (!to.trim()) {
-      alert('Please enter recipient email address');
-      return;
-    }
+    setSending(true);
+    setError('');
 
     try {
-      setSending(true);
-
-      const token = emailAccountService.getAccessToken(consultantId, selectedAccount);
+      // Get access token for this account
+      const accessToken = emailAccountService.getAccessToken(currentUser.uid, selectedAccount.id);
       
-      if (!token) {
-        alert('No access token found for this account. Please reconnect.');
+      if (!accessToken) {
+        setError('No access token found. Please reconnect your account.');
+        setSending(false);
         return;
       }
 
-      const emailData = {
-        to: to.trim(),
-        cc: cc.trim() || undefined,
-        bcc: bcc.trim() || undefined,
-        subject: subject.trim() || '(No Subject)',
-        body: body.replace(/\n/g, '<br>'), // Convert line breaks to HTML
-        inReplyTo: replyTo?.id,
-        references: replyTo?.id
-      };
+      // Initialize Gmail API
+      await gmailService.initializeGoogleAPI();
+      
+      // Set the access token
+      window.gapi.client.setToken({ access_token: accessToken });
 
-      await gmailService.sendEmail(token, emailData);
+      // Get final body with signature
+      const finalBody = getEmailBodyWithSignature();
 
+      // Send email
+      const threadId = replyTo?.threadId || null;
+      await gmailService.sendEmail(to, subject, finalBody, threadId);
+
+      // Reset form
+      setTo('');
+      setSubject('');
+      setBody('');
+      setError('');
+      
+      onClose();
       alert('Email sent successfully!');
-      onEmailSent();
-    } catch (error) {
-      console.error('Error sending email:', error);
-      alert('Failed to send email. Please try again.');
+    } catch (err) {
+      console.error('Error sending email:', err);
+      setError('Failed to send email. Please try again.');
     } finally {
       setSending(false);
     }
   };
 
-  const availableAccounts = accounts.filter(acc => acc.hasToken);
+  const handleClose = () => {
+    setTo('');
+    setSubject('');
+    setBody('');
+    setError('');
+    onClose();
+  };
 
-  if (availableAccounts.length === 0) {
-    return (
-      <div className="compose-email-modal">
-        <div className="compose-email-container">
-          <div className="compose-header">
-            <h2>Compose Email</h2>
-            <button className="close-btn" onClick={onClose}>✕</button>
-          </div>
-          <div className="compose-no-accounts">
-            <p>⚠️ No email accounts connected</p>
-            <p>Please connect a Gmail account first to send emails.</p>
-            <button className="btn-primary" onClick={onClose}>
-              Close
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  if (!isOpen) return null;
 
   return (
-    <div className="compose-email-modal">
-      <div className="compose-email-container">
-        <div className="compose-header">
-          <h2>{replyTo ? 'Reply to Email' : 'Compose Email'}</h2>
-          <button className="close-btn" onClick={onClose}>✕</button>
+    <div className="compose-email-overlay" onClick={handleClose}>
+      <div className="compose-email-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="compose-email-header">
+          <h2>{replyTo ? 'Reply to Email' : 'Compose New Email'}</h2>
+          <button className="close-button" onClick={handleClose}>×</button>
         </div>
 
-        <form onSubmit={handleSend} className="compose-form">
-          {/* From (Account Selector) */}
-          <div className="form-row">
-            <label>From:</label>
-            <select
-              value={selectedAccount}
-              onChange={(e) => setSelectedAccount(e.target.value)}
-              required
-            >
-              <option value="">Select sender account...</option>
-              {availableAccounts.map(account => (
-                <option key={account.id} value={account.id}>
-                  {account.email}
-                </option>
-              ))}
-            </select>
-          </div>
+        <form onSubmit={handleSend} className="compose-email-form">
+          {emailAccounts.length > 1 && (
+            <div className="form-group">
+              <label>From:</label>
+              <select
+                value={selectedAccount?.id || ''}
+                onChange={(e) => {
+                  const account = emailAccounts.find(acc => acc.id === e.target.value);
+                  setSelectedAccount(account);
+                }}
+                className="form-select"
+              >
+                {emailAccounts.map(account => (
+                  <option key={account.id} value={account.id}>
+                    {account.email}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
-          {/* To */}
-          <div className="form-row">
-            <label>To:</label>
+          <div className="form-group">
+            <label>To: *</label>
             <input
               type="email"
               value={to}
               onChange={(e) => setTo(e.target.value)}
               placeholder="recipient@example.com"
               required
-              multiple
+              disabled={!!replyTo || !!clientEmail}
+              className="form-input"
             />
-            <div className="cc-bcc-toggles">
-              {!showCc && (
-                <button
-                  type="button"
-                  className="toggle-btn"
-                  onClick={() => setShowCc(true)}
-                >
-                  Cc
-                </button>
-              )}
-              {!showBcc && (
-                <button
-                  type="button"
-                  className="toggle-btn"
-                  onClick={() => setShowBcc(true)}
-                >
-                  Bcc
-                </button>
-              )}
-            </div>
           </div>
 
-          {/* Cc */}
-          {showCc && (
-            <div className="form-row">
-              <label>Cc:</label>
-              <input
-                type="email"
-                value={cc}
-                onChange={(e) => setCc(e.target.value)}
-                placeholder="cc@example.com"
-                multiple
-              />
-            </div>
-          )}
-
-          {/* Bcc */}
-          {showBcc && (
-            <div className="form-row">
-              <label>Bcc:</label>
-              <input
-                type="email"
-                value={bcc}
-                onChange={(e) => setBcc(e.target.value)}
-                placeholder="bcc@example.com"
-                multiple
-              />
-            </div>
-          )}
-
-          {/* Subject */}
-          <div className="form-row">
-            <label>Subject:</label>
+          <div className="form-group">
+            <label>Subject: *</label>
             <input
               type="text"
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
               placeholder="Email subject"
+              required
+              className="form-input"
             />
           </div>
 
-          {/* Body */}
-          <div className="form-row form-row-body">
-            <label>Message:</label>
+          <div className="form-group">
+            <label>Message: *</label>
             <textarea
               value={body}
               onChange={(e) => setBody(e.target.value)}
-              placeholder="Write your message here..."
-              rows={12}
+              placeholder="Type your message here..."
               required
+              className="form-textarea"
+              rows="10"
             />
           </div>
 
-          {/* Actions */}
-          <div className="compose-actions">
+          {selectedAccount?.signature && (
+            <div className="signature-options">
+              <label className="signature-toggle">
+                <input
+                  type="checkbox"
+                  checked={useSignature}
+                  onChange={(e) => setUseSignature(e.target.checked)}
+                />
+                <span>Include signature</span>
+              </label>
+              
+              {useSignature && (
+                <div className="signature-preview">
+                  <div className="signature-preview-label">Signature Preview:</div>
+                  <div 
+                    className="signature-content" 
+                    dangerouslySetInnerHTML={{ __html: selectedAccount.signature }}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
+          {error && <div className="error-message">{error}</div>}
+
+          <div className="form-actions">
+            <button
+              type="button"
+              onClick={handleClose}
+              className="btn-secondary"
+              disabled={sending}
+            >
+              Cancel
+            </button>
             <button
               type="submit"
               className="btn-primary"
               disabled={sending}
             >
-              {sending ? '📤 Sending...' : '📤 Send'}
-            </button>
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={onClose}
-              disabled={sending}
-            >
-              Cancel
+              {sending ? 'Sending...' : replyTo ? 'Send Reply' : 'Send Email'}
             </button>
           </div>
         </form>
