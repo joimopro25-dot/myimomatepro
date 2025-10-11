@@ -1,5 +1,23 @@
 // components/email/EmailHub.jsx
 import React, { useState, useEffect } from 'react';
+import { 
+  EnvelopeIcon,
+  PlusIcon,
+  ArrowPathIcon,
+  Cog6ToothIcon,
+  XMarkIcon,
+  TrashIcon,
+  ArchiveBoxIcon,
+  CheckCircleIcon,
+  FunnelIcon,
+  MagnifyingGlassIcon,
+  UsersIcon,
+  UserIcon,
+  PaperAirplaneIcon,
+  InboxIcon,
+  ExclamationTriangleIcon
+} from '@heroicons/react/24/outline';
+import { CheckIcon } from '@heroicons/react/24/solid';
 import { useAuth } from '../../contexts/AuthContext';
 import emailAccountService from '../../services/emailAccountService';
 import emailSyncService from '../../services/emailSyncService';
@@ -24,6 +42,11 @@ const EmailHub = () => {
   const [unmatchedEmails, setUnmatchedEmails] = useState([]);
   const [matchedCount, setMatchedCount] = useState(0);
   const [error, setError] = useState('');
+  
+  // New state for enhanced features
+  const [selectedEmails, setSelectedEmails] = useState([]);
+  const [filterType, setFilterType] = useState('all'); // all, clients, unassigned
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     if (currentUser) {
@@ -141,6 +164,90 @@ const EmailHub = () => {
     setShowCompose(true);
   };
 
+  // New handlers for bulk actions
+  const handleSelectAll = () => {
+    if (selectedEmails.length === filteredEmails.length) {
+      setSelectedEmails([]);
+    } else {
+      setSelectedEmails(filteredEmails.map(e => e.id || e.messageId));
+    }
+  };
+
+  const handleDeleteSelected = async () => {
+    if (selectedEmails.length === 0) return;
+    
+    const confirmed = window.confirm(`Delete ${selectedEmails.length} email(s)? This action cannot be undone.`);
+    if (confirmed) {
+      try {
+        setLoading(true);
+        // Add your delete logic here
+        // await emailSyncService.deleteEmails(currentUser.uid, selectedEmails);
+        
+        // Remove from local state
+        setEmails(prev => prev.filter(email => 
+          !selectedEmails.includes(email.id || email.messageId)
+        ));
+        setSelectedEmails([]);
+        setSelectedEmail(null);
+        
+        alert(`${selectedEmails.length} email(s) deleted successfully`);
+      } catch (error) {
+        console.error('Error deleting emails:', error);
+        alert('Failed to delete emails');
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
+  const handleArchiveSelected = async () => {
+    if (selectedEmails.length === 0) return;
+    
+    try {
+      setLoading(true);
+      // Add your archive logic here
+      console.log('Archiving emails:', selectedEmails);
+      
+      alert(`${selectedEmails.length} email(s) archived successfully`);
+      setSelectedEmails([]);
+    } catch (error) {
+      console.error('Error archiving emails:', error);
+      alert('Failed to archive emails');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteEmail = async (email) => {
+    try {
+      // Add delete logic here
+      setEmails(prev => prev.filter(e => e.id !== email.id));
+      setSelectedEmail(null);
+    } catch (error) {
+      console.error('Error deleting email:', error);
+      throw error;
+    }
+  };
+
+  // Filter emails based on search and filter type
+  const filteredEmails = emails.filter(email => {
+    const matchesSearch = !searchTerm || 
+      email.subject?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      email.from?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      email.snippet?.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    let matchesFilter = true;
+    if (filterType === 'clients') {
+      matchesFilter = (email.clientIds && email.clientIds.length > 0) || 
+                      (email.matchedClientIds && email.matchedClientIds.length > 0);
+    } else if (filterType === 'unassigned') {
+      matchesFilter = (!email.clientIds || email.clientIds.length === 0) && 
+                      (!email.matchedClientIds || email.matchedClientIds.length === 0);
+    }
+    
+    return matchesSearch && matchesFilter;
+  });
+
   const activeAccount = emailAccounts.find(acc => acc.isActive);
 
   return (
@@ -162,7 +269,8 @@ const EmailHub = () => {
               onClick={handleComposeNew}
               disabled={emailAccounts.length === 0}
             >
-              ✉️ Compose
+              <PlusIcon className="w-4 h-4" />
+              <span>Compose</span>
             </button>
             
             <button 
@@ -170,28 +278,80 @@ const EmailHub = () => {
               onClick={handleSync}
               disabled={syncing || emailAccounts.length === 0}
             >
-              {syncing ? '🔄 Syncing...' : '🔄 Sync Emails'}
+              <ArrowPathIcon className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
+              <span>{syncing ? 'Syncing...' : 'Sync Emails'}</span>
             </button>
             
             <button 
               className="btn-accounts"
               onClick={() => setShowAccountManager(true)}
             >
-              ⚙️ Manage Accounts
+              <Cog6ToothIcon className="w-4 h-4" />
+              <span>Manage Accounts</span>
             </button>
           </div>
         </div>
 
         {error && (
           <div className="error-banner">
-            {error}
-            <button onClick={() => setError('')}>×</button>
+            <ExclamationTriangleIcon className="w-5 h-5" />
+            <span>{error}</span>
+            <button onClick={() => setError('')} className="btn-close-error">
+              <XMarkIcon className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
+        {/* Toolbar - Simplified */}
+        {emailAccounts.length > 0 && (
+          <div className="email-toolbar">
+            <div className="toolbar-left">
+              <input
+                type="checkbox"
+                checked={selectedEmails.length === filteredEmails.length && filteredEmails.length > 0}
+                onChange={handleSelectAll}
+                className="select-all-checkbox"
+              />
+              
+              {selectedEmails.length > 0 ? (
+                <>
+                  <button onClick={handleArchiveSelected} className="btn-toolbar" title="Archive">
+                    <ArchiveBoxIcon className="w-4 h-4" />
+                  </button>
+                  <button onClick={handleDeleteSelected} className="btn-toolbar" title="Delete">
+                    <TrashIcon className="w-4 h-4" />
+                  </button>
+                  <span className="selected-count">
+                    {selectedEmails.length} selected
+                  </span>
+                </>
+              ) : (
+                <button className="btn-toolbar btn-refresh" onClick={handleSync} disabled={syncing}>
+                  <ArrowPathIcon className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
+                </button>
+              )}
+            </div>
+            
+            <div className="toolbar-right">
+              <div className="search-box">
+                <MagnifyingGlassIcon className="w-4 h-4 search-icon" />
+                <input
+                  type="text"
+                  placeholder="Search emails..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="search-input"
+                />
+              </div>
+            </div>
           </div>
         )}
 
         {emailAccounts.length === 0 ? (
           <div className="empty-state">
-            <div className="empty-icon">📧</div>
+            <div className="empty-icon">
+              <InboxIcon className="w-16 h-16 text-gray-400" />
+            </div>
             <h2>No Email Account Connected</h2>
             <p>Connect your Gmail account to start managing emails</p>
             <button 
@@ -205,10 +365,12 @@ const EmailHub = () => {
           <div className="email-hub-content">
             <div className="email-list-panel">
               <EmailList
-                emails={emails}
+                emails={filteredEmails}
                 selectedEmail={selectedEmail}
                 onEmailSelect={handleEmailSelect}
                 loading={loading}
+                selectedEmails={selectedEmails}
+                onEmailsSelect={setSelectedEmails}
               />
             </div>
 
@@ -216,12 +378,16 @@ const EmailHub = () => {
               {selectedEmail ? (
                 <EmailViewer
                   email={selectedEmail}
+                  consultantId={currentUser.uid}
                   onReply={handleReply}
                   onClose={() => setSelectedEmail(null)}
+                  onDelete={handleDeleteEmail}
                 />
               ) : (
                 <div className="no-email-selected">
-                  <div className="placeholder-icon">✉️</div>
+                  <div className="placeholder-icon">
+                    <EnvelopeIcon className="w-16 h-16 text-gray-300" />
+                  </div>
                   <p>Select an email to view</p>
                 </div>
               )}

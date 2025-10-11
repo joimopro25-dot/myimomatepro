@@ -1,12 +1,34 @@
 // components/email/EmailList.jsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { 
+  MagnifyingGlassIcon,
+  InboxIcon,
+  EnvelopeIcon,
+  EnvelopeOpenIcon,
+  StarIcon as StarIconOutline,
+  ArchiveBoxIcon,
+  TrashIcon,
+  CheckCircleIcon,
+  UserIcon,
+  UsersIcon,
+  EllipsisVerticalIcon,
+  PaperClipIcon,
+  LinkIcon,
+  CheckIcon
+} from '@heroicons/react/24/outline';
+import { StarIcon as StarIconSolid, InboxIcon as InboxIconSolid } from '@heroicons/react/24/solid';
 import './EmailList.css';
 
-const EmailList = ({ emails, selectedEmail, onEmailSelect, loading }) => {
+const EmailList = ({ emails, selectedEmail, onEmailSelect, loading, selectedEmails: parentSelectedEmails, onEmailsSelect }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('all');
-  const [selectedEmails, setSelectedEmails] = useState([]);
+  const [localSelectedEmails, setLocalSelectedEmails] = useState([]);
   const [starredEmails, setStarredEmails] = useState([]);
+  const [showClientMenu, setShowClientMenu] = useState(null);
+
+  // Use parent selection state if provided, otherwise use local
+  const selectedEmails = parentSelectedEmails || localSelectedEmails;
+  const setSelectedEmails = onEmailsSelect || setLocalSelectedEmails;
 
   const extractSenderName = (from) => {
     if (!from) return 'Unknown Sender';
@@ -88,6 +110,21 @@ const EmailList = ({ emails, selectedEmail, onEmailSelect, loading }) => {
     });
   };
 
+  const handleDeleteSelected = () => {
+    // This would typically call a parent handler
+    console.log('Delete selected emails:', selectedEmails);
+  };
+
+  const handleArchiveSelected = () => {
+    // This would typically call a parent handler
+    console.log('Archive selected emails:', selectedEmails);
+  };
+
+  const handleMarkAsReadSelected = () => {
+    // This would typically call a parent handler
+    console.log('Mark as read:', selectedEmails);
+  };
+
   const filteredEmails = emails.filter(email => {
     const matchesSearch = !searchTerm || 
       email.subject?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -99,6 +136,9 @@ const EmailList = ({ emails, selectedEmail, onEmailSelect, loading }) => {
       matchesFilter = !email.isRead;
     } else if (filterType === 'starred') {
       matchesFilter = starredEmails.includes(email.id || email.messageId);
+    } else if (filterType === 'clients') {
+      matchesFilter = (email.clientIds && email.clientIds.length > 0) || 
+                      (email.matchedClientIds && email.matchedClientIds.length > 0);
     }
 
     return matchesSearch && matchesFilter;
@@ -106,6 +146,10 @@ const EmailList = ({ emails, selectedEmail, onEmailSelect, loading }) => {
 
   const unreadCount = emails.filter(e => !e.isRead).length;
   const starredCount = starredEmails.length;
+  const clientCount = emails.filter(e => 
+    (e.clientIds && e.clientIds.length > 0) || 
+    (e.matchedClientIds && e.matchedClientIds.length > 0)
+  ).length;
 
   if (loading) {
     return (
@@ -123,7 +167,7 @@ const EmailList = ({ emails, selectedEmail, onEmailSelect, loading }) => {
       {/* Search Bar */}
       <div className="email-search">
         <div className="search-input-wrapper">
-          <span className="search-icon">🔍</span>
+          <MagnifyingGlassIcon className="w-4 h-4 search-icon-hero" />
           <input
             type="text"
             className="search-input"
@@ -140,7 +184,7 @@ const EmailList = ({ emails, selectedEmail, onEmailSelect, loading }) => {
           className={`filter-tab ${filterType === 'all' ? 'active' : ''}`}
           onClick={() => setFilterType('all')}
         >
-          <span className="filter-icon">📥</span>
+          <InboxIcon className="w-4 h-4 filter-icon-hero" />
           <span>Primary</span>
           {emails.length > 0 && <span className="filter-count">{emails.length}</span>}
         </button>
@@ -148,7 +192,7 @@ const EmailList = ({ emails, selectedEmail, onEmailSelect, loading }) => {
           className={`filter-tab ${filterType === 'unread' ? 'active' : ''}`}
           onClick={() => setFilterType('unread')}
         >
-          <span className="filter-icon">📬</span>
+          <EnvelopeIcon className="w-4 h-4 filter-icon-hero" />
           <span>Unread</span>
           {unreadCount > 0 && <span className="filter-count">{unreadCount}</span>}
         </button>
@@ -156,9 +200,17 @@ const EmailList = ({ emails, selectedEmail, onEmailSelect, loading }) => {
           className={`filter-tab ${filterType === 'starred' ? 'active' : ''}`}
           onClick={() => setFilterType('starred')}
         >
-          <span className="filter-icon">⭐</span>
+          <StarIconOutline className="w-4 h-4 filter-icon-hero" />
           <span>Starred</span>
           {starredCount > 0 && <span className="filter-count">{starredCount}</span>}
+        </button>
+        <button
+          className={`filter-tab ${filterType === 'clients' ? 'active' : ''}`}
+          onClick={() => setFilterType('clients')}
+        >
+          <UsersIcon className="w-4 h-4 filter-icon-hero" />
+          <span>Clients</span>
+          {clientCount > 0 && <span className="filter-count">{clientCount}</span>}
         </button>
       </div>
 
@@ -175,14 +227,14 @@ const EmailList = ({ emails, selectedEmail, onEmailSelect, loading }) => {
             <span className="selected-count">{selectedEmails.length} selected</span>
           </div>
           <div className="action-bar-right">
-            <button className="action-btn" title="Archive">
-              <span>🗄️</span>
+            <button className="action-btn" title="Archive" onClick={handleArchiveSelected}>
+              <ArchiveBoxIcon className="w-5 h-5" />
             </button>
-            <button className="action-btn" title="Delete">
-              <span>🗑️</span>
+            <button className="action-btn btn-delete" title="Delete" onClick={handleDeleteSelected}>
+              <TrashIcon className="w-5 h-5" />
             </button>
-            <button className="action-btn" title="Mark as read">
-              <span>✉️</span>
+            <button className="action-btn" title="Mark as read" onClick={handleMarkAsReadSelected}>
+              <CheckCircleIcon className="w-5 h-5" />
             </button>
           </div>
         </div>
@@ -192,7 +244,9 @@ const EmailList = ({ emails, selectedEmail, onEmailSelect, loading }) => {
       <div className="email-list">
         {filteredEmails.length === 0 ? (
           <div className="empty-state">
-            <div className="empty-icon">📭</div>
+            <div className="empty-icon">
+              <InboxIcon className="w-16 h-16 text-gray-300" />
+            </div>
             <div className="empty-title">No messages</div>
             <div className="empty-message">
               {searchTerm 
@@ -201,6 +255,8 @@ const EmailList = ({ emails, selectedEmail, onEmailSelect, loading }) => {
                 ? 'All caught up! No unread emails.'
                 : filterType === 'starred'
                 ? 'No starred emails yet.'
+                : filterType === 'clients'
+                ? 'No client emails yet.'
                 : 'Your inbox is empty.'
               }
             </div>
@@ -211,6 +267,8 @@ const EmailList = ({ emails, selectedEmail, onEmailSelect, loading }) => {
             const isSelected = selectedEmails.includes(emailId);
             const isStarred = starredEmails.includes(emailId);
             const isCurrentSelected = selectedEmail?.id === email.id || selectedEmail?.messageId === email.messageId;
+            const hasClients = (email.clientIds && email.clientIds.length > 0) || 
+                              (email.matchedClientIds && email.matchedClientIds.length > 0);
 
             return (
               <div
@@ -236,7 +294,11 @@ const EmailList = ({ emails, selectedEmail, onEmailSelect, loading }) => {
                     onClick={(e) => handleStarEmail(emailId, e)}
                     title={isStarred ? 'Unstar' : 'Star'}
                   >
-                    {isStarred ? '⭐' : '☆'}
+                    {isStarred ? (
+                      <StarIconSolid className="w-5 h-5 text-yellow-500" />
+                    ) : (
+                      <StarIconOutline className="w-5 h-5 text-gray-400 hover:text-gray-600" />
+                    )}
                   </button>
                 </div>
 
@@ -251,6 +313,9 @@ const EmailList = ({ emails, selectedEmail, onEmailSelect, loading }) => {
                 <div className="email-content-cell">
                   <div className="email-sender">
                     {extractSenderName(email.from)}
+                    {!email.isRead && (
+                      <EnvelopeIcon className="w-3 h-3 inline ml-2 text-blue-600" />
+                    )}
                   </div>
                   <div className="email-subject-snippet">
                     <span className="email-subject">{email.subject || '(No Subject)'}</span>
@@ -259,16 +324,55 @@ const EmailList = ({ emails, selectedEmail, onEmailSelect, loading }) => {
                   </div>
                 </div>
 
-                {/* Labels */}
-                {email.clientIds && email.clientIds.length > 0 && (
-                  <div className="email-labels-cell">
-                    <span className="email-label">👤 Client</span>
-                  </div>
-                )}
+                {/* Labels and Indicators */}
+                <div className="email-indicators">
+                  {hasClients && (
+                    <div className="email-labels-cell">
+                      <span className="email-label client-label">
+                        <UserIcon className="w-3 h-3" />
+                        <span>Client</span>
+                      </span>
+                    </div>
+                  )}
+                  {email.attachments && email.attachments.length > 0 && (
+                    <PaperClipIcon className="w-4 h-4 text-gray-400" title="Has attachments" />
+                  )}
+                </div>
 
                 {/* Time */}
                 <div className="email-time-cell">
                   {formatTime(email.timestamp || email.date)}
+                </div>
+
+                {/* Actions Menu */}
+                <div className="email-actions-cell">
+                  <button
+                    className="email-menu-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowClientMenu(showClientMenu === emailId ? null : emailId);
+                    }}
+                    title="More actions"
+                  >
+                    <EllipsisVerticalIcon className="w-4 h-4 text-gray-500" />
+                  </button>
+                  
+                  {showClientMenu === emailId && (
+                    <div className="email-menu-dropdown">
+                      <button className="menu-item">
+                        <LinkIcon className="w-4 h-4" />
+                        <span>Link to Client</span>
+                      </button>
+                      <button className="menu-item">
+                        <ArchiveBoxIcon className="w-4 h-4" />
+                        <span>Archive</span>
+                      </button>
+                      <button className="menu-item delete">
+                        <TrashIcon className="w-4 h-4" />
+                        <span>Delete</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             );
