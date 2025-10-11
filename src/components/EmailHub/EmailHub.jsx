@@ -173,31 +173,43 @@ const EmailHub = () => {
     }
   };
 
+  // Call delete service to remove emails from Firestore and reload
+  const handleBulkDelete = async (emailIds) => {
+    if (emailIds.length === 0) return;
+
+    console.log('EmailHub: Attempting to delete:', emailIds);
+
+    const confirmed = window.confirm(`Delete ${emailIds.length} email(s) from your CRM? This cannot be undone.`);
+    if (!confirmed) return;
+
+    try {
+      setLoading(true);
+
+      // Delete from Firebase
+      const result = await emailSyncService.bulkDeleteEmails(currentUser.uid, emailIds);
+      console.log('Delete result:', result);
+
+      // Reload emails from Firebase to ensure state is accurate
+      await loadEmails();
+
+      // Clear selected email if it was deleted
+      if (selectedEmail && emailIds.includes(selectedEmail.id || selectedEmail.messageId)) {
+        setSelectedEmail(null);
+      }
+
+      alert(`✅ ${result.deletedCount} email(s) deleted successfully`);
+    } catch (error) {
+      console.error('Error deleting emails:', error);
+      alert('❌ Failed to delete emails: ' + (error?.message || 'Unknown error'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleDeleteSelected = async () => {
     if (selectedEmails.length === 0) return;
-    
-    const confirmed = window.confirm(`Delete ${selectedEmails.length} email(s)? This action cannot be undone.`);
-    if (confirmed) {
-      try {
-        setLoading(true);
-        // Add your delete logic here
-        // await emailSyncService.deleteEmails(currentUser.uid, selectedEmails);
-        
-        // Remove from local state
-        setEmails(prev => prev.filter(email => 
-          !selectedEmails.includes(email.id || email.messageId)
-        ));
-        setSelectedEmails([]);
-        setSelectedEmail(null);
-        
-        alert(`${selectedEmails.length} email(s) deleted successfully`);
-      } catch (error) {
-        console.error('Error deleting emails:', error);
-        alert('Failed to delete emails');
-      } finally {
-        setLoading(false);
-      }
-    }
+    await handleBulkDelete(selectedEmails);
+    setSelectedEmails([]);
   };
 
   const handleArchiveSelected = async () => {
@@ -302,51 +314,6 @@ const EmailHub = () => {
           </div>
         )}
 
-        {/* Toolbar - Simplified */}
-        {emailAccounts.length > 0 && (
-          <div className="email-toolbar">
-            <div className="toolbar-left">
-              <input
-                type="checkbox"
-                checked={selectedEmails.length === filteredEmails.length && filteredEmails.length > 0}
-                onChange={handleSelectAll}
-                className="select-all-checkbox"
-              />
-              
-              {selectedEmails.length > 0 ? (
-                <>
-                  <button onClick={handleArchiveSelected} className="btn-toolbar" title="Archive">
-                    <ArchiveBoxIcon className="w-4 h-4" />
-                  </button>
-                  <button onClick={handleDeleteSelected} className="btn-toolbar" title="Delete">
-                    <TrashIcon className="w-4 h-4" />
-                  </button>
-                  <span className="selected-count">
-                    {selectedEmails.length} selected
-                  </span>
-                </>
-              ) : (
-                <button className="btn-toolbar btn-refresh" onClick={handleSync} disabled={syncing}>
-                  <ArrowPathIcon className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
-                </button>
-              )}
-            </div>
-            
-            <div className="toolbar-right">
-              <div className="search-box">
-                <MagnifyingGlassIcon className="w-4 h-4 search-icon" />
-                <input
-                  type="text"
-                  placeholder="Search emails..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="search-input"
-                />
-              </div>
-            </div>
-          </div>
-        )}
-
         {emailAccounts.length === 0 ? (
           <div className="empty-state">
             <div className="empty-icon">
@@ -371,6 +338,7 @@ const EmailHub = () => {
                 loading={loading}
                 selectedEmails={selectedEmails}
                 onEmailsSelect={setSelectedEmails}
+                onBulkDelete={handleBulkDelete}  // ✅ ADD THIS LINE
               />
             </div>
 

@@ -7,6 +7,7 @@ import {
   doc,
   setDoc,
   getDocs,
+  deleteDoc, // added
   query,
   where,
   serverTimestamp,
@@ -145,6 +146,46 @@ class EmailSyncService {
       return emailRef.id;
     } catch (error) {
       console.error('Error saving email:', error);
+      throw error;
+    }
+  }
+
+  // Delete a single email from Firestore
+  async deleteEmail(userId, emailId) {
+    try {
+      console.log('Attempting to delete email:', emailId, 'for user:', userId);
+      const emailRef = doc(db, 'consultants', userId, 'emails', emailId);
+      await deleteDoc(emailRef);
+      console.log('Successfully deleted email:', emailId);
+      return { success: true };
+    } catch (error) {
+      console.error('Error deleting email:', emailId, error);
+      throw error;
+    }
+  }
+
+  // Bulk delete emails from Firestore
+  async bulkDeleteEmails(userId, emailIds) {
+    try {
+      console.log('Bulk deleting emails:', emailIds);
+
+      const results = [];
+      for (const emailId of emailIds) {
+        try {
+          await this.deleteEmail(userId, emailId);
+          results.push({ emailId, success: true });
+        } catch (error) {
+          console.error(`Failed to delete email ${emailId}:`, error);
+          results.push({ emailId, success: false, error });
+        }
+      }
+
+      const successCount = results.filter(r => r.success).length;
+      console.log(`Deleted ${successCount} of ${emailIds.length} emails`);
+
+      return { success: true, deletedCount: successCount, results };
+    } catch (error) {
+      console.error('Error bulk deleting emails:', error);
       throw error;
     }
   }

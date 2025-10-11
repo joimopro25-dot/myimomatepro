@@ -19,7 +19,15 @@ import {
 import { StarIcon as StarIconSolid, InboxIcon as InboxIconSolid } from '@heroicons/react/24/solid';
 import './EmailList.css';
 
-const EmailList = ({ emails, selectedEmail, onEmailSelect, loading, selectedEmails: parentSelectedEmails, onEmailsSelect }) => {
+const EmailList = ({ 
+  emails, 
+  selectedEmail, 
+  onEmailSelect, 
+  loading, 
+  selectedEmails: parentSelectedEmails, 
+  onEmailsSelect,
+  onBulkDelete  // ✅ ADD THIS
+}) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('all');
   const [localSelectedEmails, setLocalSelectedEmails] = useState([]);
@@ -125,6 +133,23 @@ const EmailList = ({ emails, selectedEmail, onEmailSelect, loading, selectedEmai
     console.log('Mark as read:', selectedEmails);
   };
 
+  // NEW: bulk action handlers
+  const handleArchive = () => {
+    if (selectedEmails.length === 0) return;
+    alert(`Archive ${selectedEmails.length} email(s)`);
+    // Add your archive logic here
+    setSelectedEmails([]);
+  };
+
+  // UPDATED: use parent's bulk delete
+  const handleDelete = async () => {
+    if (selectedEmails.length === 0) return;
+    if (onBulkDelete) {
+      await onBulkDelete(selectedEmails);
+      setSelectedEmails([]); // Clear selection after delete
+    }
+  };
+
   const filteredEmails = emails.filter(email => {
     const matchesSearch = !searchTerm || 
       email.subject?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -214,31 +239,40 @@ const EmailList = ({ emails, selectedEmail, onEmailSelect, loading, selectedEmai
         </button>
       </div>
 
-      {/* Action Bar */}
-      {selectedEmails.length > 0 && (
-        <div className="action-bar">
-          <div className="action-bar-left">
-            <input
-              type="checkbox"
-              checked={selectedEmails.length === filteredEmails.length}
-              onChange={handleSelectAll}
-              className="select-all-checkbox"
-            />
-            <span className="selected-count">{selectedEmails.length} selected</span>
-          </div>
-          <div className="action-bar-right">
-            <button className="action-btn" title="Archive" onClick={handleArchiveSelected}>
-              <ArchiveBoxIcon className="w-5 h-5" />
-            </button>
-            <button className="action-btn btn-delete" title="Delete" onClick={handleDeleteSelected}>
-              <TrashIcon className="w-5 h-5" />
-            </button>
-            <button className="action-btn" title="Mark as read" onClick={handleMarkAsReadSelected}>
-              <CheckCircleIcon className="w-5 h-5" />
-            </button>
-          </div>
+      {/* Bulk Actions Toolbar */}
+      <div className="bulk-actions-toolbar">
+        <div className="toolbar-left">
+          <input
+            type="checkbox"
+            checked={selectedEmails.length === filteredEmails.length && filteredEmails.length > 0}
+            onChange={handleSelectAll}
+            className="select-all-checkbox"
+            title="Select all"
+          />
+
+          {selectedEmails.length > 0 && (
+            <>
+              <button 
+                className="toolbar-btn" 
+                onClick={handleArchive}
+                title="Archive"
+              >
+                <ArchiveBoxIcon className="w-5 h-5" />
+              </button>
+              <button 
+                className="toolbar-btn" 
+                onClick={handleDelete}
+                title="Delete"
+              >
+                <TrashIcon className="w-5 h-5" />
+              </button>
+              <span className="selected-count">
+                {selectedEmails.length} selected
+              </span>
+            </>
+          )}
         </div>
-      )}
+      </div>
 
       {/* Email List */}
       <div className="email-list">
